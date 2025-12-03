@@ -6,11 +6,6 @@ require("dotenv").config(); //LINE env
 //LINE 通知前宣告
 const { notifyNewBooking } = require("./lineClient");
 
-console.log("CHECK ENV:", {
-  TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-  USER: process.env.LINE_ADMIN_USER_ID,
-});
-
 // 先創造 app
 const app = express();
 
