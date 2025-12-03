@@ -2,6 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config(); //LINE env
+//LINE 通知前宣告
+const { notifyNewBooking } = require("./lineClient");
+
+console.log("CHECK ENV:", {
+  TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+  USER: process.env.LINE_ADMIN_USER_ID,
+});
 
 // 先創造 app
 const app = express();
@@ -176,11 +184,41 @@ app.post("/api/bookings", (req, res) => {
   // 寫回 bookings.json
   saveBookings(bookings);
 
+  // 🔔 呼叫 LINE 通知
+  console.log(">>> 準備呼叫 notifyNewBooking()");
+  notifyNewBooking(newBooking)
+    .then(() => {
+      console.log(">>> LINE 通知已送出（notifyNewBooking resolved）");
+    })
+    .catch((err) => {
+      console.error(
+        "[LINE] 新預約通知失敗：",
+        err?.response?.data || err.message || err
+      );
+    });
+
+  // 先回應前端，不等 LINE 結束
+
   res.json({
     success: true,
     message: "後端已收到預約資料並已寫入 bookings.json",
   });
 });
+
+// LINE訊息通知測試API/////////////////////
+app.get("/api/test-line", async (req, res) => {
+  try {
+    await require("./lineClient").pushText(
+      process.env.LINE_ADMIN_USER_ID,
+      "這是一則測試訊息：預約系統 LINE 通知已連線 ✅"
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
+});
+/////////////////////////////////////////////////////
 
 // 後台：讀取所有預約
 app.get("/api/admin/bookings", requireAdmin, (req, res) => {

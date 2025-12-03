@@ -74,5 +74,67 @@
       "10:30-11:30",
       "14:00-15:00"
     ]
+  },
+  {
+    "id": 1764768347554,
+    "createdAt": "2025-12-03T13:25:47.554Z",
+    "status": "pending",
+    "serviceId": "bazi",
+    "name": "本機測試客戶",
+    "contact": "line: @test",
+    "date": "2025-12-03",
+    "timeSlots": [
+      "09:00-10:00",
+      "15:30-16:30"
+    ],
+    "note": "這是一筆本機demo預約"
+  },
+  {
+    "id": 1764769274155,
+    "createdAt": "2025-12-03T13:41:14.155Z",
+    "status": "pending",
+    "name": "test"
+  },
+  {
+    "id": 1764769557102,
+    "createdAt": "2025-12-03T13:45:57.102Z",
+    "status": "pending",
+    "serviceId": "bazi",
+    "name": "本機測試客戶",
+    "contact": "line: @test",
+    "date": "2025-12-03",
+    "timeSlots": [
+      "09:00-10:00",
+      "15:30-16:30"
+    ],
+    "note": "這是一筆本機demo預約"
+  },
+  {
+    "id": 1764770420836,
+    "createdAt": "2025-12-03T14:00:20.836Z",
+    "status": "pending",
+    "serviceId": "bazi",
+    "name": "本機測試客戶99",
+    "contact": "line: @test",
+    "date": "2025-12-23",
+    "timeSlots": [
+      "09:00-10:00",
+      "15:30-16:30"
+    ],
+    "note": "這是一筆本機demo預約"
+  },
+  {
+    "id": 1764771424857,
+    "createdAt": "2025-12-03T14:17:04.857Z",
+    "status": "pending",
+    "serviceId": "bazi",
+    "name": "本機測試客戶",
+    "contact": "line: @test",
+    "date": "2025-12-13",
+    "timeSlots": [
+      "09:00-10:00",
+      "15:30-16:30"
+    ],
+    "note": "這是一筆本機demo預約"
   }
 ]
