@@ -298,6 +298,52 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// LINE Webhook 入口
+app.post("/line/webhook", async (req, res) => {
+  console.log("💬 收到一個 LINE Webhook 事件：");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  // LINE 要求我們「儘快回 200」，不然會當成失敗
+  res.status(200).end();
+
+  const events = req.body.events || [];
+  for (const event of events) {
+    try {
+      await handleLineEvent(event);
+    } catch (err) {
+      console.error("處理 LINE 事件時發生錯誤：", err);
+    }
+  }
+});
+
+//「預約 → 回一句文字」版//////////
+const { pushText } = require("./lineClient"); // ⬅ 你原本就有的工具
+
+async function handleLineEvent(event) {
+  const userId = event.source && event.source.userId;
+
+  // 沒 userId（例如 group、某些事件）就先略過
+  if (!userId) {
+    console.log("沒有 userId 的事件，略過：", event.type);
+    return;
+  }
+
+  // 先只處理「文字訊息」
+  if (event.type === "message" && event.message.type === "text") {
+    const text = (event.message.text || "").trim();
+    console.log(`👤 ${userId} 說：${text}`);
+
+    // 第 1 關：任何文字都回一句，確認 webhook 有通
+    await pushText(userId, `我有聽到你說：「${text}」`);
+
+    // 下一階段我們再做：如果 text === "預約" → 回 Flex
+    return;
+  }
+
+  // 其他類型（postback、follow...) 之後要再處理
+  console.log("目前尚未處理的事件類型：", event.type);
+}
+
 // --- Start server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
