@@ -194,15 +194,21 @@ app.post("/api/bookings", (req, res) => {
     });
 
   // ✅ 再通知客戶（如果有綁到 userId）
-  notifyCustomerBooking(newBooking).catch((err) => {
-    console.error("[LINE] notifyCustomerBooking 發送失敗：", err);
-  });
+  if (newBooking.lineUserId) {
+    console.log(">>> 偵測到 lineUserId，準備通知客戶");
+    notifyCustomerBooking(newBooking).catch((err) => {
+      console.error("[LINE] notifyCustomerBooking 發送失敗：", err);
+    });
+  } else {
+    console.log(">>> 沒有 lineUserId，略過 notifyCustomerBooking");
+  }
 
   // 先回應前端，不等 LINE 結束
-
   res.json({
     success: true,
     message: "後端已收到預約資料並已寫入 bookings.json",
+    bookingId: newBooking.id, // 🔍 小加碼：回傳 id
+    lineUserId: newBooking.lineUserId || null, // 🔍 有需要前端可用
   });
 });
 

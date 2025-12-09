@@ -154,14 +154,30 @@ async function notifyNewBooking(booking) {
 async function notifyCustomerBooking(booking) {
   if (!CHANNEL_ACCESS_TOKEN) return;
 
-  const { name, lineId, serviceId, date, timeSlots, timeSlot } = booking;
+  const {
+    name,
+    lineId,
+    lineUserId, // 🔴 新增：從 LIFF 帶進來的 userId
+    serviceId,
+    date,
+    timeSlots,
+    timeSlot,
+  } = booking;
 
-  if (!lineId || !String(lineId).trim()) {
-    console.log("[LINE] 客戶沒有填 lineId，略過客戶通知");
-    return;
+let userId = null;
+
+  // ✅ 1. 優先使用 LIFF 帶進來的 lineUserId（最精準）
+  if (lineUserId && String(lineUserId).trim()) {
+    userId = String(lineUserId).trim();
+    console.log(`[LINE] 使用 lineUserId 直接推播：${userId}`);
   }
-
-  const userId = findUserIdByLineId(lineId);
+  // ✅ 2. 如果沒有 lineUserId，退回舊邏輯：用 lineId 去對照
+  else if (lineId && String(lineId).trim()) {
+    console.log(
+      `[LINE] 沒有 lineUserId，改用 lineId 查找：${lineId}`
+    );
+    userId = findUserIdByLineId(lineId);
+    
   if (!userId) {
     console.log(
       `[LINE] 找不到 lineId「${lineId}」對應的 LINE userId，略過客戶通知`
