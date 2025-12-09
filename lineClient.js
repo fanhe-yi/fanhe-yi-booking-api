@@ -164,7 +164,7 @@ async function notifyCustomerBooking(booking) {
     timeSlot,
   } = booking;
 
-let userId = null;
+  let userId = null;
 
   // ✅ 1. 優先使用 LIFF 帶進來的 lineUserId（最精準）
   if (lineUserId && String(lineUserId).trim()) {
@@ -173,47 +173,45 @@ let userId = null;
   }
   // ✅ 2. 如果沒有 lineUserId，退回舊邏輯：用 lineId 去對照
   else if (lineId && String(lineId).trim()) {
-    console.log(
-      `[LINE] 沒有 lineUserId，改用 lineId 查找：${lineId}`
-    );
+    console.log(`[LINE] 沒有 lineUserId，改用 lineId 查找：${lineId}`);
     userId = findUserIdByLineId(lineId);
-    
-  if (!userId) {
-    console.log(
-      `[LINE] 找不到 lineId「${lineId}」對應的 LINE userId，略過客戶通知`
-    );
-    return;
+
+    if (!userId) {
+      console.log(
+        `[LINE] 找不到 lineId「${lineId}」對應的 LINE userId，略過客戶通知`
+      );
+      return;
+    }
+
+    const serviceNameMap = {
+      bazi: "八字諮詢",
+      ziwei: "紫微斗數",
+      name: "改名 / 姓名學",
+      fengshui: "風水勘察",
+    };
+
+    const serviceName =
+      serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
+
+    let slotText = "未選擇時段";
+    if (Array.isArray(timeSlots) && timeSlots.length > 0) {
+      slotText = timeSlots.join("、");
+    } else if (timeSlot) {
+      slotText = timeSlot;
+    }
+
+    const msg =
+      `您好${name ? `，${name}` : ""}：\n` +
+      `我們已收到您的預約。\n\n` +
+      `項目：${serviceName}\n` +
+      `日期：${date || "（未填寫）"}\n` +
+      `時段：${slotText}\n\n` +
+      `後續如果時間需要微調，我會再跟你確認。\n` +
+      `有臨時狀況也可以直接在這個視窗跟我說。`;
+
+    await pushText(userId, msg);
   }
-
-  const serviceNameMap = {
-    bazi: "八字諮詢",
-    ziwei: "紫微斗數",
-    name: "改名 / 姓名學",
-    fengshui: "風水勘察",
-  };
-
-  const serviceName =
-    serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
-
-  let slotText = "未選擇時段";
-  if (Array.isArray(timeSlots) && timeSlots.length > 0) {
-    slotText = timeSlots.join("、");
-  } else if (timeSlot) {
-    slotText = timeSlot;
-  }
-
-  const msg =
-    `您好${name ? `，${name}` : ""}：\n` +
-    `我們已收到您的預約。\n\n` +
-    `項目：${serviceName}\n` +
-    `日期：${date || "（未填寫）"}\n` +
-    `時段：${slotText}\n\n` +
-    `後續如果時間需要微調，我會再跟你確認。\n` +
-    `有臨時狀況也可以直接在這個視窗跟我說。`;
-
-  await pushText(userId, msg);
 }
-
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
