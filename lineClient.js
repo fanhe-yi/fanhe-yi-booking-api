@@ -4,6 +4,8 @@
 // ------------------------------------------------------------
 
 const axios = require("axios");
+// 引入 lineUserStore
+const { findUserIdByLineId } = require("./lineUserStore");
 
 // LINE Messaging API Push URL
 const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
@@ -147,9 +149,60 @@ async function notifyNewBooking(booking) {
 }
 
 // ------------------------------------------------------------
+// 🔔 3) 客戶預約成功通知：傳給「客戶」本人的 LINE
+// ------------------------------------------------------------
+async function notifyCustomerBooking(booking) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
+
+  const { name, lineId, serviceId, date, timeSlots, timeSlot } = booking;
+
+  if (!lineId || !String(lineId).trim()) {
+    console.log("[LINE] 客戶沒有填 lineId，略過客戶通知");
+    return;
+  }
+
+  const userId = findUserIdByLineId(lineId);
+  if (!userId) {
+    console.log(
+      `[LINE] 找不到 lineId「${lineId}」對應的 LINE userId，略過客戶通知`
+    );
+    return;
+  }
+
+  const serviceNameMap = {
+    bazi: "八字諮詢",
+    ziwei: "紫微斗數",
+    name: "改名 / 姓名學",
+    fengshui: "風水勘察",
+  };
+
+  const serviceName =
+    serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
+
+  let slotText = "未選擇時段";
+  if (Array.isArray(timeSlots) && timeSlots.length > 0) {
+    slotText = timeSlots.join("、");
+  } else if (timeSlot) {
+    slotText = timeSlot;
+  }
+
+  const msg =
+    `您好${name ? `，${name}` : ""}：\n` +
+    `我們已收到您的預約。\n\n` +
+    `項目：${serviceName}\n` +
+    `日期：${date || "（未填寫）"}\n` +
+    `時段：${slotText}\n\n` +
+    `後續如果時間需要微調，我會再跟你確認。\n` +
+    `有臨時狀況也可以直接在這個視窗跟我說。`;
+
+  await pushText(userId, msg);
+}
+
+// ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
 module.exports = {
   pushText,
   notifyNewBooking,
+  notifyCustomerBooking,
 };
