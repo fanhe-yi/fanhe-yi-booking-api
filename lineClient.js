@@ -153,11 +153,12 @@ async function notifyNewBooking(booking) {
 // ------------------------------------------------------------
 async function notifyCustomerBooking(booking) {
   if (!CHANNEL_ACCESS_TOKEN) return;
+  if (!booking) return;
 
   const {
     name,
     lineId,
-    lineUserId, // 🔴 新增：從 LIFF 帶進來的 userId
+    lineUserId, // 🔴 從 LIFF 帶進來的 userId
     serviceId,
     date,
     timeSlots,
@@ -171,47 +172,66 @@ async function notifyCustomerBooking(booking) {
     userId = String(lineUserId).trim();
     console.log(`[LINE] 使用 lineUserId 直接推播：${userId}`);
   }
-  // ✅ 2. 如果沒有 lineUserId，退回舊邏輯：用 lineId 去對照
+  // ✅ 2. 沒有 lineUserId，退回舊邏輯：用 lineId 去對照
   else if (lineId && String(lineId).trim()) {
-    console.log(`[LINE] 沒有 lineUserId，改用 lineId 查找：${lineId}`);
-    userId = findUserIdByLineId(lineId);
+    const trimmedLineId = String(lineId).trim();
+    console.log(`[LINE] 沒有 lineUserId，改用 lineId 查找：${trimmedLineId}`);
 
-    if (!userId) {
-      console.log(
-        `[LINE] 找不到 lineId「${lineId}」對應的 LINE userId，略過客戶通知`
+    try {
+      userId = findUserIdByLineId(trimmedLineId);
+    } catch (err) {
+      console.error(
+        "[LINE] findUserIdByLineId 發生錯誤：",
+        err?.message || err
       );
       return;
     }
 
-    const serviceNameMap = {
-      bazi: "八字諮詢",
-      ziwei: "紫微斗數",
-      name: "改名 / 姓名學",
-      fengshui: "風水勘察",
-    };
-
-    const serviceName =
-      serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
-
-    let slotText = "未選擇時段";
-    if (Array.isArray(timeSlots) && timeSlots.length > 0) {
-      slotText = timeSlots.join("、");
-    } else if (timeSlot) {
-      slotText = timeSlot;
+    if (!userId) {
+      console.log(
+        `[LINE] 找不到 lineId「${trimmedLineId}」對應的 LINE userId，略過客戶通知`
+      );
+      return;
     }
 
-    const msg =
-      `您好${name ? `，${name}` : ""}：\n` +
-      `我們已收到您的預約。\n\n` +
-      `項目：${serviceName}\n` +
-      `日期：${date || "（未填寫）"}\n` +
-      `時段：${slotText}\n\n` +
-      `後續如果時間需要微調，我會再跟你確認。\n` +
-      `有臨時狀況也可以直接在這個視窗跟我說。`;
-
-    await pushText(userId, msg);
+    console.log(`[LINE] 使用 lineId 映射到的 userId 推播：${userId}`);
+  } else {
+    console.log(
+      "[LINE] notifyCustomerBooking：沒有 lineUserId 或 lineId，略過客戶通知"
+    );
+    return;
   }
+
+  // ✅ 下面這段：不管是 lineUserId 還是 lineId 映射，都共用同一份訊息內容
+  const serviceNameMap = {
+    bazi: "八字諮詢",
+    ziwei: "紫微斗數",
+    name: "改名 / 姓名學",
+    fengshui: "風水勘察",
+  };
+
+  const serviceName =
+    serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
+
+  let slotText = "未選擇時段";
+  if (Array.isArray(timeSlots) && timeSlots.length > 0) {
+    slotText = timeSlots.join("、");
+  } else if (timeSlot) {
+    slotText = timeSlot;
+  }
+
+  const msg =
+    `您好${name ? `，${name}` : ""}：\n` +
+    `我們已收到您的預約。\n\n` +
+    `項目：${serviceName}\n` +
+    `日期：${date || "（未填寫）"}\n` +
+    `時段：${slotText}\n\n` +
+    `後續如果時間需要微調，我會再跟你確認。\n` +
+    `有臨時狀況也可以直接在這個視窗跟我說。`;
+
+  await pushText(userId, msg);
 }
+
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
