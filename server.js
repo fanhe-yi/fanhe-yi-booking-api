@@ -146,6 +146,15 @@ function getSlotsForDate(date) {
 // key = userId, value = { stage: "waiting_name" | "waiting_phone" | "waiting_note", data: {...} }
 const conversationStates = {};
 
+// 把陣列切成「每 chunkSize 個一組」
+function chunkArray(arr, chunkSize) {
+  const result = [];
+  for (let i = 0; i < arr.length; i += chunkSize) {
+    result.push(arr.slice(i, i + chunkSize));
+  }
+  return result;
+}
+
 // 🔹 取得未來 N 天的日期列表（給日期 Carousel 用）
 function getNextDays(count) {
   const results = [];
@@ -166,45 +175,74 @@ function getNextDays(count) {
   return results;
 }
 
-// 🔹 日期選擇 Carousel Flex（例如未來 7 天）
+// 🔹 日期選擇 Carousel Flex（每一頁最多 5 個日期）
 async function sendDateCarouselFlex(userId) {
-  const days = getNextDays(7); // 你可以改成 14
+  // 你想開放幾天/幾頁，自己決定
+  // 例如：未來 15 天，每頁 5 天 => 3 頁
+  const days = getNextDays(30);
 
-  const bubbles = days.map((day) => ({
-    type: "bubble",
-    size: "mega",
-    body: {
+  // 每 5 個日期一組，變成一個 bubble
+  const dayGroups = chunkArray(days, 5);
+
+  const bubbles = dayGroups.map((group) => {
+    // 每個 group 是最多 5 個 day
+    const dateButtons = group.map((day) => ({
       type: "box",
-      layout: "vertical",
+      layout: "horizontal",
       spacing: "md",
       contents: [
         {
           type: "text",
-          text: "選擇預約日期",
-          size: "sm",
-          color: "#888888",
-        },
-        {
-          type: "text",
           text: day.label, // 2025-12-10（週三）
-          weight: "bold",
-          size: "lg",
+          size: "sm",
           wrap: true,
+          flex: 3,
         },
         {
           type: "button",
           style: "primary",
-          margin: "md",
+          height: "sm",
+          flex: 2,
           action: {
             type: "postback",
-            label: "選擇這一天",
+            label: "選這天",
             data: `action=choose_date&date=${day.dateStr}`,
             displayText: `我想預約 ${day.dateStr}`,
           },
         },
       ],
-    },
-  }));
+    }));
+
+    return {
+      type: "bubble",
+      size: "mega",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "選擇預約日期",
+            size: "sm",
+            color: "#888888",
+          },
+          {
+            type: "text",
+            text: "請選擇你方便的日期：",
+            size: "sm",
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            margin: "md",
+            contents: dateButtons,
+          },
+        ],
+      },
+    };
+  });
 
   const carousel = {
     type: "carousel",
