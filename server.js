@@ -178,7 +178,7 @@ function getNextDays(count) {
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」）
 async function sendDateCarouselFlex(userId) {
   // 想開放幾天自己決定：例如未來 15 天
-  const days = getNextDays(15);
+  const days = getNextDays(30);
 
   // 每 5 個日期一頁（你可以改成 3 或 4）
   const dayGroups = chunkArray(days, 5);
