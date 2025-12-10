@@ -198,11 +198,6 @@ async function sendDateCarouselFlex(userId) {
           color: "#888888",
         },
         {
-          type: "text",
-          text: "請選擇你方便的日期：",
-          size: "sm",
-        },
-        {
           type: "box",
           layout: "vertical",
           spacing: "sm",
