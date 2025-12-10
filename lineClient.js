@@ -267,6 +267,156 @@ async function notifyCustomerBooking(booking) {
 
   await pushText(userId, msg);
 }
+// ------------------------------------------------------------
+////客戶預約成功 Hero Flex
+// ------------------------------------------------------------
+async function sendBookingSuccessHero(userId, booking) {
+  const { name, date, timeSlots, serviceId } = booking;
+
+  const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+  const finalTime = Array.isArray(timeSlots) ? timeSlots[0] : timeSlots;
+
+  const heroImageUrl = "https://i.imgur.com/Y0Qy7pC.png";
+  // 🔥 你可以換成自己的品牌圖（1080x607 效果最好）
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    hero: {
+      type: "image",
+      url: heroImageUrl,
+      size: "full",
+      aspectRatio: "20:13",
+      aspectMode: "cover",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "預約已完成 🎉",
+          weight: "bold",
+          size: "xl",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: `${serviceName}`,
+          weight: "bold",
+          size: "lg",
+          color: "#8B6F47",
+        },
+        {
+          type: "separator",
+          margin: "md",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          margin: "md",
+          spacing: "sm",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "日期",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: date,
+                  size: "sm",
+                  margin: "lg",
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "時段",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: finalTime,
+                  size: "sm",
+                  margin: "lg",
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "預約人",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: name || "（無填寫）",
+                  size: "sm",
+                  margin: "lg",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "separator",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "我會再跟你確認細節，若臨時需調整，也可以隨時在這裡跟我說 👇",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#8B6F47",
+          action: {
+            type: "message",
+            label: "修改預約",
+            text: "我想修改預約",
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          action: {
+            type: "message",
+            label: "查看其他服務",
+            text: "服務項目",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "預約成功", bubble);
+}
 
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
