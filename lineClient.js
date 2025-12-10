@@ -272,7 +272,7 @@ async function sendBookingSuccessHero(userId, booking) {
   const serviceName = getServiceName(serviceId);
   const finalTime = Array.isArray(timeSlots) ? timeSlots[0] : timeSlots;
 
-  const heroImageUrl = "https://i.imgur.com/Y0Qy7pC.png";
+  const heroImageUrl = "https://www.chen-yi.tw/images/booking-success-hero.jpg";
   // 🔥 你可以換成自己的品牌圖（1080x607 效果最好）
 
   const bubble = {
