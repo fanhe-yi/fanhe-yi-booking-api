@@ -3,7 +3,8 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config(); //LINE env
-//LINE 通知前宣告
+
+// LINE 通知相關
 const {
   notifyNewBooking,
   notifyCustomerBooking,
@@ -81,7 +82,8 @@ function loadUnavailable() {
     return { fullDay: [], slots: [] };
   }
 }
-//不開放設定的存檔
+
+// 不開放設定的存檔
 function saveUnavailable(unavailable) {
   try {
     fs.writeFileSync(
@@ -140,262 +142,81 @@ function getSlotsForDate(date) {
   });
 }
 
-// 測試用：GET /
-app.get("/", (req, res) => {
-  res.send("Booking API is running");
-});
+// 🔹 簡單的對話狀態（記在記憶體裡）
+// key = userId, value = { stage: "waiting_name" | "waiting_phone" | "waiting_note", data: {...} }
+const conversationStates = {};
 
-//全部預約列表（之後 admin 用）
-app.get("/api/bookings", (req, res) => {
-  const bookings = loadBookings();
-  res.json(bookings);
-});
+// 🔹 取得未來 N 天的日期列表（給日期 Carousel 用）
+function getNextDays(count) {
+  const results = [];
+  const base = new Date();
+  const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
 
-//前台主要查詢時段狀態
-app.get("/api/slots", (req, res) => {
-  const date = req.query.date;
-  if (!date) {
-    return res
-      .status(400)
-      .json({ error: "date is required, e.g. ?date=2025-12-10" });
-  }
+  for (let i = 0; i < count; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const w = weekdayNames[d.getDay()];
 
-  const slots = getSlotsForDate(date);
-  res.json(slots);
-});
-
-// 接收預約資料，新增預約，並檢查是否衝突
-app.post("/api/bookings", (req, res) => {
-  console.log("收到一筆預約（來自前端）：");
-  console.log(req.body);
-
-  // 先讀出目前已經有的預約資料
-  const bookings = loadBookings();
-
-  // 幫這筆預約加個 id 和時間戳
-  const newBooking = {
-    id: Date.now(), // 簡單用時間當 id
-    createdAt: new Date().toISOString(),
-    status: "pending", // 新增狀態欄位：pending / done / canceled
-    ...req.body,
-  };
-
-  bookings.push(newBooking);
-  // 寫回 bookings.json
-  saveBookings(bookings);
-
-  // 🔔 呼叫 LINE 通知
-  console.log(">>> 準備呼叫 notifyNewBooking()");
-  // ✅ 先通知你自己
-  notifyNewBooking(newBooking)
-    .then(() => {
-      console.log(">>> LINE 通知已送出");
-    })
-    .catch((err) => {
-      console.error(
-        "[LINE] 新預約通知失敗：",
-        err?.response?.data || err.message || err
-      );
+    results.push({
+      dateStr,
+      label: `${dateStr}（週${w}）`,
     });
-
-  // ✅ 再通知客戶（如果有綁到 userId）
-  if (newBooking.lineUserId) {
-    console.log(">>> 偵測到 lineUserId，準備通知客戶");
-    notifyCustomerBooking(newBooking).catch((err) => {
-      console.error("[LINE] notifyCustomerBooking 發送失敗：", err);
-    });
-  } else {
-    console.log(">>> 沒有 lineUserId，略過 notifyCustomerBooking");
   }
 
-  // 先回應前端，不等 LINE 結束
-  res.json({
-    success: true,
-    message: "後端已收到預約資料並已寫入 bookings.json",
-    bookingId: newBooking.id, // 🔍 小加碼：回傳 id
-    lineUserId: newBooking.lineUserId || null, // 🔍 有需要前端可用
-  });
-});
-
-// LINE訊息通知測試API/////////////////////
-app.get("/api/test-line", async (req, res) => {
-  try {
-    await require("./lineClient").pushText(
-      process.env.LINE_ADMIN_USER_ID,
-      "這是一則測試訊息：預約系統 LINE 通知已連線 ✅"
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
-  }
-});
-/////////////////////////////////////////////////////
-
-// 後台：讀取所有預約
-app.get("/api/admin/bookings", requireAdmin, (req, res) => {
-  const bookings = loadBookings();
-
-  // 簡單排序：先按 date，再按 createdAt
-  bookings.sort((a, b) => {
-    if (a.date === b.date) {
-      return (a.createdAt || "").localeCompare(b.createdAt || "");
-    }
-    return (a.date || "").localeCompare(b.date || "");
-  });
-
-  res.json(bookings);
-});
-
-// 後台：更新預約的狀態（pending / done / canceled）
-app.patch("/api/admin/bookings/:id/status", requireAdmin, (req, res) => {
-  const bookings = loadBookings();
-  const id = Number(req.params.id);
-  const { status } = req.body;
-
-  if (!["pending", "done", "canceled"].includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
-  }
-
-  const idx = bookings.findIndex((b) => b.id === id);
-  if (idx === -1) {
-    return res.status(404).json({ error: "Booking not found" });
-  }
-
-  bookings[idx].status = status;
-  saveBookings(bookings);
-
-  res.json({ success: true, booking: bookings[idx] });
-});
-
-// 後台：刪除一筆預約
-app.delete("/api/admin/bookings/:id", requireAdmin, (req, res) => {
-  const bookings = loadBookings();
-  const id = Number(req.params.id);
-
-  const newList = bookings.filter((b) => b.id !== id);
-
-  if (newList.length === bookings.length) {
-    return res.status(404).json({ error: "Booking not found" });
-  }
-
-  saveBookings(newList);
-  res.json({ success: true });
-});
-
-//admin API：讀 / 寫不開放設定
-app.get("/api/admin/unavailable", requireAdmin, (req, res) => {
-  const unavailable = loadUnavailable();
-  res.json(unavailable);
-});
-
-//POST /api/admin/unavailable
-app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
-  const body = req.body;
-
-  // 非常簡單的驗證格式
-  const unavailable = {
-    fullDay: Array.isArray(body.fullDay) ? body.fullDay : [],
-    slots: Array.isArray(body.slots) ? body.slots : [],
-  };
-
-  saveUnavailable(unavailable);
-  res.json({ success: true });
-});
-
-// LINE Webhook 入口
-app.post("/line/webhook", async (req, res) => {
-  console.log("💬 收到一個 LINE Webhook 事件：");
-  console.log(JSON.stringify(req.body, null, 2));
-
-  // LINE 要求我們「儘快回 200」，不然會當成失敗
-  res.status(200).end();
-
-  const events = req.body.events || [];
-  for (const event of events) {
-    try {
-      await handleLineEvent(event);
-    } catch (err) {
-      console.error("處理 LINE 事件時發生錯誤：", err);
-    }
-  }
-});
-
-//////////////////////////////////////
-///在 handleLineEvent 把「預約」接進來///
-//////////////////////////////////////
-
-async function handleLineEvent(event) {
-  const userId = event.source && event.source.userId;
-
-  // 沒 userId（例如 group、某些事件）就先略過
-  if (!userId) {
-    console.log("沒有 userId 的事件，略過：", event.type);
-    return;
-  }
-
-  // 先處理 postback（客戶按 Flex 按鈕）
-  if (event.type === "postback") {
-    const data = event.postback.data || "";
-    console.log(`📦 收到 postback：${data}`);
-
-    const params = new URLSearchParams(data.replace(/\?/g, "&"));
-    const action = params.get("action");
-
-    // 1️⃣ 使用者選了「某一天」
-    if (action === "choose_date") {
-      const date = params.get("date");
-      console.log(`📅 使用者選擇日期：${date}`);
-
-      // 這邊先不進狀態機，只是丟該日的時段 Flex 給他
-      await sendSlotsFlexForDate(userId, date);
-
-      return;
-    }
-
-    // 2️⃣ 使用者在「某一天」中選了「某個時段」
-    if (action === "choose_slot") {
-      const date = params.get("date");
-      const time = params.get("time");
-
-      console.log(`✅ 使用者選擇：${date} ${time}`);
-
-      // 這裡就是你原本的邏輯：
-      // 建立 state，stage = waiting_name，data = { date, timeSlot: time, ... }
-      conversationStates[userId] = {
-        stage: "waiting_name",
-        data: {
-          date,
-          timeSlot: time,
-          serviceId: "chat_line", // 之後再拆成 bazi / ziwei / name
-        },
-      };
-
-      await pushText(
-        userId,
-        `已幫你記錄時段：\n${date} ${time}\n\n接下來請先輸入你的「姓名」。`
-      );
-
-      return;
-    }
-
-    // 其他 postback 暫時維持原本行為
-    await pushText(userId, `我有收到你的選擇：${data}`);
-    return;
-  }
-
-  // 其他類型（follow、unfollow...）先略過
-  console.log("目前尚未處理的事件類型：", event.type);
+  return results;
 }
 
-////////////////////////////////////////
-///新增一個 helper：丟今天的預約時段 Flex///
-////////////////////////////////////////
+// 🔹 日期選擇 Carousel Flex（例如未來 7 天）
+async function sendDateCarouselFlex(userId) {
+  const days = getNextDays(7); // 你可以改成 14
+
+  const bubbles = days.map((day) => ({
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "選擇預約日期",
+          size: "sm",
+          color: "#888888",
+        },
+        {
+          type: "text",
+          text: day.label, // 2025-12-10（週三）
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "button",
+          style: "primary",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "選擇這一天",
+            data: `action=choose_date&date=${day.dateStr}`,
+            displayText: `我想預約 ${day.dateStr}`,
+          },
+        },
+      ],
+    },
+  }));
+
+  const carousel = {
+    type: "carousel",
+    contents: bubbles,
+  };
+
+  await pushFlex(userId, "請選擇預約日期", carousel);
+}
 
 // 🔹 給某一天用的「選時段 Flex」
-// dateStr 格式：YYYY-MM-DD（例如 2025-12-10）
+// dateStr 格式：YYYY-MM-DD
 async function sendSlotsFlexForDate(userId, dateStr) {
-  // 1. 用你原本的工具算出這一天的時段狀態
   const slots = getSlotsForDate(dateStr);
   const openSlots = slots.filter((s) => s.status === "open");
 
@@ -407,7 +228,6 @@ async function sendSlotsFlexForDate(userId, dateStr) {
     return;
   }
 
-  // 2. 把 open 的時段做成 Flex 按鈕
   const buttons = openSlots.map((slot) => ({
     type: "button",
     style: "primary",
@@ -420,7 +240,6 @@ async function sendSlotsFlexForDate(userId, dateStr) {
     },
   }));
 
-  // 3. 組 Bubble
   const flexBubble = {
     type: "bubble",
     size: "mega",
@@ -481,75 +300,348 @@ async function sendSlotsFlexForDate(userId, dateStr) {
   await pushFlex(userId, `請選擇 ${dateStr} 的預約時段`, flexBubble);
 }
 
-///小工具：算出未來幾天的日期 + 星期///
-///讓它看起來很像滑頁選單////////////
-// 🔹 取得未來 N 天的日期列表
-function getNextDays(count) {
-  const results = [];
-  const base = new Date();
-
-  const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
-
-  for (let i = 0; i < count; i++) {
-    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
-    const w = weekdayNames[d.getDay()];
-
-    results.push({
-      dateStr,
-      label: `${dateStr}（週${w}）`,
-    });
-  }
-
-  return results;
+// 🔹 如果你還想直接給「今天時段」，可以保留這個 helper
+async function sendTodaySlotsFlex(userId) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return sendSlotsFlexForDate(userId, todayStr);
 }
 
-// 🔹 日期選擇 Carousel Flex（例如未來 7 天）
-async function sendDateCarouselFlex(userId) {
-  const days = getNextDays(7); // 你可以改成 14，看你要開放幾天
+// 測試用：GET /
+app.get("/", (req, res) => {
+  res.send("Booking API is running");
+});
 
-  const bubbles = days.map((day) => ({
-    type: "bubble",
-    size: "mega",
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
-        {
-          type: "text",
-          text: "選擇預約日期",
-          size: "sm",
-          color: "#888888",
-        },
-        {
-          type: "text",
-          text: day.label, // 2025-12-10（週三）
-          weight: "bold",
-          size: "lg",
-          wrap: true,
-        },
-        {
-          type: "button",
-          style: "primary",
-          margin: "md",
-          action: {
-            type: "postback",
-            label: "選擇這一天",
-            data: `action=choose_date&date=${day.dateStr}`,
-            displayText: `我想預約 ${day.dateStr}`,
-          },
-        },
-      ],
-    },
-  }));
+//全部預約列表（之後 admin 用）
+app.get("/api/bookings", (req, res) => {
+  const bookings = loadBookings();
+  res.json(bookings);
+});
 
-  const carousel = {
-    type: "carousel",
-    contents: bubbles,
+//前台主要查詢時段狀態
+app.get("/api/slots", (req, res) => {
+  const date = req.query.date;
+  if (!date) {
+    return res
+      .status(400)
+      .json({ error: "date is required, e.g. ?date=2025-12-10" });
+  }
+
+  const slots = getSlotsForDate(date);
+  res.json(slots);
+});
+
+// 接收預約資料，新增預約，並檢查是否衝突（給前端表單用）
+app.post("/api/bookings", (req, res) => {
+  console.log("收到一筆預約（來自前端）：");
+  console.log(req.body);
+
+  const bookings = loadBookings();
+
+  const newBooking = {
+    id: Date.now(),
+    createdAt: new Date().toISOString(),
+    status: "pending",
+    ...req.body,
   };
 
-  await pushFlex(userId, "請選擇預約日期", carousel);
+  bookings.push(newBooking);
+  saveBookings(bookings);
+
+  console.log(">>> 準備呼叫 notifyNewBooking()");
+  notifyNewBooking(newBooking)
+    .then(() => {
+      console.log(">>> LINE 通知已送出");
+    })
+    .catch((err) => {
+      console.error(
+        "[LINE] 新預約通知失敗：",
+        err?.response?.data || err.message || err
+      );
+    });
+
+  if (newBooking.lineUserId) {
+    console.log(">>> 偵測到 lineUserId，準備通知客戶");
+    notifyCustomerBooking(newBooking).catch((err) => {
+      console.error("[LINE] notifyCustomerBooking 發送失敗：", err);
+    });
+  } else {
+    console.log(">>> 沒有 lineUserId，略過 notifyCustomerBooking");
+  }
+
+  res.json({
+    success: true,
+    message: "後端已收到預約資料並已寫入 bookings.json",
+    bookingId: newBooking.id,
+    lineUserId: newBooking.lineUserId || null,
+  });
+});
+
+// LINE訊息通知測試API
+app.get("/api/test-line", async (req, res) => {
+  try {
+    await require("./lineClient").pushText(
+      process.env.LINE_ADMIN_USER_ID,
+      "這是一則測試訊息：預約系統 LINE 通知已連線 ✅"
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// 後台：讀取所有預約
+app.get("/api/admin/bookings", requireAdmin, (req, res) => {
+  const bookings = loadBookings();
+
+  bookings.sort((a, b) => {
+    if (a.date === b.date) {
+      return (a.createdAt || "").localeCompare(b.createdAt || "");
+    }
+    return (a.date || "").localeCompare(b.date || "");
+  });
+
+  res.json(bookings);
+});
+
+// 後台：更新預約的狀態（pending / done / canceled）
+app.patch("/api/admin/bookings/:id/status", requireAdmin, (req, res) => {
+  const bookings = loadBookings();
+  const id = Number(req.params.id);
+  const { status } = req.body;
+
+  if (!["pending", "done", "canceled"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+
+  const idx = bookings.findIndex((b) => b.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Booking not found" });
+  }
+
+  bookings[idx].status = status;
+  saveBookings(bookings);
+
+  res.json({ success: true, booking: bookings[idx] });
+});
+
+// 後台：刪除一筆預約
+app.delete("/api/admin/bookings/:id", requireAdmin, (req, res) => {
+  const bookings = loadBookings();
+  const id = Number(req.params.id);
+
+  const newList = bookings.filter((b) => b.id !== id);
+
+  if (newList.length === bookings.length) {
+    return res.status(404).json({ error: "Booking not found" });
+  }
+
+  saveBookings(newList);
+  res.json({ success: true });
+});
+
+// admin API：讀 / 寫不開放設定
+app.get("/api/admin/unavailable", requireAdmin, (req, res) => {
+  const unavailable = loadUnavailable();
+  res.json(unavailable);
+});
+
+app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
+  const body = req.body;
+
+  const unavailable = {
+    fullDay: Array.isArray(body.fullDay) ? body.fullDay : [],
+    slots: Array.isArray(body.slots) ? body.slots : [],
+  };
+
+  saveUnavailable(unavailable);
+  res.json({ success: true });
+});
+
+// LINE Webhook 入口
+app.post("/line/webhook", async (req, res) => {
+  console.log("💬 收到一個 LINE Webhook 事件：");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  res.status(200).end();
+
+  const events = req.body.events || [];
+  for (const event of events) {
+    try {
+      await handleLineEvent(event);
+    } catch (err) {
+      console.error("處理 LINE 事件時發生錯誤：", err);
+    }
+  }
+});
+
+//////////////////////////////////////
+/// 在 handleLineEvent 把聊天預約接進來 ///
+//////////////////////////////////////
+
+async function handleLineEvent(event) {
+  const userId = event.source && event.source.userId;
+
+  // 沒 userId（例如 group、某些事件）就先略過
+  if (!userId) {
+    console.log("沒有 userId 的事件，略過：", event.type);
+    return;
+  }
+
+  // ==========================
+  // 先處理 postback（按 Flex 按鈕）
+  // ==========================
+  if (event.type === "postback") {
+    const data = event.postback.data || "";
+    console.log(`📦 收到 postback：${data}`);
+
+    const params = new URLSearchParams(data.replace(/\?/g, "&"));
+    const action = params.get("action");
+
+    // 1) 選日期：action=choose_date&date=YYYY-MM-DD
+    if (action === "choose_date") {
+      const date = params.get("date");
+      console.log(`📅 使用者選擇日期：${date}`);
+
+      await sendSlotsFlexForDate(userId, date);
+      return;
+    }
+
+    // 2) 選時段：action=choose_slot&date=YYYY-MM-DD&time=HH:MM-HH:MM
+    if (action === "choose_slot") {
+      const date = params.get("date");
+      const time = params.get("time");
+
+      console.log(`✅ 使用者選擇：${date} ${time}`);
+
+      conversationStates[userId] = {
+        stage: "waiting_name",
+        data: {
+          date,
+          timeSlot: time,
+          // 之後你可以改成 "bazi" / "ziwei" / "name" 等細分
+          serviceId: "chat_line",
+        },
+      };
+
+      await pushText(
+        userId,
+        `已幫你記錄時段：\n${date} ${time}\n\n接下來請先輸入你的「姓名」。`
+      );
+      return;
+    }
+
+    // 沒有特別處理的 postback 先原樣回一行
+    await pushText(userId, `我有收到你的選擇：${data}`);
+    return;
+  }
+
+  // ==========================
+  // 再處理「文字訊息」
+  // ==========================
+  if (event.type === "message" && event.message.type === "text") {
+    const text = (event.message.text || "").trim();
+    console.log(`👤 ${userId} 說：${text}`);
+
+    const state = conversationStates[userId];
+
+    // ---- A. 有對話狀態：走預約流程 ----
+    if (state) {
+      // A-1 等姓名
+      if (state.stage === "waiting_name") {
+        state.data.name = text;
+        state.stage = "waiting_phone";
+
+        await pushText(
+          userId,
+          `好的，${text}，已幫你記錄姓名。\n\n接下來請輸入「聯絡電話」。\n如果不方便留電話，也可以輸入「略過」。`
+        );
+        return;
+      }
+
+      // A-2 等電話
+      if (state.stage === "waiting_phone") {
+        if (text !== "略過") {
+          state.data.phone = text;
+        } else {
+          state.data.phone = "";
+        }
+        state.stage = "waiting_note";
+
+        await pushText(
+          userId,
+          `已經記錄聯絡方式。\n\n最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n如果沒有特別備註，可以輸入「無」。`
+        );
+        return;
+      }
+
+      // A-3 等備註 → 收齊資料 → 寫入預約 → 發通知
+      if (state.stage === "waiting_note") {
+        state.data.note = text === "無" ? "" : text;
+
+        const bookingBody = {
+          serviceId: state.data.serviceId || "chat_line",
+          name: state.data.name || "",
+          email: "",
+          phone: state.data.phone || "",
+          lineId: "",
+          date: state.data.date,
+          timeSlots: [state.data.timeSlot],
+          note: state.data.note || "",
+          lineUserId: userId,
+        };
+
+        const bookings = loadBookings();
+        const newBooking = {
+          id: Date.now(),
+          createdAt: new Date().toISOString(),
+          status: "pending",
+          ...bookingBody,
+        };
+        bookings.push(newBooking);
+        saveBookings(bookings);
+
+        notifyNewBooking(newBooking).catch((err) => {
+          console.error("[LINE] notifyNewBooking (chat) 發送失敗：", err);
+        });
+
+        notifyCustomerBooking(newBooking).catch((err) => {
+          console.error("[LINE] notifyCustomerBooking (chat) 發送失敗：", err);
+        });
+
+        delete conversationStates[userId];
+
+        await pushText(
+          userId,
+          `已幫你完成預約 🙌\n\n` +
+            `項目：${bookingBody.serviceId}\n` +
+            `日期：${bookingBody.date}\n` +
+            `時段：${bookingBody.timeSlots[0]}\n` +
+            `姓名：${bookingBody.name || "（未填寫）"}\n` +
+            `電話：${bookingBody.phone || "（未填寫）"}\n` +
+            (bookingBody.note ? `備註：${bookingBody.note}\n\n` : `\n`) +
+            `之後如果時間需要微調，直接在這個聊天室跟我說就可以了。`
+        );
+
+        return;
+      }
+    }
+
+    // ---- B. 沒有對話狀態：關鍵字 & 一般對話 ----
+
+    // 「預約」→ 推日期 Carousel Flex
+    if (text === "預約") {
+      await sendDateCarouselFlex(userId);
+      return;
+    }
+
+    // 其他文字，暫時維持 echo
+    await pushText(userId, `我有聽到你說：「${text}」`);
+    return;
+  }
+
+  // 其他事件類型先略過
+  console.log("目前尚未處理的事件類型：", event.type);
 }
 
 // --- Start server ---
