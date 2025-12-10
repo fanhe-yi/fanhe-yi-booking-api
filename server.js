@@ -10,6 +10,7 @@ const {
   notifyCustomerBooking,
   pushText,
   pushFlex,
+  sendBookingSuccessHero,
 } = require("./lineClient");
 
 // 先創造 app

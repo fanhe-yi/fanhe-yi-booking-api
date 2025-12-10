@@ -426,4 +426,5 @@ module.exports = {
   pushFlex,
   notifyNewBooking,
   notifyCustomerBooking,
+  sendBookingSuccessHero,
 };
