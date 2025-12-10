@@ -67,6 +67,42 @@ async function pushText(to, text) {
 }
 
 // ------------------------------------------------------------
+// 📤 1-2) 發送 Flex 訊息
+// ------------------------------------------------------------
+async function pushFlex(to, altText, contents) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
+
+  try {
+    await axios.post(
+      LINE_PUSH_URL,
+      {
+        to,
+        messages: [
+          {
+            type: "flex",
+            altText, // iOS 通知、看不到 Flex 時會顯示這行文字
+            contents, // 真正的 Flex JSON
+          },
+        ],
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+        },
+      }
+    );
+
+    console.log("[LINE] pushFlex 發送成功");
+  } catch (err) {
+    console.error(
+      "[LINE] pushFlex 發送失敗：",
+      err.response?.data || err.message
+    );
+  }
+}
+
+// ------------------------------------------------------------
 // 🔔 2) 新預約通知：傳給「管理者（=你自己）」
 // ------------------------------------------------------------
 async function notifyNewBooking(booking) {
@@ -237,6 +273,7 @@ async function notifyCustomerBooking(booking) {
 // ------------------------------------------------------------
 module.exports = {
   pushText,
+  pushFlex,
   notifyNewBooking,
   notifyCustomerBooking,
 };

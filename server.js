@@ -4,7 +4,12 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config(); //LINE env
 //LINE 通知前宣告
-const { notifyNewBooking, notifyCustomerBooking } = require("./lineClient");
+const {
+  notifyNewBooking,
+  notifyCustomerBooking,
+  pushText,
+  pushFlex,
+} = require("./lineClient");
 
 // 先創造 app
 const app = express();
@@ -316,8 +321,9 @@ app.post("/line/webhook", async (req, res) => {
   }
 });
 
-//「預約 → 回一句文字」版//////////
-const { pushText } = require("./lineClient"); // ⬅ 你原本就有的工具
+//////////////////////////////////////
+///在 handleLineEvent 把「預約」接進來///
+//////////////////////////////////////
 
 async function handleLineEvent(event) {
   const userId = event.source && event.source.userId;
@@ -328,20 +334,133 @@ async function handleLineEvent(event) {
     return;
   }
 
-  // 先只處理「文字訊息」
+  // 先處理 postback（客戶按 Flex 按鈕）
+  if (event.type === "postback") {
+    const data = event.postback.data || "";
+    console.log(`📦 收到 postback：${data}`);
+
+    // 先簡單回一句，確認按鈕正常
+    await pushText(userId, `我有收到你的選擇：${data}`);
+
+    // 之後我們會在這裡解析 data，進入「問姓名 / 問電話」的流程
+    return;
+  }
+
+  // 再處理「文字訊息」
   if (event.type === "message" && event.message.type === "text") {
     const text = (event.message.text || "").trim();
     console.log(`👤 ${userId} 說：${text}`);
 
-    // 第 1 關：任何文字都回一句，確認 webhook 有通
-    await pushText(userId, `我有聽到你說：「${text}」`);
+    // ✅ 如果是「預約」，丟今天的可預約時段 Flex
+    if (text === "預約") {
+      await sendTodaySlotsFlex(userId);
+      return;
+    }
 
-    // 下一階段我們再做：如果 text === "預約" → 回 Flex
+    // 其他文字先維持 echo 功能
+    await pushText(userId, `我有聽到你說：「${text}」`);
     return;
   }
 
-  // 其他類型（postback、follow...) 之後要再處理
+  // 其他類型（follow、unfollow...）先略過
   console.log("目前尚未處理的事件類型：", event.type);
+}
+
+////////////////////////////////////////
+///新增一個 helper：丟今天的預約時段 Flex///
+////////////////////////////////////////
+
+// 🔹 幫忙產一個「今天可預約時段」的 Flex
+async function sendTodaySlotsFlex(userId) {
+  // 1. 先算出今天的日期字串（格式跟前端一樣：YYYY-MM-DD）
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // 2. 用你現成的工具算出這一天的時段狀態
+  const slots = getSlotsForDate(todayStr);
+  const openSlots = slots.filter((s) => s.status === "open");
+
+  if (openSlots.length === 0) {
+    // 如果今天沒有可預約，就先回文字
+    await pushText(
+      userId,
+      `今天（${todayStr}）目前沒有開放的時段喔。\n你可以改用預約表單，或是直接跟我說想排哪一天～`
+    );
+    return;
+  }
+
+  // 3. 把 open 的時段做成 Flex 的按鈕
+  const buttons = openSlots.map((slot) => ({
+    type: "button",
+    style: "primary",
+    height: "sm",
+    action: {
+      type: "postback",
+      label: slot.timeSlot, // 按鈕上顯示的文字
+      data: `action=choose_slot&date=${todayStr}&time=${slot.timeSlot}`,
+      displayText: `我想預約 ${todayStr} ${slot.timeSlot}`,
+    },
+  }));
+
+  // 4. 組一個最簡單的 Bubble Flex
+  const flexBubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜預約時段",
+          weight: "bold",
+          size: "sm",
+          color: "#888888",
+        },
+        {
+          type: "text",
+          text: `日期：${todayStr}`,
+          weight: "bold",
+          size: "md",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "請選擇你方便的時段：",
+          size: "sm",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: buttons,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "※ 之後會再跟你確認姓名、聯絡方式",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
+        },
+      ],
+    },
+  };
+
+  // 5. 真正丟 Flex 出去
+  await pushFlex(userId, `請選擇 ${todayStr} 的預約時段`, flexBubble);
 }
 
 // --- Start server ---
