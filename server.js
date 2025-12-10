@@ -45,6 +45,15 @@ const ALL_TIME_SLOTS = [
   "20:00-21:00（線上）",
 ];
 
+// 🔹 服務代碼 → 顯示名稱
+const SERVICE_NAME_MAP = {
+  bazi: "八字諮詢",
+  ziwei: "紫微斗數",
+  name: "改名 / 姓名學",
+  fengshui: "風水勘察",
+  chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
+};
+
 function loadBookings() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -168,18 +177,79 @@ function getNextDays(count) {
 
     results.push({
       dateStr,
-      label: `${dateStr}（週${w}）`,
+      label: `${dateStr}（${w}）`,
     });
   }
 
   return results;
 }
+////////////////////////////////////////
+///新增「選服務」的 Flex（第一層 bubble/）//
+////////////////////////////////////////
 
-// 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」）
-async function sendDateCarouselFlex(userId) {
-  // 想開放幾天自己決定：例如未來 15 天
+// 🔹 第一步：服務選擇 Flex（八字 / 紫微 / 姓名）
+async function sendServiceSelectFlex(userId) {
+  const services = [
+    { id: "bazi", label: "八字諮詢" },
+    { id: "ziwei", label: "紫微斗數" },
+    { id: "name", label: "改名 / 姓名學" },
+    // 之後你要開風水可以再加：
+    // { id: "fengshui", label: "風水勘察" },
+  ];
+
+  const buttons = services.map((s) => ({
+    type: "button",
+    style: "primary",
+    height: "sm",
+    margin: "sm",
+    action: {
+      type: "postback",
+      label: s.label,
+      data: `action=choose_service&service=${s.id}`,
+      displayText: `我想預約 ${s.label}`,
+    },
+  }));
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜預約服務",
+          size: "sm",
+          color: "#888888",
+        },
+        {
+          type: "text",
+          text: "請先選擇你想預約的項目：",
+          size: "sm",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: buttons,
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "請選擇預約服務", bubble);
+}
+
+// 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
+async function sendDateCarouselFlex(userId, serviceId) {
+  //
+  const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+  // 想開放幾天自己決定：例如未來 30 天
   const days = getNextDays(30);
-
   // 每 5 個日期一頁（你可以改成 3 或 4）
   const dayGroups = chunkArray(days, 5);
 
@@ -208,10 +278,10 @@ async function sendDateCarouselFlex(userId) {
             height: "sm",
             action: {
               type: "postback",
-              // 🔑 按鈕上直接顯示「2025-12-10（週三）」這種字
+              // 🔑 按鈕上直接顯示「2025-12-10（三）」這種字
               label: day.label,
-              data: `action=choose_date&date=${day.dateStr}`,
-              displayText: `我想預約 ${day.dateStr}`,
+              data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
+              displayText: `我想預約 ${serviceName} ${day.dateStr}`,
             },
           })),
         },
@@ -227,9 +297,10 @@ async function sendDateCarouselFlex(userId) {
   await pushFlex(userId, "請選擇預約日期", carousel);
 }
 
-// 🔹 給某一天用的「選時段 Flex」
+// 🔹 給某一天用的「選時段 Flex」，也帶著 serviceId
 // dateStr 格式：YYYY-MM-DD
-async function sendSlotsFlexForDate(userId, dateStr) {
+async function sendSlotsFlexForDate(userId, dateStr, serviceId) {
+  const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
   const slots = getSlotsForDate(dateStr);
   const openSlots = slots.filter((s) => s.status === "open");
 
@@ -248,8 +319,8 @@ async function sendSlotsFlexForDate(userId, dateStr) {
     action: {
       type: "postback",
       label: slot.timeSlot,
-      data: `action=choose_slot&date=${dateStr}&time=${slot.timeSlot}`,
-      displayText: `我想預約 ${dateStr} ${slot.timeSlot}`,
+      data: `action=choose_slot&service=${serviceId}&date=${dateStr}&time=${slot.timeSlot}`,
+      displayText: `我想預約 ${serviceName} ${dateStr} ${slot.timeSlot}`,
     },
   }));
 
@@ -511,40 +582,57 @@ async function handleLineEvent(event) {
     const params = new URLSearchParams(data.replace(/\?/g, "&"));
     const action = params.get("action");
 
-    // 1) 選日期：action=choose_date&date=YYYY-MM-DD
-    if (action === "choose_date") {
-      const date = params.get("date");
-      console.log(`📅 使用者選擇日期：${date}`);
+    // 1) 選服務：action=choose_service&service=bazi
+    if (action === "choose_service") {
+      const serviceId = params.get("service") || "chat_line";
+      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
-      await sendSlotsFlexForDate(userId, date);
+      console.log(`🧭 使用者選擇服務：${serviceId} (${serviceName})`);
+
+      // 服務選好就進入「選日期」，並且讓日期 Flex 帶著 serviceId
+      await sendDateCarouselFlex(userId, serviceId);
       return;
     }
 
-    // 2) 選時段：action=choose_slot&date=YYYY-MM-DD&time=HH:MM-HH:MM
+    // 2) 選日期：action=choose_date&service=bazi&date=YYYY-MM-DD
+    if (action === "choose_date") {
+      const serviceId = params.get("service") || "chat_line";
+      const date = params.get("date");
+      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+      console.log(`📅 使用者選擇日期：${date}（服務：${serviceName}）`);
+
+      // 日期選好 → 進入「選該日的時段」，也帶著 serviceId
+      await sendSlotsFlexForDate(userId, date, serviceId);
+      return;
+    }
+
+    // 3) 選時段：action=choose_slot&service=bazi&date=YYYY-MM-DD&time=HH:MM-HH:MM
     if (action === "choose_slot") {
+      const serviceId = params.get("service") || "chat_line";
       const date = params.get("date");
       const time = params.get("time");
+      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
-      console.log(`✅ 使用者選擇：${date} ${time}`);
+      console.log(`✅ 使用者選擇：${serviceName} ${date} ${time}`);
 
       conversationStates[userId] = {
         stage: "waiting_name",
         data: {
           date,
           timeSlot: time,
-          // 之後你可以改成 "bazi" / "ziwei" / "name" 等細分
-          serviceId: "chat_line",
+          serviceId, // 🔑 這裡開始整條 flow 都有 serviceId
         },
       };
 
       await pushText(
         userId,
-        `已幫你記錄時段：\n${date} ${time}\n\n接下來請先輸入你的「姓名」。`
+        `已幫你記錄預約項目：${serviceName}\n時段：${date} ${time}\n\n接下來請先輸入你的「姓名」。`
       );
       return;
     }
 
-    // 沒有特別處理的 postback 先原樣回一行
+    // 其他沒處理到的 postback 先原樣回一行
     await pushText(userId, `我有收到你的選擇：${data}`);
     return;
   }
@@ -624,10 +712,13 @@ async function handleLineEvent(event) {
 
         delete conversationStates[userId];
 
+        const serviceName =
+          SERVICE_NAME_MAP[bookingBody.serviceId] || bookingBody.serviceId;
+
         await pushText(
           userId,
           `已幫你完成預約 🙌\n\n` +
-            `項目：${bookingBody.serviceId}\n` +
+            `項目：${serviceName}\n` +
             `日期：${bookingBody.date}\n` +
             `時段：${bookingBody.timeSlots[0]}\n` +
             `姓名：${bookingBody.name || "（未填寫）"}\n` +
@@ -642,14 +733,14 @@ async function handleLineEvent(event) {
 
     // ---- B. 沒有對話狀態：關鍵字 & 一般對話 ----
 
-    // 「預約」→ 推日期 Carousel Flex
+    // 「預約」→ 第一步先選服務
     if (text === "預約") {
-      await sendDateCarouselFlex(userId);
+      await sendServiceSelectFlex(userId);
       return;
     }
 
     // 其他文字，暫時維持 echo
-    await pushText(userId, `我有聽到你說：「${text}」`);
+    await pushText(userId, `機器人測試:我有聽到你說：「${text}」`);
     return;
   }
 
