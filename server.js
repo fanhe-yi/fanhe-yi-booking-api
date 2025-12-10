@@ -176,73 +176,50 @@ function getNextDays(count) {
 }
 
 // 🔹 日期選擇 Carousel Flex（每一頁最多 5 個日期）
+// 🔹 日期選擇 Carousel Flex（每個日期是一個 bubble，整張都可點）
 async function sendDateCarouselFlex(userId) {
-  // 你想開放幾天/幾頁，自己決定
-  // 例如：未來 15 天，每頁 5 天 => 3 頁
-  const days = getNextDays(30);
+  // 想開放幾天自己調，例如未來 14 天
+  const days = getNextDays(14);
 
-  // 每 5 個日期一組，變成一個 bubble
-  const dayGroups = chunkArray(days, 5);
-
-  const bubbles = dayGroups.map((group) => {
-    // 每個 group 是最多 5 個 day
-    const dateButtons = group.map((day) => ({
+  const bubbles = days.map((day) => ({
+    type: "bubble",
+    size: "mega",
+    body: {
       type: "box",
-      layout: "horizontal",
+      layout: "vertical",
       spacing: "md",
       contents: [
         {
           type: "text",
-          text: day.label, // 2025-12-10（週三）
+          text: "選擇預約日期",
           size: "sm",
-          wrap: true,
-          flex: 3,
+          color: "#888888",
         },
         {
-          type: "button",
-          style: "primary",
-          height: "sm",
-          flex: 2,
-          action: {
-            type: "postback",
-            label: "選這天",
-            data: `action=choose_date&date=${day.dateStr}`,
-            displayText: `我想預約 ${day.dateStr}`,
-          },
+          type: "text",
+          text: day.label, // 例如：2025-12-10（週三）
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "點擊這張卡片即可選擇這一天",
+          size: "xs",
+          color: "#999999",
+          wrap: true,
+          margin: "md",
         },
       ],
-    }));
-
-    return {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "md",
-        contents: [
-          {
-            type: "text",
-            text: "選擇預約日期",
-            size: "sm",
-            color: "#888888",
-          },
-          {
-            type: "text",
-            text: "請選擇你方便的日期：",
-            size: "sm",
-          },
-          {
-            type: "box",
-            layout: "vertical",
-            spacing: "sm",
-            margin: "md",
-            contents: dateButtons,
-          },
-        ],
-      },
-    };
-  });
+    },
+    // 🔑 這裡很重要：整張 bubble 都是一個 action
+    action: {
+      type: "postback",
+      label: `預約 ${day.dateStr}`,
+      data: `action=choose_date&date=${day.dateStr}`,
+      displayText: `我想預約 ${day.dateStr}`,
+    },
+  }));
 
   const carousel = {
     type: "carousel",
