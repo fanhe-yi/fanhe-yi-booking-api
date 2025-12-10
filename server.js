@@ -339,26 +339,48 @@ async function handleLineEvent(event) {
     const data = event.postback.data || "";
     console.log(`📦 收到 postback：${data}`);
 
-    // 先簡單回一句，確認按鈕正常
-    await pushText(userId, `我有收到你的選擇：${data}`);
+    const params = new URLSearchParams(data.replace(/\?/g, "&"));
+    const action = params.get("action");
 
-    // 之後我們會在這裡解析 data，進入「問姓名 / 問電話」的流程
-    return;
-  }
+    // 1️⃣ 使用者選了「某一天」
+    if (action === "choose_date") {
+      const date = params.get("date");
+      console.log(`📅 使用者選擇日期：${date}`);
 
-  // 再處理「文字訊息」
-  if (event.type === "message" && event.message.type === "text") {
-    const text = (event.message.text || "").trim();
-    console.log(`👤 ${userId} 說：${text}`);
+      // 這邊先不進狀態機，只是丟該日的時段 Flex 給他
+      await sendSlotsFlexForDate(userId, date);
 
-    // ✅ 如果是「預約」，丟今天的可預約時段 Flex
-    if (text === "預約") {
-      await sendTodaySlotsFlex(userId);
       return;
     }
 
-    // 其他文字先維持 echo 功能
-    await pushText(userId, `我有聽到你說：「${text}」`);
+    // 2️⃣ 使用者在「某一天」中選了「某個時段」
+    if (action === "choose_slot") {
+      const date = params.get("date");
+      const time = params.get("time");
+
+      console.log(`✅ 使用者選擇：${date} ${time}`);
+
+      // 這裡就是你原本的邏輯：
+      // 建立 state，stage = waiting_name，data = { date, timeSlot: time, ... }
+      conversationStates[userId] = {
+        stage: "waiting_name",
+        data: {
+          date,
+          timeSlot: time,
+          serviceId: "chat_line", // 之後再拆成 bazi / ziwei / name
+        },
+      };
+
+      await pushText(
+        userId,
+        `已幫你記錄時段：\n${date} ${time}\n\n接下來請先輸入你的「姓名」。`
+      );
+
+      return;
+    }
+
+    // 其他 postback 暫時維持原本行為
+    await pushText(userId, `我有收到你的選擇：${data}`);
     return;
   }
 
@@ -370,38 +392,35 @@ async function handleLineEvent(event) {
 ///新增一個 helper：丟今天的預約時段 Flex///
 ////////////////////////////////////////
 
-// 🔹 幫忙產一個「今天可預約時段」的 Flex
-async function sendTodaySlotsFlex(userId) {
-  // 1. 先算出今天的日期字串（格式跟前端一樣：YYYY-MM-DD）
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // 2. 用你現成的工具算出這一天的時段狀態
-  const slots = getSlotsForDate(todayStr);
+// 🔹 給某一天用的「選時段 Flex」
+// dateStr 格式：YYYY-MM-DD（例如 2025-12-10）
+async function sendSlotsFlexForDate(userId, dateStr) {
+  // 1. 用你原本的工具算出這一天的時段狀態
+  const slots = getSlotsForDate(dateStr);
   const openSlots = slots.filter((s) => s.status === "open");
 
   if (openSlots.length === 0) {
-    // 如果今天沒有可預約，就先回文字
     await pushText(
       userId,
-      `今天（${todayStr}）目前沒有開放的時段喔。\n你可以改用預約表單，或是直接跟我說想排哪一天～`
+      `這一天（${dateStr}）目前沒有開放的時段喔。\n你可以換一天試試看，或直接跟我說你方便的時間～`
     );
     return;
   }
 
-  // 3. 把 open 的時段做成 Flex 的按鈕
+  // 2. 把 open 的時段做成 Flex 按鈕
   const buttons = openSlots.map((slot) => ({
     type: "button",
     style: "primary",
     height: "sm",
     action: {
       type: "postback",
-      label: slot.timeSlot, // 按鈕上顯示的文字
-      data: `action=choose_slot&date=${todayStr}&time=${slot.timeSlot}`,
-      displayText: `我想預約 ${todayStr} ${slot.timeSlot}`,
+      label: slot.timeSlot,
+      data: `action=choose_slot&date=${dateStr}&time=${slot.timeSlot}`,
+      displayText: `我想預約 ${dateStr} ${slot.timeSlot}`,
     },
   }));
 
-  // 4. 組一個最簡單的 Bubble Flex
+  // 3. 組 Bubble
   const flexBubble = {
     type: "bubble",
     size: "mega",
@@ -418,7 +437,7 @@ async function sendTodaySlotsFlex(userId) {
         },
         {
           type: "text",
-          text: `日期：${todayStr}`,
+          text: `日期：${dateStr}`,
           weight: "bold",
           size: "md",
           margin: "sm",
@@ -459,8 +478,78 @@ async function sendTodaySlotsFlex(userId) {
     },
   };
 
-  // 5. 真正丟 Flex 出去
-  await pushFlex(userId, `請選擇 ${todayStr} 的預約時段`, flexBubble);
+  await pushFlex(userId, `請選擇 ${dateStr} 的預約時段`, flexBubble);
+}
+
+///小工具：算出未來幾天的日期 + 星期///
+///讓它看起來很像滑頁選單////////////
+// 🔹 取得未來 N 天的日期列表
+function getNextDays(count) {
+  const results = [];
+  const base = new Date();
+
+  const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const w = weekdayNames[d.getDay()];
+
+    results.push({
+      dateStr,
+      label: `${dateStr}（週${w}）`,
+    });
+  }
+
+  return results;
+}
+
+// 🔹 日期選擇 Carousel Flex（例如未來 7 天）
+async function sendDateCarouselFlex(userId) {
+  const days = getNextDays(7); // 你可以改成 14，看你要開放幾天
+
+  const bubbles = days.map((day) => ({
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "選擇預約日期",
+          size: "sm",
+          color: "#888888",
+        },
+        {
+          type: "text",
+          text: day.label, // 2025-12-10（週三）
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "button",
+          style: "primary",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "選擇這一天",
+            data: `action=choose_date&date=${day.dateStr}`,
+            displayText: `我想預約 ${day.dateStr}`,
+          },
+        },
+      ],
+    },
+  }));
+
+  const carousel = {
+    type: "carousel",
+    contents: bubbles,
+  };
+
+  await pushFlex(userId, "請選擇預約日期", carousel);
 }
 
 // --- Start server ---
