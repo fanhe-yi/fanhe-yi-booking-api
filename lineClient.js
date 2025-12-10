@@ -34,6 +34,18 @@ function convertToTaiwanTime(dateString) {
   return taiwanTime.toISOString().replace("T", " ").substring(0, 19);
 }
 
+// 共用：依 serviceId 取得顯示名稱
+function getServiceName(serviceId) {
+  const map = {
+    bazi: "八字諮詢",
+    ziwei: "紫微斗數",
+    name: "改名 / 姓名學",
+    fengshui: "風水勘察",
+    chat_line: "命理諮詢",
+  };
+  return map[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
+}
+
 // ------------------------------------------------------------
 // 📤 1) 發送純文字訊息
 // ------------------------------------------------------------
@@ -123,15 +135,7 @@ async function notifyNewBooking(booking) {
   } = booking;
 
   // 服務名稱（轉中文）
-  const serviceNameMap = {
-    bazi: "八字諮詢",
-    ziwei: "紫微斗數",
-    name: "改名 / 姓名學",
-    fengshui: "風水勘察",
-  };
-
-  const serviceName =
-    serviceNameMap[serviceId] || `其他服務 (${serviceId || "未填寫"})`;
+  const serviceName = getServiceName(serviceId);
 
   // 時段（多選優先）
   let slotText = "未選擇時段";
@@ -239,15 +243,7 @@ async function notifyCustomerBooking(booking) {
   }
 
   // ✅ 下面這段：不管是 lineUserId 還是 lineId 映射，都共用同一份訊息內容
-  const serviceNameMap = {
-    bazi: "八字諮詢",
-    ziwei: "紫微斗數",
-    name: "改名 / 姓名學",
-    fengshui: "風水勘察",
-  };
-
-  const serviceName =
-    serviceNameMap[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
+  const serviceName = getServiceName(serviceId);
 
   let slotText = "未選擇時段";
   if (Array.isArray(timeSlots) && timeSlots.length > 0) {
@@ -273,7 +269,7 @@ async function notifyCustomerBooking(booking) {
 async function sendBookingSuccessHero(userId, booking) {
   const { name, date, timeSlots, serviceId } = booking;
 
-  const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+  const serviceName = getServiceName(serviceId);
   const finalTime = Array.isArray(timeSlots) ? timeSlots[0] : timeSlots;
 
   const heroImageUrl = "https://i.imgur.com/Y0Qy7pC.png";

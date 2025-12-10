@@ -707,15 +707,15 @@ async function handleLineEvent(event) {
         notifyNewBooking(newBooking).catch((err) => {
           console.error("[LINE] notifyNewBooking (chat) 發送失敗：", err);
         });
-        // 🔔 通知客戶
+        // 🔔 通知客戶，這裡不再叫 notifyCustomerBooking，避免重複
         //notifyCustomerBooking(newBooking).catch((err) => {
         //  console.error("[LINE] notifyCustomerBooking (chat) 發送失敗：", err);
         //});
 
         delete conversationStates[userId];
 
-        const serviceName =
-          SERVICE_NAME_MAP[bookingBody.serviceId] || bookingBody.serviceId;
+        //const serviceName =
+        //  SERVICE_NAME_MAP[bookingBody.serviceId] || bookingBody.serviceId;
 
         await sendBookingSuccessHero(userId, bookingBody);
 
