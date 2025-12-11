@@ -649,6 +649,8 @@ async function handleLineEvent(event) {
     console.log("沒有 userId 的事件，略過：", event.type);
     return;
   }
+  // 取出這個使用者目前的對話狀態
+  const state = conversationStates[userId] || null;
 
   // ==========================
   // 先處理 postback（按 Flex 按鈕）
@@ -657,238 +659,165 @@ async function handleLineEvent(event) {
     const data = event.postback.data || "";
     console.log(`📦 收到 postback：${data}`);
 
-    const params = new URLSearchParams(data.replace(/\?/g, "&"));
-    const action = params.get("action");
-
-    // 1) 選服務：action=choose_service&service=bazi
-    if (action === "choose_service") {
-      const serviceId = params.get("service") || "chat_line";
-      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-
-      console.log(`🧭 使用者選擇服務：${serviceId} (${serviceName})`);
-
-      // 服務選好就進入「選日期」，並且讓日期 Flex 帶著 serviceId
-      await sendDateCarouselFlex(userId, serviceId);
-      return;
-    }
-
-    // 2) 選日期：action=choose_date&service=bazi&date=YYYY-MM-DD
-    if (action === "choose_date") {
-      const serviceId = params.get("service") || "chat_line";
-      const date = params.get("date");
-      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-
-      console.log(`📅 使用者選擇日期：${date}（服務：${serviceName}）`);
-
-      // 日期選好 → 進入「選該日的時段」，也帶著 serviceId
-      await sendSlotsFlexForDate(userId, date, serviceId);
-      return;
-    }
-
-    // 3) 選時段：action=choose_slot&service=bazi&date=YYYY-MM-DD&time=HH:MM-HH:MM
-    if (action === "choose_slot") {
-      const serviceId = params.get("service") || "chat_line";
-      const date = params.get("date");
-      const time = params.get("time");
-      const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-
-      console.log(`✅ 使用者選擇：${serviceName} ${date} ${time}`);
-
-      conversationStates[userId] = {
-        stage: "waiting_name",
-        data: {
-          date,
-          timeSlot: time,
-          serviceId, // 🔑 這裡開始整條 flow 都有 serviceId
-        },
-      };
-
-      await pushText(
-        userId,
-        `已幫你記錄預約項目：${serviceName}\n時段：${date} ${time}\n\n接下來請先輸入你的「姓名」。`
-      );
-      return;
-    }
-
-    // 其他沒處理到的 postback 先原樣回一行
-    await pushText(userId, `我有收到你的選擇：${data}`);
+    // 交給專門處理 postback 的 router
+    await routePostback(userId, data, state);
     return;
   }
 
-  // ==========================
-  // 再處理「文字訊息」
-  // ==========================
+  // --- 2) 處理文字訊息 ---
   if (event.type === "message" && event.message.type === "text") {
     const text = (event.message.text || "").trim();
     console.log(`👤 ${userId} 說：${text}`);
 
-    const state = conversationStates[userId];
-
-    // ---- A. 有對話狀態：走預約流程 ----
+    // 2-1. 如果目前在某個對話流程中（例如預約 / 小占卜）
     if (state) {
-      // A-1 等姓名
-      if (state.stage === "waiting_name") {
-        state.data.name = text;
-        state.stage = "waiting_phone";
-
-        await pushText(
-          userId,
-          `好的，${text}，已幫你記錄姓名。\n\n接下來請輸入「聯絡電話」。\n如果不方便留電話，也可以輸入「略過」。`
-        );
-        return;
-      }
-
-      // A-2 等電話
-      if (state.stage === "waiting_phone") {
-        if (text !== "略過") {
-          state.data.phone = text;
-        } else {
-          state.data.phone = "";
-        }
-        state.stage = "waiting_note";
-
-        await pushText(
-          userId,
-          `已經記錄聯絡方式。\n\n最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n如果沒有特別備註，可以輸入「無」。`
-        );
-        return;
-      }
-
-      // A-3 等備註 → 收齊資料 → 寫入預約 → 發通知
-      if (state.stage === "waiting_note") {
-        state.data.note = text === "無" ? "" : text;
-
-        const bookingBody = {
-          serviceId: state.data.serviceId || "chat_line",
-          name: state.data.name || "",
-          email: "",
-          phone: state.data.phone || "",
-          lineId: "",
-          date: state.data.date,
-          timeSlots: [state.data.timeSlot],
-          note: state.data.note || "",
-          lineUserId: userId,
-        };
-
-        const bookings = loadBookings();
-        const newBooking = {
-          id: Date.now(),
-          createdAt: new Date().toISOString(),
-          status: "pending",
-          ...bookingBody,
-        };
-        bookings.push(newBooking);
-        saveBookings(bookings);
-
-        // 🔔 通知你自己
-        notifyNewBooking(newBooking).catch((err) => {
-          console.error("[LINE] notifyNewBooking (chat) 發送失敗：", err);
-        });
-        // 🔔 通知客戶，這裡不再叫 notifyCustomerBooking，避免重複
-        //notifyCustomerBooking(newBooking).catch((err) => {
-        //  console.error("[LINE] notifyCustomerBooking (chat) 發送失敗：", err);
-        //});
-
-        delete conversationStates[userId];
-
-        //const serviceName =
-        //  SERVICE_NAME_MAP[bookingBody.serviceId] || bookingBody.serviceId;
-
-        await sendBookingSuccessHero(userId, bookingBody);
-
-        return;
-      }
-    }
-
-    // ---- B. 沒有對話狀態：關鍵字 & 一般對話 ----
-    ///////////////////進入點//////////////////
-
-    // 🔮 小占卜：等待生日輸入階段
-    if (state && state.stage === "mini_reading_wait_birth") {
-      const parsed = parseMiniBirthInput(text);
-
-      if (!parsed) {
-        await pushText(
-          userId,
-          "看起來格式怪怪的 😅\n" +
-            "請用以下任一種格式再試一次：\n" +
-            "1) 1992-12-05-0830\n" +
-            "2) 1992-12-05-辰時\n" +
-            "3) 1992-12-05-辰\n" +
-            "如果不想提供時辰，可以輸入：1992-12-05-未知"
-        );
-        return;
-      }
-
-      // 如果最後一段是「未知」，你可以自己解讀成「沒提供時辰」
-      if (parsed.timeType === "unknown") {
-        await pushText(
-          userId,
-          "收到，你先只提供生日，這次小占卜會以整體命格為主，不特別看時辰細節。"
-        );
-      }
-
-      // 呼叫 AI，做小占卜
-      try {
-        const aiText = await callMiniReadingAI(parsed);
-
-        // 先回一則「你提供的資訊整理」
-        let infoLine = `你提供的生日資訊：\n${parsed.date}`;
-        if (parsed.timeType === "hm") {
-          infoLine += ` ${parsed.time}`;
-        } else if (parsed.timeType === "branch") {
-          infoLine += ` ${parsed.branch}時（地支時辰）`;
-        } else if (parsed.timeType === "unknown") {
-          infoLine += `（未提供時辰）`;
-        }
-
-        await pushText(userId, infoLine);
-        await pushText(userId, aiText);
-      } catch (err) {
-        console.error("[miniReading] AI 發生錯誤：", err);
-        await pushText(
-          userId,
-          "小占卜目前有點塞車 😅\n你可以稍後再試一次，或是直接跟我說「想預約」做完整命盤。"
-        );
-      }
-
-      // 結束這一次的小占卜對話
-      delete conversationStates[userId];
-      return;
-    }
-
-    // 「預約」→ 第一步先選服務
-    if (text === "預約") {
-      await sendServiceSelectFlex(userId);
-      return;
-    }
-
-    // 🔮 小占卜入口
-    if (text === "小占卜") {
-      conversationStates[userId] = {
-        stage: "mini_reading_wait_birth",
-        data: {},
-      };
-
-      await pushText(
+      const handled = await routeByConversationState(
         userId,
-        "小占卜模式啟動 🔮\n" +
-          "請用以下格式輸入你的生日與時間（時間可省略）：\n\n" +
-          "✅ 只填生日：1992-12-05-未知\n" +
-          "✅ 西元＋時分：1992-12-05-0830\n" +
-          "✅ 西元＋地支：1992-12-05-辰時 或 1992-12-05-辰\n\n" +
-          "如果你不想提供時辰，可以在最後寫「未知」。"
+        text,
+        state,
+        event
       );
-      return;
+      if (handled) return; // 若已被對應流程吃掉，這次就結束
     }
 
-    // 其他文字，暫時維持 echo
-    await pushText(userId, `機器人測試:我有聽到你說：「${text}」`);
+    // 2-2. 沒有在進行中的對話 → 看是不是指令（預約 / 八字測算 / 其他）
+    await routeGeneralCommands(userId, text);
     return;
   }
 
-  // 其他事件類型先略過
   console.log("目前尚未處理的事件類型：", event.type);
+}
+
+//routeGeneralCommands：處理「進入某個模式」的指令
+//預約：丟服務/日期/時段 Flex（你的 booking flow）
+//小占卜 → 之後要改名成「八字測算」
+//這裡先做成「設定 state + 丟教學 Flex」
+async function routeGeneralCommands(userId, text) {
+  // 1) 預約指令（沿用你原本的行為）
+  if (text === "預約") {
+    // 這裡呼叫你原本寫好的「選服務 / 選日期」入口
+    // 例如：await sendServiceSelectorFlex(userId);
+    // 先簡單示意：
+    await pushText(userId, "這裡本來是預約主流程（之後接回你的 Flex）");
+    return;
+  }
+
+  // 2) 八字測算（原本的小占卜）
+  if (text === "八字測算" || text === "小占卜") {
+    // 設定對話狀態：等待輸入生日字串
+    conversationStates[userId] = {
+      mode: "mini_bazi", // 新增一個 mode，之後好分辨是哪條流程
+      stage: "wait_birth_input",
+      data: {},
+    };
+
+    // 這裡先用 pushText，之後我們會換成漂亮的 Flex
+    await pushText(
+      userId,
+      "八字測算模式啟動 🔮\n" +
+        "請用以下格式輸入你的生日與時間（時間可省略）：\n\n" +
+        "✅ 只填生日：1992-12-05-未知\n" +
+        "✅ 西元＋時分：1992-12-05-0830\n" +
+        "✅ 西元＋地支：1992-12-05-辰時 或 1992-12-05-辰\n\n" +
+        "如果你不想提供時辰，可以在最後寫「未知」。"
+    );
+    return;
+  }
+
+  // 3) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
+  await pushText(userId, `我有聽到你說：「${text}」`);
+}
+
+//routeByConversationState：依照 state 分發到各個 flow//
+async function routeByConversationState(userId, text, state, event) {
+  // 用 mode 區分是哪一條流程
+  const mode = state.mode || null;
+
+  if (!mode) return false;
+
+  if (mode === "booking") {
+    // 交給預約流程處理
+    return await handleBookingFlow(userId, text, state, event);
+  }
+
+  if (mode === "mini_bazi") {
+    // 交給八字測算流程處理
+    return await handleMiniBaziFlow(userId, text, state, event);
+  }
+
+  // 其他未支援的 mode
+  return false;
+}
+
+//routePostback：按 Flex 按鈕時怎麼分派
+async function routePostback(userId, data, state) {
+  const params = new URLSearchParams(data);
+  const action = params.get("action");
+
+  // 例：預約流程的選服務 / 選日期 / 選時段
+  if (
+    action === "choose_service" ||
+    action === "choose_date" ||
+    action === "choose_slot"
+  ) {
+    // 這個本來就是預約相關 → 交給 booking flow
+    return await handleBookingPostback(userId, action, params, state);
+  }
+
+  // 之後如果你有八字測算的按鈕（例如選流年 / 流月），可以在這裡加：
+  // if (action === "bazi_xxx") { ... }
+
+  // 預設：按按鈕就回一行，避免沒反應
+  await pushText(userId, `我有收到你的選擇：${data}`);
+}
+
+// 預約聊天流程：目前先不啟用，之後再把你原來的多階段流程搬進來
+async function handleBookingFlow(userId, text, state, event) {
+  console.log("[bookingFlow] 目前 booking 對話流程暫時未實作，略過。");
+  // 回 false 代表「我沒處理」，上層就不會卡住
+  return false;
+}
+
+// 預約相關的 postback（選服務 / 選日期 / 選時段）
+// 目前先簡單回一行，避免按按鈕沒反應
+async function handleBookingPostback(userId, action, params, state) {
+  const debugText =
+    `目前預約按鈕（${action}）的詳細流程還在重構中。\n` +
+    `先幫你記錄這次操作，之後會改成正式的預約對話。`;
+
+  await pushText(userId, debugText);
+  return;
+}
+
+// 八字測算對話流程（小占卜）
+// 之後會在這裡處理：等待生日 → 解析 → 丟 AI → 回覆
+async function handleMiniBaziFlow(userId, text, state, event) {
+  console.log(
+    "[miniBaziFlow] 收到一則來自",
+    userId,
+    "的文字（目前 stage =",
+    state.stage,
+    "）：",
+    text
+  );
+
+  // 先做一個最簡單的版本：只是在等生日輸入
+  if (state.stage === "wait_birth_input") {
+    // 之後我們會在這裡呼叫 parseMiniBirthInput + callMiniReadingAI
+    await pushText(
+      userId,
+      "（測試中）已收到你輸入的內容：「" +
+        text +
+        "」。\n之後這裡會改成真正的八字測算結果。"
+    );
+
+    // 測試完一次後，直接結束這輪對話
+    delete conversationStates[userId];
+    return true; // 代表這個事件已處理完
+  }
+
+  // 其他 stage 尚未實作
+  return false;
 }
 
 ////之後可能會搬到aiClient.js////
