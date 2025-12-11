@@ -560,10 +560,87 @@ app.post("/line/webhook", async (req, res) => {
   }
 });
 
+// 小占卜：解析生日輸入
+// 支援格式：
+// 1) 1992-12-05-0830
+// 2) 1992-12-05-辰時
+// 3) 1992-12-05-辰
+function parseMiniBirthInput(input) {
+  const trimmed = (input || "").trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split("-");
+  if (parts.length < 4) {
+    // 少了時間/時辰那段
+    return null;
+  }
+
+  const [year, month, day, rawLast] = parts;
+
+  // 檢查日期格式 YYYY-MM-DD
+  const dateStr = `${year}-${month}-${day}`;
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!datePattern.test(dateStr)) {
+    return null;
+  }
+
+  const last = rawLast.trim();
+
+  // 1) 如果是 4 位數字，當成 HHmm
+  if (/^\d{4}$/.test(last)) {
+    const hh = last.slice(0, 2);
+    const mm = last.slice(2, 4);
+    // 簡單檢查一下 00–23 / 00–59
+    const hNum = Number(hh);
+    const mNum = Number(mm);
+    if (hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+      return null;
+    }
+    return {
+      raw: trimmed,
+      date: dateStr, // "1992-12-05"
+      timeType: "hm", // 時分
+      time: `${hh}:${mm}`, // "08:30"
+      branch: null,
+    };
+  }
+
+  // 2) 如果是 「辰」 或 「辰時」這種地支
+  const BRANCHES = "子丑寅卯辰巳午未申酉戌亥".split("");
+  let branch = last;
+  // 有些人會打「辰時」
+  if (branch.endsWith("時")) {
+    branch = branch.slice(0, branch.length - 1);
+  }
+
+  if (BRANCHES.includes(branch)) {
+    return {
+      raw: trimmed,
+      date: dateStr,
+      timeType: "branch", // 地支時辰
+      time: null,
+      branch, // "辰"
+    };
+  }
+
+  // 3) 特例：未知時辰
+  if (last === "未知") {
+    return {
+      raw: trimmed,
+      date: dateStr,
+      timeType: "unknown",
+      time: null,
+      branch: null,
+    };
+  }
+
+  // 其他格式不吃
+  return null;
+}
+
 //////////////////////////////////////
 /// 在 handleLineEvent 把聊天預約接進來 ///
 //////////////////////////////////////
-
 async function handleLineEvent(event) {
   const userId = event.source && event.source.userId;
 
@@ -724,10 +801,84 @@ async function handleLineEvent(event) {
     }
 
     // ---- B. 沒有對話狀態：關鍵字 & 一般對話 ----
+    ///////////////////進入點//////////////////
+
+    // 🔮 小占卜：等待生日輸入階段
+    if (state && state.stage === "mini_reading_wait_birth") {
+      const parsed = parseMiniBirthInput(text);
+
+      if (!parsed) {
+        await pushText(
+          userId,
+          "看起來格式怪怪的 😅\n" +
+            "請用以下任一種格式再試一次：\n" +
+            "1) 1992-12-05-0830\n" +
+            "2) 1992-12-05-辰時\n" +
+            "3) 1992-12-05-辰\n" +
+            "如果不想提供時辰，可以輸入：1992-12-05-未知"
+        );
+        return;
+      }
+
+      // 如果最後一段是「未知」，你可以自己解讀成「沒提供時辰」
+      if (parsed.timeType === "unknown") {
+        await pushText(
+          userId,
+          "收到，你先只提供生日，這次小占卜會以整體命格為主，不特別看時辰細節。"
+        );
+      }
+
+      // 呼叫 AI，做小占卜
+      try {
+        const aiText = await callMiniReadingAI(parsed);
+
+        // 先回一則「你提供的資訊整理」
+        let infoLine = `你提供的生日資訊：\n${parsed.date}`;
+        if (parsed.timeType === "hm") {
+          infoLine += ` ${parsed.time}`;
+        } else if (parsed.timeType === "branch") {
+          infoLine += ` ${parsed.branch}時（地支時辰）`;
+        } else if (parsed.timeType === "unknown") {
+          infoLine += `（未提供時辰）`;
+        }
+
+        await pushText(userId, infoLine);
+        await pushText(userId, aiText);
+      } catch (err) {
+        console.error("[miniReading] AI 發生錯誤：", err);
+        await pushText(
+          userId,
+          "小占卜目前有點塞車 😅\n你可以稍後再試一次，或是直接跟我說「想預約」做完整命盤。"
+        );
+      }
+
+      // 結束這一次的小占卜對話
+      delete conversationStates[userId];
+      return;
+    }
 
     // 「預約」→ 第一步先選服務
     if (text === "預約") {
       await sendServiceSelectFlex(userId);
+      return;
+    }
+
+    // 🔮 小占卜入口
+    if (text === "小占卜") {
+      conversationStates[userId] = {
+        stage: "mini_reading_wait_birth",
+        data: {},
+      };
+
+      await pushText(
+        userId,
+        "小占卜模式啟動 🔮\n" +
+          "請用以下格式輸入你的生日與時間（時間可省略）：\n\n" +
+          "✅ 只填生日：1992-12-05-未知\n" +
+          "✅ 西元＋時分：1992-12-05-0830\n" +
+          "✅ 西元＋地支：1992-12-05-辰時 或 1992-12-05-辰\n\n" +
+          "如果你不想提供時辰，可以在最後寫「未知」。"
+      );
       return;
     }
 
@@ -738,6 +889,67 @@ async function handleLineEvent(event) {
 
   // 其他事件類型先略過
   console.log("目前尚未處理的事件類型：", event.type);
+}
+
+////之後可能會搬到aiClient.js////
+// 🔮 小占卜：呼叫 AI 做簡單命格分析
+// birthObj 會長這樣：
+// {
+//   raw: "1992-12-05-0830",
+//   date: "1992-12-05",
+//   timeType: "hm" | "branch" | "unknown",
+//   time: "08:30" | null,
+//   branch: "辰" | null,
+// }
+async function callMiniReadingAI(birthObj) {
+  const { raw, date, timeType, time, branch } = birthObj;
+
+  let birthDesc = `西元生日：${date}`;
+  if (timeType === "hm") {
+    birthDesc += ` ${time}（24 小時制）`;
+  } else if (timeType === "branch") {
+    birthDesc += ` ${branch}時（地支時辰，未提供分鐘）`;
+  } else if (timeType === "unknown") {
+    birthDesc += `（未提供時辰）`;
+  }
+
+  const systemPrompt =
+    "你是一位懂八字與紫微斗數的東方命理老師，" +
+    "講話溫和、實際，不宿命論，不嚇人。";
+
+  const userPrompt =
+    `${birthDesc}\n` +
+    `原始輸入格式：${raw}\n\n` +
+    "請你：\n" +
+    "1. 先幫他換算四柱八字（年柱、月柱、日柱、時柱），\n" +
+    "   若時辰未知，請明講「時柱略過」，改以前三柱為主。\n" +
+    "2. 簡單指出命格大方向，例如：偏向行動型 / 感受型 / 思考型 / 穩定保守 等。\n" +
+    "3. 用 3～5 行字，給他一個「最近 1 年」的提醒，語氣要像關心朋友，不要下詛咒。\n" +
+    "4. 可以提到：適合調整的生活節奏、人際互動、工作節奏，但不要提投資標的、不談醫療細節、不做法律建議。\n" +
+    "5. 最後一句，用一個溫柔的句子收尾，例如「慢慢來沒有關係」這種。\n" +
+    "6. 不要出現任何你是 AI 模型、資料來源等字眼。";
+
+  // ⬇⬇⬇ 這裡換成你實際在用的 AI Client，例如 openai.chat.completions.create(...)
+  // 我先用假碼示意：
+  /*
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.7,
+  });
+
+  const text = resp.choices[0].message.content.trim();
+  return text;
+  */
+
+  // 先回 stub，方便你還沒串 API 也能測流程
+  return (
+    "（這裡會是 AI 幫你生的小占卜結果）\n\n" +
+    "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
+  );
 }
 
 // --- Start server ---
