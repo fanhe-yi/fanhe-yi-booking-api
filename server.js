@@ -252,7 +252,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
   // 想開放幾天自己決定：例如未來 30 天
   const days = getNextDays(30);
   // 每 5 個日期一頁（你可以改成 3 或 4）
-  const dayGroups = chunkArray(days, 5);
+  const dayGroups = chunkArray(days, 3);
 
   const bubbles = dayGroups.map((group) => ({
     type: "bubble",
@@ -799,7 +799,11 @@ async function handleBookingFlow(userId, text, state, event) {
     state.stage = "waiting_phone";
     conversationStates[userId] = state;
 
-    await pushText(userId, `好的，${trimmed}～\n\n` + `存完姓名的下一階段。`);
+    await pushText(
+      userId,
+      `好的，${trimmed}～\n\n` +
+        `已幫你記錄姓名。\n\n接下來請輸入「聯絡電話」。\n如果不方便留電話，也可以輸入「略過」。`
+    );
     return true;
   }
 
@@ -808,7 +812,7 @@ async function handleBookingFlow(userId, text, state, event) {
     if (!trimmed) {
       await pushText(
         userId,
-        "至少留一種聯絡方式給我（手機或 LINE ID 都可以）。"
+        "至少留一種聯絡方式給我（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。"
       );
       return true;
     }
@@ -819,11 +823,9 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      "了解 🙌\n最後如果有什麼想特別說明的（例如：\n" +
-        "・希望線上 / 面談\n" +
-        "・最近特別在意的主題\n" +
-        "・時區 / 可聯絡時間…）\n\n" +
-        "都可以打一點給我。\n如果沒有特別想補充，可以回「無」。"
+      "我已經記下聯絡方式囉。\n\n" +
+        "最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n" +
+        "如果沒有特別備註，可以輸入「無」。"
     );
     return true;
   }
