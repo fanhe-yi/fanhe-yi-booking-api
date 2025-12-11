@@ -695,10 +695,15 @@ async function handleLineEvent(event) {
 async function routeGeneralCommands(userId, text) {
   // 1) 預約指令（沿用你原本的行為）
   if (text === "預約") {
-    // 這裡呼叫你原本寫好的「選服務 / 選日期」入口
-    // 例如：await sendServiceSelectorFlex(userId);
-    // 先簡單示意：
-    await pushText(userId, "這裡本來是預約主流程（之後接回你的 Flex）");
+    // 清掉舊的對話狀態，避免卡在別的流程
+    conversationStates[userId] = {
+      mode: "booking", // 之後 routeByConversationState 用來分流
+      stage: "waiting_slot_select", // 目前只是剛進預約流程
+      data: {},
+    };
+
+    // 丟出今天可預約時段的 Flex（你之前 server.js 裡已有 sendTodaySlotsFlex）
+    await sendTodaySlotsFlex(userId);
     return;
   }
 
@@ -771,22 +776,167 @@ async function routePostback(userId, data, state) {
   await pushText(userId, `我有收到你的選擇：${data}`);
 }
 
-// 預約聊天流程：目前先不啟用，之後再把你原來的多階段流程搬進來
+// 🧩 預約聊天流程：姓名 → 電話 → 備註 → 寫入 bookings.json
 async function handleBookingFlow(userId, text, state, event) {
-  console.log("[bookingFlow] 目前 booking 對話流程暫時未實作，略過。");
-  // 回 false 代表「我沒處理」，上層就不會卡住
+  if (!state || state.mode !== "booking") {
+    return false;
+  }
+
+  const trimmed = text.trim();
+
+  // A-1. 問姓名
+  if (state.stage === "waiting_name") {
+    if (!trimmed) {
+      await pushText(
+        userId,
+        `好的，${text}，已幫你記錄姓名。\n\n接下來請輸入「聯絡電話」。\n如果不方便留電話，也可以輸入「略過」。`
+      );
+      return true;
+    }
+
+    // 存姓名，進入下一階段
+    state.data.name = trimmed;
+    state.stage = "waiting_phone";
+    conversationStates[userId] = state;
+
+    await pushText(
+      userId,
+      `好的，${trimmed}～\n\n` +
+        `已經記錄聯絡方式。\n\n最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n如果沒有特別備註，可以輸入「無」。`
+    );
+    return true;
+  }
+
+  // A-2. 問電話 / 聯絡方式
+  if (state.stage === "waiting_phone") {
+    if (!trimmed) {
+      await pushText(
+        userId,
+        "至少留一種聯絡方式給我（手機或 LINE ID 都可以）。"
+      );
+      return true;
+    }
+
+    state.data.phone = trimmed; // 這裡用 phone 存，不一定真的只有電話
+    state.stage = "waiting_note";
+    conversationStates[userId] = state;
+
+    await pushText(
+      userId,
+      "了解 🙌\n最後如果有什麼想特別說明的（例如：\n" +
+        "・希望線上 / 面談\n" +
+        "・最近特別在意的主題\n" +
+        "・時區 / 可聯絡時間…）\n\n" +
+        "都可以打一點給我。\n如果沒有特別想補充，可以回「無」。"
+    );
+    return true;
+  }
+
+  // A-3. 問備註 → 收齊資料 → 寫入預約 → 通知 + hero
+  if (state.stage === "waiting_note") {
+    state.data.note = trimmed === "無" ? "" : trimmed;
+
+    // 組一份 bookingBody，格式跟 /api/bookings 類似
+    const bookingBody = {
+      serviceId: state.data.serviceId || "chat_line", // 目前沒有選服務，就先標記 chat_line
+      name: state.data.name || "",
+      email: "",
+      phone: state.data.phone || "",
+      lineId: "", // 聊天預約這裡就不另外收 lineId
+      date: state.data.date,
+      timeSlots: [state.data.timeSlot],
+      note: state.data.note || "",
+      lineUserId: userId, // 直接用 LINE userId 綁定
+    };
+
+    // 寫入 bookings.json
+    const bookings = loadBookings();
+    const newBooking = {
+      id: Date.now(),
+      createdAt: new Date().toISOString(),
+      status: "pending",
+      ...bookingBody,
+    };
+    bookings.push(newBooking);
+    saveBookings(bookings);
+
+    // 通知你自己
+    notifyNewBooking(newBooking).catch((err) => {
+      console.error("[LINE] notifyNewBooking (chat) 發送失敗：", err);
+    });
+
+    // 清掉對話狀態
+    delete conversationStates[userId];
+
+    // 如果你有 sendBookingSuccessHero，就丟 hero 給客戶
+    if (typeof sendBookingSuccessHero === "function") {
+      await sendBookingSuccessHero(userId, bookingBody);
+    } else {
+      // 沒有 hero 的備援文字版
+      await pushText(
+        userId,
+        "預約已收到，我會再跟你確認細節 🙌\n" +
+          `日期：${bookingBody.date}\n` +
+          `時段：${bookingBody.timeSlots.join("、")}\n` +
+          `姓名：${bookingBody.name}\n` +
+          `聯絡方式：${bookingBody.phone}`
+      );
+    }
+
+    return true;
+  }
+
+  // 其他 stage 沒處理到 → 回 false 讓上層有機會做別的事
   return false;
 }
 
-// 預約相關的 postback（選服務 / 選日期 / 選時段）
-// 目前先簡單回一行，避免按按鈕沒反應
+// 🧩 預約相關的 postback（選服務 / 選日期 / 選時段）
+// 目前我們只用到 choose_slot：從今天的時段 Flex 選到一個時間
 async function handleBookingPostback(userId, action, params, state) {
-  const debugText =
-    `目前預約按鈕（${action}）的詳細流程還在重構中。\n` +
-    `先幫你記錄這次操作，之後會改成正式的預約對話。`;
+  // 沒在 booking 模式就略過（避免干擾其他流程）
+  if (!state || state.mode !== "booking") {
+    console.log(
+      "[bookingPostback] 收到 booking 類型 postback，但目前不在 booking 模式，略過。"
+    );
+    await pushText(
+      userId,
+      "這個按鈕目前沒有對應的預約流程，如果要重新預約，可以直接輸入「預約」。"
+    );
+    return;
+  }
 
-  await pushText(userId, debugText);
-  return;
+  if (action === "choose_slot") {
+    const date = params.get("date");
+    const time = params.get("time");
+
+    if (!date || !time) {
+      await pushText(
+        userId,
+        "時段資訊有點怪怪的，麻煩你再輸入一次「預約」重新選擇。"
+      );
+      return;
+    }
+
+    // 更新這個 user 的對話狀態：已選好日期＋時段，接下來要問姓名
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "waiting_name",
+      data: {
+        date,
+        timeSlot: time,
+      },
+    };
+
+    await pushText(
+      userId,
+      `你選擇的是：\n${date} ${time}\n\n` +
+        `接下來請先輸入你的「姓名」。\n（建議填真實姓名，方便對帳＆通知）`
+    );
+    return;
+  }
+
+  // 其他 booking 用的 action（choose_service / choose_date）我們暫時還沒用
+  await pushText(userId, `我有收到你的選擇：${action}（尚未實作詳細流程）。`);
 }
 
 // 八字測算對話流程（小占卜）
