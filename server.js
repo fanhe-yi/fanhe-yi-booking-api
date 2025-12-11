@@ -799,11 +799,7 @@ async function handleBookingFlow(userId, text, state, event) {
     state.stage = "waiting_phone";
     conversationStates[userId] = state;
 
-    await pushText(
-      userId,
-      `好的，${trimmed}～\n\n` +
-        `已經記錄聯絡方式。\n\n最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n如果沒有特別備註，可以輸入「無」。`
-    );
+    await pushText(userId, `好的，${trimmed}～\n\n` + `存完姓名的下一階段。`);
     return true;
   }
 
