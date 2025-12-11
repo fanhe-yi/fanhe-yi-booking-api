@@ -697,13 +697,13 @@ async function routeGeneralCommands(userId, text) {
   if (text === "預約") {
     // 清掉舊的對話狀態，避免卡在別的流程
     conversationStates[userId] = {
-      mode: "booking", // 之後 routeByConversationState 用來分流
-      stage: "waiting_slot_select", // 目前只是剛進預約流程
-      data: {},
+      mode: "booking", // 標記：現在是在預約流程
+      stage: "idle", // 先沒有在問問題，只是在選服務/日期/時段
+      data: {}, // 後面會塞 serviceId / date / timeSlot
     };
 
-    // 丟出今天可預約時段的 Flex（你之前 server.js 裡已有 sendTodaySlotsFlex）
-    await sendTodaySlotsFlex(userId);
+    // 丟「八字 / 紫微 / 姓名」那顆 Bubble
+    await sendServiceSelectFlex(userId);
     return;
   }
 
@@ -891,9 +891,8 @@ async function handleBookingFlow(userId, text, state, event) {
 }
 
 // 🧩 預約相關的 postback（選服務 / 選日期 / 選時段）
-// 目前我們只用到 choose_slot：從今天的時段 Flex 選到一個時間
 async function handleBookingPostback(userId, action, params, state) {
-  // 沒在 booking 模式就略過（避免干擾其他流程）
+  // 1) 先確認：目前有在 booking 模式
   if (!state || state.mode !== "booking") {
     console.log(
       "[bookingPostback] 收到 booking 類型 postback，但目前不在 booking 模式，略過。"
@@ -905,8 +904,79 @@ async function handleBookingPostback(userId, action, params, state) {
     return;
   }
 
-  if (action === "choose_slot") {
+  // 2) 選服務：action=choose_service&service=bazi
+  if (action === "choose_service") {
+    const serviceId = params.get("service");
+
+    if (!serviceId) {
+      await pushText(
+        userId,
+        "服務項目資訊缺失，麻煩你再輸入一次「預約」，重新選擇服務。"
+      );
+      return;
+    }
+
+    const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+    console.log(`🧭 [booking] 使用者選擇服務：${serviceId} (${serviceName})`);
+
+    // 更新狀態：記住 service，接下來要選日期
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "waiting_date",
+      data: {
+        serviceId,
+      },
+    };
+
+    // 丟出日期 Carousel（會帶著 serviceId）
+    await sendDateCarouselFlex(userId, serviceId);
+    return;
+  }
+
+  // 3) 選日期：action=choose_date&service=bazi&date=YYYY-MM-DD
+  if (action === "choose_date") {
     const date = params.get("date");
+    // serviceId 優先用 state 裡存的，沒有再用 params
+    const serviceId =
+      (state.data && state.data.serviceId) ||
+      params.get("service") ||
+      "chat_line";
+    const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+    if (!date) {
+      await pushText(
+        userId,
+        "日期資訊有點怪怪的，麻煩你再選一次日期，或重新輸入「預約」。"
+      );
+      return;
+    }
+
+    console.log(`📅 [booking] 使用者選擇日期：${date}（服務：${serviceName}）`);
+
+    // 更新狀態：記住日期，下一步要選時段
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "waiting_slot",
+      data: {
+        serviceId,
+        date,
+      },
+    };
+
+    // 丟出「這一天的時段」 Flex
+    await sendSlotsFlexForDate(userId, date, serviceId);
+    return;
+  }
+
+  // 4) 選時段：action=choose_slot&service=bazi&date=YYYY-MM-DD&time=HH:MM-HH:MM
+  if (action === "choose_slot") {
+    // 優先用狀態裡的 service / date，避免被亂按舊按鈕搞亂
+    const serviceId =
+      (state.data && state.data.serviceId) ||
+      params.get("service") ||
+      "chat_line";
+    const date = (state.data && state.data.date) || params.get("date") || null;
     const time = params.get("time");
 
     if (!date || !time) {
@@ -917,11 +987,16 @@ async function handleBookingPostback(userId, action, params, state) {
       return;
     }
 
-    // 更新這個 user 的對話狀態：已選好日期＋時段，接下來要問姓名
+    const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+    console.log(`✅ [booking] 使用者選擇：${serviceName} ${date} ${time}`);
+
+    // 更新這個 user 的對話狀態：已選好服務＋日期＋時段，接下來要問姓名
     conversationStates[userId] = {
       mode: "booking",
       stage: "waiting_name",
       data: {
+        serviceId,
         date,
         timeSlot: time,
       },
@@ -929,13 +1004,12 @@ async function handleBookingPostback(userId, action, params, state) {
 
     await pushText(
       userId,
-      `你選擇的是：\n${date} ${time}\n\n` +
-        `接下來請先輸入你的「姓名」。\n（建議填真實姓名，方便對帳＆通知）`
+      `已幫你記錄預約項目：${serviceName}\n時段：${date} ${time}\n\n接下來請先輸入你的「姓名」。`
     );
     return;
   }
 
-  // 其他 booking 用的 action（choose_service / choose_date）我們暫時還沒用
+  // 5) 其他 booking action（暫時沒實作）
   await pushText(userId, `我有收到你的選擇：${action}（尚未實作詳細流程）。`);
 }
 
