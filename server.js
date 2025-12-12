@@ -16,6 +16,8 @@ const {
 
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
+//把 API 八字資料整理成：給 AI 用的摘要文字
+const { getBaziSummaryForAI } = require("./baziApiClient");
 
 // 先創造 app
 const app = express();
@@ -1157,24 +1159,51 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     focusText = "本次以整體命格與最近一年提醒為主。";
   }
 
+  // --- 先向 youhualao 取得八字摘要（已組成給 AI 用的文字） ---
+  let baziSummaryText = "";
+  try {
+    const { summaryText } = await getBaziSummaryForAI(birthObj);
+    baziSummaryText = summaryText;
+  } catch (err) {
+    console.error("[youhualao API error]", err);
+    // API 掛了就 fallback：讓 AI 自己算
+    const fallbackSystemPrompt =
+      "你是一位懂八字與紫微斗數的東方命理老師，講話溫和、實際，不宿命論，不嚇人。";
+    const fallbackUserPrompt =
+      `${birthDesc}\n` +
+      `原始輸入格式：${raw}\n\n` +
+      `${focusText}\n\n` +
+      "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
+      "並依據上述重點，給予簡短的提醒與建議。";
+
+    return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
+  }
+
   // --- 系統提示 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
-    "講話溫和、實際，不宿命論，不嚇人。";
+    "講話溫和、實際，不宿命論，不嚇人。" +
+    "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
+    "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
+    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。";
 
   // --- userPrompt ---
   const userPrompt =
+    `【基本資料】\n` +
     `${birthDesc}\n` +
     `原始輸入格式：${raw}\n\n` +
-    `${focusText}\n\n` +
-    "請你：\n" +
-    "1. 先幫他換算四柱八字（年柱、月柱、日柱、時柱），\n" +
-    "   若時辰未知，請明講「時柱略過」，改以前三柱為主。\n" +
-    "2. 根據上述 focus，決定要多講「格局」還是「流年 / 流月 / 流日」重點。\n" +
-    "3. 用 3～5 行字，給他一個最近的提醒，語氣要像關心朋友，不要下詛咒。\n" +
-    "4. 可以提到：適合調整的生活節奏、人際互動、工作節奏，但不要提投資標的、不談醫療細節、不做法律建議。\n" +
-    "5. 最後一句，用一個溫柔的句子收尾，例如「慢慢來沒有關係」這種。\n" +
-    "6. 不要出現任何你是 AI 模型、資料來源等字眼。";
+    `【本次解讀重點】\n${focusText}\n\n` +
+    `${baziSummaryText}\n\n` +
+    "【請你這樣做】\n" +
+    "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
+    "2. 先用 2～3 行話，簡單說明這個命盤的整體調性與性格重點（可以提到日元、財官印比的強弱，但不要講太艱深）。\n" +
+    "3. 再根據本次重點（格局 / 綜合運勢 / 流年 / 流月 / 流日），延伸 3～5 行具體建議：\n" +
+    "   - 可以談：工作節奏、情緒狀態、人際溝通、感情互動、自我照顧。\n" +
+    "   - 不要提：投資標的、醫療診斷、法律建議。\n" +
+    "4. 若時辰未知或僅為約略時段，請在文中自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
+    "5. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
+    "6. 最後用一個溫柔的句子收尾，例如「慢慢來沒有關係」或類似風格，讓對方有被支持的感覺。\n" +
+    "7. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。";
 
   // --- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
