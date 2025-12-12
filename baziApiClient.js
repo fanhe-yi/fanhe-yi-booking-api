@@ -179,7 +179,7 @@ function buildBaziSummaryText(birthObj, baziData) {
       : "（地支藏干資訊未完整提供或格式不同，請自由發揮但不要亂編具體藏干。）";
 
   const text = [
-    "【已換算好的八字資料】",
+    "【八字資料】",
     "四柱干支（年 → 月 → 日 → 時）：",
     `- 年柱：${yearGz || "（無資料）"}`,
     `- 月柱：${monthGz || "（無資料）"}`,
