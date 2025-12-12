@@ -12,6 +12,7 @@ const {
   pushFlex,
   sendBookingSuccessHero,
   sendBaziMenuFlex,
+  sendMiniBaziResultFlex,
 } = require("./lineClient");
 
 //AI 訊息回覆相關
@@ -1054,20 +1055,23 @@ async function handleBookingPostback(userId, action, params, state) {
 //如果不合法 → 提示他重打。
 //如果合法 → 把 state.data.baziMode 拿出來，丟給 callMiniReadingAI(parsed, baziMode)。
 //把結果回給使用者，最後 delete conversationStates[userId]。
+// ========================
+//  八字測算主流程（精簡乾淨版）
+// ========================
 async function handleMiniBaziFlow(userId, text, state, event) {
+  if (!state || state.mode !== "mini_bazi") return false;
+
   console.log(
-    "[miniBaziFlow] 收到一則來自",
-    userId,
-    "的文字（目前 stage =",
-    state.stage,
-    "）：",
-    text
+    `[miniBaziFlow] from ${userId}, stage=${state.stage}, text= ${text}`
   );
 
-  // 目前我們只實作「等待生日輸入」這個階段
+  // -------------------------
+  // 1) 等使用者輸入生日
+  // -------------------------
   if (state.stage === "wait_birth_input") {
     const parsed = parseMiniBirthInput(text);
 
+    // 格式錯誤處理
     if (!parsed) {
       await pushText(
         userId,
@@ -1078,43 +1082,57 @@ async function handleMiniBaziFlow(userId, text, state, event) {
           "3) 1992-12-05-辰\n" +
           "如果不想提供時辰，可以輸入：1992-12-05-未知"
       );
-      return true; // 這次訊息已處理掉
+      return true;
     }
 
-    // 從 state 拿出使用者剛剛選的測算模式（格局 / 流年 / 流月 / 流日）
-    const baziMode =
+    // 使用者選的測算模式（格局 / 流年 / 流月 / 流日）
+    const mode =
       state.data && state.data.baziMode ? state.data.baziMode : "pattern";
 
     try {
-      // 呼叫 AI（目前還是 stub，但先把模式傳進去）
-      const aiText = await callMiniReadingAI(parsed, baziMode);
+      // -------------------------
+      // 2) 呼叫 AI 取得測算文本
+      // -------------------------
+      const aiText = await callMiniReadingAI(parsed, mode);
 
-      // 先回一則「你提供的資訊整理」
-      let infoLine = `你提供的生日資訊：\n${parsed.date}`;
+      // -------------------------
+      // 3) 組合生日文字，給 Flex 用
+      // -------------------------
+      let birthDesc = `西元生日：${parsed.date}`;
       if (parsed.timeType === "hm") {
-        infoLine += ` ${parsed.time}`;
+        birthDesc += ` ${parsed.time}（24 小時制）`;
       } else if (parsed.timeType === "branch") {
-        infoLine += ` ${parsed.branch}時`;
+        birthDesc += ` ${parsed.branch}時（地支時辰）`;
       } else if (parsed.timeType === "unknown") {
-        infoLine += `（未提供時辰）`;
+        birthDesc += `（未提供時辰）`;
       }
 
-      await pushText(userId, infoLine);
-      await pushText(userId, aiText);
+      // -------------------------
+      // 4) 丟 Flex 卡片（最終呈現）
+      // -------------------------
+      await sendMiniBaziResultFlex(userId, {
+        birthDesc,
+        mode,
+        aiText,
+      });
+
+      // 完成 → 清除 state
+      delete conversationStates[userId];
+      return true;
     } catch (err) {
-      console.error("[miniBaziFlow] AI 發生錯誤：", err);
+      console.error("[miniBaziFlow] AI error:", err);
       await pushText(
         userId,
-        "八字測算目前有點塞車 😅\n你可以稍後再試一次，或是直接跟我說「預約」做完整命盤。"
+        "八字測算目前有點塞車 😅\n你可以稍後再試一次，或直接輸入「預約」進行完整論命。"
       );
+      delete conversationStates[userId];
+      return true;
     }
-
-    // 結束這一次的八字測算
-    delete conversationStates[userId];
-    return true;
   }
 
-  // 其他 stage 尚未實作
+  // -------------------------
+  // 未實作的 stage
+  // -------------------------
   return false;
 }
 

@@ -495,6 +495,98 @@ async function sendBaziMenuFlex(userId) {
   await pushFlex(userId, "八字測算選單", bubble);
 }
 
+// 🔮 八字測算結果 Flex：把 AI_Reading_Text 包成好看的卡片丟給用戶
+async function sendMiniBaziResultFlex(userId, payload) {
+  const { birthDesc, mode, aiText } = payload;
+
+  // 測算模式的標題
+  const modeLabelMap = {
+    pattern: "格局 / 命盤基調",
+    year: "流年運勢",
+    month: "流月節奏",
+    day: "流日 / 近期提醒",
+  };
+  const modeLabel = modeLabelMap[mode] || "整體命盤解析";
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜八字測算",
+          weight: "bold",
+          size: "sm",
+          color: "#888888",
+        },
+        {
+          type: "text",
+          text: modeLabel,
+          weight: "bold",
+          size: "md",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: birthDesc,
+          size: "xs",
+          color: "#666666",
+          wrap: true,
+        },
+        {
+          type: "separator",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: aiText,
+          size: "sm",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "再測一次",
+            text: "八字測算",
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "想預約完整論命",
+            text: "預約",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "八字測算結果", bubble);
+}
+
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
@@ -505,4 +597,5 @@ module.exports = {
   notifyCustomerBooking,
   sendBookingSuccessHero,
   sendBaziMenuFlex,
+  sendMiniBaziResultFlex,
 };
