@@ -414,6 +414,87 @@ async function sendBookingSuccessHero(userId, booking) {
   await pushFlex(userId, "預約成功", bubble);
 }
 
+//八字測算主選單Flex Message
+async function sendBaziMenuFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🔮 梵和易學｜八字測算",
+          weight: "bold",
+          size: "md",
+          color: "#6A4C93",
+        },
+        {
+          type: "text",
+          text: "請選擇你想進行的測算類型：",
+          size: "sm",
+          color: "#555555",
+          margin: "sm",
+        },
+
+        // 4 個按鈕
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "格局分析",
+            displayText: "想看格局分析",
+            data: "action=bazi_mode&mode=pattern",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "流年分析",
+            displayText: "想看流年分析",
+            data: "action=bazi_mode&mode=year",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "流月占卜",
+            displayText: "想看流月占卜",
+            data: "action=bazi_mode&mode=month",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "流日占卜",
+            displayText: "想看流日占卜",
+            data: "action=bazi_mode&mode=day",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "八字測算選單", bubble);
+}
+
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
@@ -423,4 +504,5 @@ module.exports = {
   notifyNewBooking,
   notifyCustomerBooking,
   sendBookingSuccessHero,
+  sendBaziMenuFlex,
 };
