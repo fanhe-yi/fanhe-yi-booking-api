@@ -12,6 +12,7 @@ const {
   pushFlex,
   sendBookingSuccessHero,
   sendBaziMenuFlex,
+  AI_Reading,
 } = require("./lineClient");
 
 // 先創造 app
@@ -1126,6 +1127,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { raw, date, timeType, time, branch } = birthObj;
 
+  // --- 組合生日文字描述 ---
   let birthDesc = `西元生日：${date}`;
   if (timeType === "hm") {
     birthDesc += ` ${time}（24 小時制）`;
@@ -1135,6 +1137,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     birthDesc += `（未提供時辰）`;
   }
 
+  // --- focus 語氣設定 ---
   // 之後你可以依 mode 調整說話重點
   // pattern = 格局分析, year = 流年, month = 流月, day = 流日
   let focusText = "";
@@ -1152,10 +1155,12 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     focusText = "本次以整體命格與最近一年提醒為主。";
   }
 
+  // --- 系統提示 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
     "講話溫和、實際，不宿命論，不嚇人。";
 
+  // --- userPrompt ---
   const userPrompt =
     `${birthDesc}\n` +
     `原始輸入格式：${raw}\n\n` +
@@ -1168,6 +1173,11 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "4. 可以提到：適合調整的生活節奏、人際互動、工作節奏，但不要提投資標的、不談醫療細節、不做法律建議。\n" +
     "5. 最後一句，用一個溫柔的句子收尾，例如「慢慢來沒有關係」這種。\n" +
     "6. 不要出現任何你是 AI 模型、資料來源等字眼。";
+
+  // --- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
+  const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
+
+  return AI_Reading_Text;
 
   // ⬇⬇⬇ 這裡換成你實際在用的 AI Client，例如 openai.chat.completions.create(...)
   // 我先用假碼示意：
@@ -1186,11 +1196,10 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   */
 
   // 先回 stub，方便你還沒串 API 也能測流程
-  return (
-    userPrompt,
-    "（這裡會是 AI 幫你生的小占卜結果）\n\n${userPrompt}\n\n" +
-      "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
-  );
+  //return (
+  //  "（這裡會是 AI 幫你生的小占卜結果）\n\n$" +
+  //  "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
+  //);
 }
 
 // --- Start server ---
