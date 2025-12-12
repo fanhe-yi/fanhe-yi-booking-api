@@ -1176,6 +1176,16 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
       "並依據上述重點，給予簡短的提醒與建議。";
 
+    // 🔍 DEBUG：就算 fallback，也可以看一下丟什麼給 AI
+    console.log(
+      "[callMiniReadingAI][fallback] systemPrompt:\n",
+      fallbackSystemPrompt
+    );
+    console.log(
+      "[callMiniReadingAI][fallback] userPrompt:\n",
+      fallbackUserPrompt
+    );
+
     return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
   }
 
@@ -1205,7 +1215,11 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "6. 最後用一個溫柔的句子收尾，例如「慢慢來沒有關係」或類似風格，讓對方有被支持的感覺。\n" +
     "7. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。";
 
-  // --- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
+  // 🔍 DEBUG：這裡就是「送給 AI 之前」最後的內容
+  console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+
+  // ---- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
 
   return AI_Reading_Text;

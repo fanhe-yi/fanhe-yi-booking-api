@@ -92,12 +92,25 @@ async function fetchBaziFromYouhualao(birthObj) {
 
   const url = `${YOUHUALAO_BASE_URL}?${params.toString()}`;
 
+  // 🔍 DEBUG：看實際打出去的 URL / 參數
+  console.log("[baziApiClient] calling youhualao:", {
+    url,
+    params: { y, m, d, h, mi, sex },
+  });
+
   const resp = await fetch(url);
   if (!resp.ok) {
     throw new Error(`youhualao API 呼叫失敗，HTTP 狀態碼：${resp.status}`);
   }
 
   const data = await resp.json();
+
+  // 🔍 DEBUG：只印關鍵欄位，避免整包太肥
+  console.log("[baziApiClient] youhualao response (partial):", {
+    ganzhi: data.ganzhi || data.data?.ganzhi,
+    shishen: data.shishen || data.data?.shishen,
+    hasCanggan: !!(data.canggan || data.data?.canggan),
+  });
 
   // 依實際回傳調整，這裡保守處理兩種層級 data / data.data
   const ganzhi = data.ganzhi || data.data?.ganzhi || [];
@@ -185,6 +198,10 @@ function buildBaziSummaryText(birthObj, baziData) {
 async function getBaziSummaryForAI(birthObj) {
   const baziData = await fetchBaziFromYouhualao(birthObj);
   const summaryText = buildBaziSummaryText(birthObj, baziData);
+
+  // 🔍 DEBUG：看給 AI 用的八字摘要文字長什麼樣//
+  console.log("[baziApiClient] summaryText for AI:\n", summaryText);
+
   return {
     summaryText,
     structured: baziData,
