@@ -105,17 +105,24 @@ async function fetchBaziFromYouhualao(birthObj) {
 
   const data = await resp.json();
 
-  // 🔍 DEBUG：只印關鍵欄位，避免整包太肥
+  // 🔍 方便 debug，先看一眼完整結構
+  console.log(
+    "[baziApiClient] FULL API RESPONSE:\n",
+    JSON.stringify(data, null, 2)
+  );
+
+  // ✨ 關鍵：真正要的在 data.data.bazi 裡
+  const core = data.data && data.data.bazi ? data.data.bazi : {};
+
   console.log("[baziApiClient] youhualao response (partial):", {
-    ganzhi: data.ganzhi || data.data?.ganzhi,
-    shishen: data.shishen || data.data?.shishen,
-    hasCanggan: !!(data.canggan || data.data?.canggan),
+    ganzhi: core.ganzhi,
+    shishen: core.shishen,
+    hasCanggan: !!core.canggan,
   });
 
-  // 依實際回傳調整，這裡保守處理兩種層級 data / data.data
-  const ganzhi = data.ganzhi || data.data?.ganzhi || [];
-  const shishen = data.shishen || data.data?.shishen || [];
-  const canggan = data.canggan || data.data?.canggan || {};
+  const ganzhi = core.ganzhi || [];
+  const shishen = core.shishen || [];
+  const canggan = core.canggan || {};
 
   return { rawApi: data, ganzhi, shishen, canggan };
 }
@@ -144,21 +151,25 @@ function buildBaziSummaryText(birthObj, baziData) {
     timeDesc = "本命盤未提供精確時辰，時柱僅供參考，解讀時以年前三柱為主。";
   }
 
-  // 整理藏干（實際 key 名要依 API 調整）
   const hiddenLines = [];
-  // 假設：canggan 可能長這樣
-  // { "nian": ["己 伤官","乙 正印","丁 劫财"], "yue": [...], "ri": [...], "shi": [...] }
+  // 這裡直接對照你 API 裡的四個 key
   const keysMap = [
-    { label: "年支", key: "nian", altKey: "cgn" },
-    { label: "月支", key: "yue", altKey: "cgy" },
-    { label: "日支", key: "ri", altKey: "cgr" },
-    { label: "時支", key: "shi", altKey: "cgs" },
+    { label: "年支", key: "cgy" },
+    { label: "月支", key: "cgm" },
+    { label: "日支", key: "cgd" },
+    { label: "時支", key: "cgh" },
   ];
 
-  keysMap.forEach(({ label, key, altKey }) => {
-    const arr = canggan[key] || canggan[altKey] || [];
-    if (Array.isArray(arr) && arr.length > 0) {
-      hiddenLines.push(`- ${label}藏干：${arr.join("，")}`);
+  keysMap.forEach(({ label, key }) => {
+    const arr = canggan[key];
+    if (Array.isArray(arr)) {
+      // 有些是 ["癸 正官"," "," "]，把空字串濾掉
+      const clean = arr
+        .map((s) => String(s).trim())
+        .filter((s) => s && s !== " ");
+      if (clean.length > 0) {
+        hiddenLines.push(`- ${label}藏干：${clean.join("，")}`);
+      }
     }
   });
 
