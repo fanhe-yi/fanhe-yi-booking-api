@@ -1123,7 +1123,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 //   time: "08:30" | null,
 //   branch: "辰" | null,
 // }
-async function callMiniReadingAI(birthObj) {
+async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { raw, date, timeType, time, branch } = birthObj;
 
   let birthDesc = `西元生日：${date}`;
