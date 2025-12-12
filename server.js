@@ -12,8 +12,10 @@ const {
   pushFlex,
   sendBookingSuccessHero,
   sendBaziMenuFlex,
-  AI_Reading,
 } = require("./lineClient");
+
+//AI 訊息回覆相關
+const { AI_Reading } = require("./aiClient");
 
 // 先創造 app
 const app = express();
