@@ -1187,8 +1187,9 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
 
   // 先回 stub，方便你還沒串 API 也能測流程
   return (
+    userPrompt,
     "（這裡會是 AI 幫你生的小占卜結果）\n\n${userPrompt}\n\n" +
-    "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
+      "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
   );
 }
 
