@@ -28,7 +28,7 @@ async function AI_Reading(userPrompt, systemPrompt) {
 
     return text;
   } catch (err) {
-    console.error("[miniBaziReading] AI 發生錯誤：", err);
+    console.error("[AI_Reading] AI 發生錯誤：", err);
     return "我這邊在幫你看盤的時候小當機了一下，可以晚點再試一次，好嗎？";
   }
 }
