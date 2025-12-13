@@ -22,7 +22,7 @@ async function AI_Reading(userPrompt, systemPrompt) {
     ];
 
     const resp = await ai.models.generateContent({
-      model: "gemini-2.5-flash", // 推薦使用 gemini-2.5-flash 快速且強大
+      model: "gemini-3-pro-preview", // 推薦使用 gemini-2.5-flash 快速且強大
       contents: contents,
       config: {
         // 在 Gemini 1.5/2.5 模型中，建議使用 systemInstruction 來設定角色
