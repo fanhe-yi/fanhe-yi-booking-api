@@ -1,13 +1,15 @@
 // aiClient.js
-const OpenAI = require("openai");
-const { GoogleGenAI } = require("@google/genai");
 
 // ---- OpenAI 設定 ----
+const OpenAI = require("openai");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 // ---- Gemini 設定 ----
+const { GoogleGenAI } = require("@google/genai");
+
+// 建議順便把 key 寫明確，避免之後環境變數問題
 const googleAi = new GoogleGenAI({
   apiKey: process.env.GOOGLE_API_KEY,
 });
@@ -31,44 +33,31 @@ async function callOpenAI(userPrompt, systemPrompt) {
   return text;
 }
 
-// ---- 內部：呼叫 Gemini ----
+// ---- 內部：呼叫 Gemini（用你原本那套 models.generateContent 寫法）----
 async function callGemini(userPrompt, systemPrompt) {
-  // 建議：用 systemInstruction 來放你的命理老師人設
-  const model = googleAi.getGenerativeModel({
-    model: "gemini-2.5-flash", // 先用 flash，比較省錢又快
-    systemInstruction: systemPrompt,
-  });
+  // 這裡沿用你原本的 contents 結構：systemPrompt + userPrompt 都當 user 訊息
+  const contents = [
+    { role: "user", parts: [{ text: systemPrompt }] },
+    { role: "user", parts: [{ text: userPrompt }] },
+  ];
 
-  const resp = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: userPrompt }],
-      },
-    ],
-    generationConfig: {
+  const resp = await googleAi.models.generateContent({
+    // 你可以改回 gemini-3-pro-preview，看你現在要用哪顆
+    model: "gemini-3-pro-preview",
+    contents,
+    config: {
       temperature: 0.7,
     },
   });
 
-  // 不同 SDK 版本取字串的方式會不太一樣，這裡多做幾層保險
-  let text = "這次星星沒有成功排好隊，你可以等等再試一次～";
-
-  if (resp?.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-    text = resp.response.candidates[0].content.parts[0].text.trim();
-  } else if (typeof resp?.response?.text === "function") {
-    text = resp.response.text().trim();
-  } else if (typeof resp?.text === "function") {
-    text = resp.text().trim();
-  } else if (typeof resp?.text === "string") {
-    text = resp.text.trim();
-  }
+  const text =
+    resp.text?.trim() || "這次星星沒有成功排好隊，你可以等等再試一次～";
 
   console.log("[AI_Reading][Gemini] 發送成功");
   return text;
 }
 
-// ---- 對外：統一入口，預設 Gemini，quota 爆了再用 GPT ----
+// ---- 對外：統一入口，先 Gemini，失敗時自動改用 GPT ----
 async function AI_Reading(userPrompt, systemPrompt) {
   try {
     // 先試 Gemini
