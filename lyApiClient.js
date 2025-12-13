@@ -22,6 +22,7 @@ async function getLiuYaoGanzhiForDate(dateObj) {
     h,
     mi,
     type: 1,
+    yy: 103211,
     // yy 可以不一定要給，你測試那個 103211 只是倍數編號
     // 不填 it 也會自己算; 如果你很在意可以之後再加
   };
