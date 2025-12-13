@@ -19,6 +19,8 @@ const {
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
+//六爻相關
+const { getLiuYaoGanzhiForDate } = require("./lyApiClient");
 
 // 先創造 app
 const app = express();
@@ -1160,20 +1162,19 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   }
 
   // --- focus 語氣設定 ----
-  // 之後你可以依 mode 調整說話重點
-  // pattern = 格局分析, year = 流年, month = 流月, day = 流日
   let focusText = "";
   if (mode === "pattern") {
     focusText =
       "本次以「格局 / 命盤基礎性格與人生主調」為主，不特別細拆流年流月。";
   } else if (mode === "year") {
-    focusText = "本次以「今年的流年變化與提醒」為主，格局只簡單帶過。";
+    focusText =
+      "本次以「今年的流年變化與提醒」為主，重點放在流年年柱與命主八字之間的五行生剋制化、刑沖合害。格局只簡單帶過。";
   } else if (mode === "month") {
     focusText =
-      "本次以「這個月的運勢節奏與起伏」為主，再透過萬年曆/黃曆查詢工具，先查出今日的年柱、月柱、日柱，去看這個月的月柱干支對命主八字的五行刑沖剋害影響，格局只簡單帶過。";
+      "本次以「這個月的運勢節奏與起伏」為主，重點放在本月月柱與命主八字之間的五行互動與刑沖合害。格局只簡單帶過。";
   } else if (mode === "day") {
     focusText =
-      "本次以「以今日的狀態提醒」為主，再透過萬年曆/黃曆查詢工具，先查出今日的年柱、月柱、日柱，去看今天的日柱干支對命主八字的五行刑沖剋害影響，格局只簡單帶過。";
+      "本次以「今日 / 最近幾日的狀態提醒」為主，重點放在今日日柱對命主八字的觸發與起伏。格局只簡單帶過。";
   } else {
     focusText = "本次以整體命格與最近一年提醒為主。";
   }
@@ -1208,6 +1209,49 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
   }
 
+  // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
+  let flowingGzText = "";
+
+  // pattern 模式不用硬要查，year/month/day 再查就好
+  if (mode === "year" || mode === "month" || mode === "day") {
+    try {
+      const now = new Date();
+      const { yearGZ, monthGZ, dayGZ, hourGZ } = await getLiuYaoGanzhiForDate(
+        now
+      );
+
+      if (mode === "year") {
+        flowingGzText =
+          "【當下流年干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `今日月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「流年年柱」與命主原本命盤之間的五行生剋制化與刑沖合害對應。";
+      } else if (mode === "month") {
+        flowingGzText =
+          "【當下流月干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `本月月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「本月月柱」對命主原本命盤的五行起伏與刑沖合害。";
+      } else if (mode === "day") {
+        flowingGzText =
+          "【當下流日干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `本月月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「今日日柱」對命主原本命盤的五行觸發與情緒、事件起落。";
+      }
+    } catch (err) {
+      console.error("[youhualao ly] 取得當日干支失敗：", err);
+      // 失敗就不要硬塞，讓 AI 只看格局 + 基本八字就好
+      flowingGzText = "";
+    }
+  }
+
   // --- 系統提示 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
@@ -1216,18 +1260,19 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
     "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。";
 
-  // --- userPrompt ---
   const userPrompt =
     `【基本資料】\n` +
     `${birthDesc}\n` +
     `原始輸入格式：${raw}\n\n` +
     `【本次解讀重點】\n${focusText}\n\n` +
+    "【命盤結構摘要（請以此為準）】\n" +
     `${baziSummaryText}\n\n` +
+    (flowingGzText ? `${flowingGzText}\n\n` : "") +
     "【請你這樣做】\n" +
     "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
     "2. 以「格局 / 命盤基礎性格與人生主調」為主的話先用 2～3 行話，簡單說明這個命盤的整體調性與性格重點（可以提到日元、財官印比的強弱，但不要講太艱深）。\n" +
     "3. 一開始請先寫出年柱、月柱、日柱、時柱，並寫出是什麼日主，最後計算一下五行數量(不用算藏干)，例:五行：金: 3, 木: 1, 水: 1, 火: 2, 土: 1\n" +
-    "4. 再依今年的年柱干支、月柱干支、日柱干支(依本次解讀重點)，分析對命主八字的五行刑沖剋害影響，延伸 3～5 行具體建議：\n" +
+    "4. 再根據【本次解讀重點】（格局 / 今年 / 這個月 / 今日），延伸 3～5 行具體建議：\n" +
     "   - 可以談：工作節奏、情緒狀態、人際溝通、感情互動、自我照顧。\n" +
     "   - 不要提：投資標的、醫療診斷、法律建議。\n" +
     "5. 若時辰未知或僅為約略時段，請在文中自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
