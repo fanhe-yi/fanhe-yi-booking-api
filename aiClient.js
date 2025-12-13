@@ -42,8 +42,7 @@ async function callGemini(userPrompt, systemPrompt) {
   ];
 
   const resp = await googleAi.models.generateContent({
-    // 你可以改回 gemini-3-pro-preview，看你現在要用哪顆
-    model: "gemini-3-pro-preview",
+    model: "gemini-2.5-flash",
     contents,
     config: {
       temperature: 0.7,
