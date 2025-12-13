@@ -1159,7 +1159,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     birthDesc += `（未提供時辰）`;
   }
 
-  // --- focus 語氣設定 ---
+  // --- focus 語氣設定 ----
   // 之後你可以依 mode 調整說話重點
   // pattern = 格局分析, year = 流年, month = 流月, day = 流日
   let focusText = "";
@@ -1167,12 +1167,14 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     focusText =
       "本次以「格局 / 命盤基礎性格與人生主調」為主，不特別細拆流年流月。";
   } else if (mode === "year") {
-    focusText = "本次以「最近 1 年的流年變化與提醒」為主，格局只簡單帶過。";
+    focusText =
+      "本次以「今年的流年變化與提醒」為主，去看今年的天干地支對命主八字的五行刑沖剋害影響，格局只簡單帶過。";
   } else if (mode === "month") {
-    focusText = "本次以「最近幾個月的運勢節奏與起伏」為主，格局只簡單帶過。";
+    focusText =
+      "本次以「這個月的運勢節奏與起伏」為主，去看這個月的天干地支對命主八字的五行刑沖剋害影響，格局只簡單帶過。";
   } else if (mode === "day") {
     focusText =
-      "本次以「最近幾週 / 今日、近幾日的狀態提醒」為主，格局只簡單帶過。";
+      "本次以「以今日的狀態提醒」為主，去看今天的天干地支對命主八字的五行刑沖剋害影響，格局只簡單帶過。";
   } else {
     focusText = "本次以整體命格與最近一年提醒為主。";
   }
@@ -1235,8 +1237,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "8. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。";
 
   // 🔍 DEBUG：這裡就是「送給 AI 之前」最後的內容
-  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
-  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+  console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
 
   // ---- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
