@@ -93,10 +93,10 @@ async function fetchBaziFromYouhualao(birthObj) {
   const url = `${YOUHUALAO_BASE_URL}?${params.toString()}`;
 
   // 🔍 DEBUG：看實際打出去的 URL / 參數
-  console.log("[baziApiClient] calling youhualao:", {
-    url,
-    params: { y, m, d, h, mi, sex },
-  });
+  //console.log("[baziApiClient] calling youhualao:", {
+  //  url,
+  //  params: { y, m, d, h, mi, sex },
+  //});
 
   const resp = await fetch(url);
   if (!resp.ok) {
@@ -106,19 +106,19 @@ async function fetchBaziFromYouhualao(birthObj) {
   const data = await resp.json();
 
   // 🔍 方便 debug，先看一眼完整結構
-  console.log(
-    "[baziApiClient] FULL API RESPONSE:\n",
-    JSON.stringify(data, null, 2)
-  );
+  //console.log(
+  //  "[baziApiClient] FULL API RESPONSE:\n",
+  //  JSON.stringify(data, null, 2)
+  //);
 
   // ✨ 關鍵：真正要的在 data.data.bazi 裡
   const core = data.data && data.data.bazi ? data.data.bazi : {};
 
-  console.log("[baziApiClient] youhualao response (partial):", {
-    ganzhi: core.ganzhi,
-    shishen: core.shishen,
-    hasCanggan: !!core.canggan,
-  });
+  //console.log("[baziApiClient] youhualao response (partial):", {
+  //  ganzhi: core.ganzhi,
+  //  shishen: core.shishen,
+  //  hasCanggan: !!core.canggan,
+  //});
 
   const ganzhi = core.ganzhi || [];
   const shishen = core.shishen || [];
@@ -211,7 +211,7 @@ async function getBaziSummaryForAI(birthObj) {
   const summaryText = buildBaziSummaryText(birthObj, baziData);
 
   // 🔍 DEBUG：看給 AI 用的八字摘要文字長什麼樣//
-  console.log("[baziApiClient] summaryText for AI:\n", summaryText);
+  //console.log("[baziApiClient] summaryText for AI:\n", summaryText);
 
   return {
     summaryText,

@@ -1283,6 +1283,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   // 🔍 DEBUG：這裡就是「送給 AI 之前」最後的內容
   console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
   console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+  console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
+  console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
   // ---- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
