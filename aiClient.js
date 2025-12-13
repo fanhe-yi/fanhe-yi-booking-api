@@ -6,7 +6,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// ---- Gemini 設定 ----
+// ---- Gemini 設定 -----
 const { GoogleGenAI } = require("@google/genai");
 
 // 建議順便把 key 寫明確，避免之後環境變數問題
