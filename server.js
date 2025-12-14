@@ -1251,14 +1251,27 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       flowingGzText = "";
     }
   }
-  console.log("[callMiniReadingAI_test] flowingGzText:\n", flowingGzText);
+
   // --- 系統提示 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
     "講話溫和、實際，不宿命論，不嚇人。" +
     "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
     "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
-    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。";
+    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。" +
+    "### 請務必遵守輸出格式：" +
+    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加說明。" +
+    "格式如下：" +
+    "{ " +
+    '"personality": "人格特質，150-170 字", ' +
+    '"mate": "情緒狀態的分析，150-170 字", ' +
+    '"social": "人際關係，150-170 字", ' +
+    '"family": "感情互動的分析，150-170 字", ' +
+    '"work": "學業/工作，150-170 字"' +
+    " }" +
+    "每段都要濃縮具體、只寫可行建議，不要廢話，不要重複。" +
+    "五段字數總共約 750～850 字（含標點）。" +
+    "務必符合 JSON 格式，不能出現換行錯誤、不能丟失引號。";
 
   const userPrompt =
     `【基本資料】\n` +
@@ -1278,7 +1291,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "5. 若時辰未知或僅為約略時段，請在文中自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
     "6. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
     "7. 最後用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
-    "8. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。";
+    "8. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。" +
+    "9. 請根據以上八字資料，依規格輸出五個區塊（JSON 格式）。";
 
   // 🔍 DEBUG：這裡就是「送給 AI 之前」最後的內容
   console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
@@ -1289,28 +1303,6 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
 
   return AI_Reading_Text;
-
-  // ⬇⬇⬇ 這裡換成你實際在用的 AI Client，例如 openai.chat.completions.create(...)
-  // 我先用假碼示意：
-  /*
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.7,
-  });
-
-  const text = resp.choices[0].message.content.trim();
-  return text;
-  */
-
-  // 先回 stub，方便你還沒串 API 也能測流程
-  //return (
-  //  "（這裡會是 AI 幫你生的小占卜結果）\n\n$" +
-  //  "之後你把 callMiniReadingAI 裡的假碼改成真正的 API 呼叫就可以。"
-  //);
 }
 
 // --- Start server ---
