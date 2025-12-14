@@ -1064,7 +1064,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
   if (!state || state.mode !== "mini_bazi") return false;
 
   console.log(
-    `[miniBaziFlow] from ${userId}, stage=${state.stage}, text= ${text}`
+    `[miniBaziFlow] from ${userId}, stage=${state.stage}, text=${text}`
   );
 
   // -------------------------
@@ -1087,28 +1087,14 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       return true;
     }
 
-    // 使用者選的測算模式（格局 / 流年 / 流月 / 流日）
     const mode =
       state.data && state.data.baziMode ? state.data.baziMode : "pattern";
 
     try {
-      // -------------------------
-      // 2) 呼叫 AI 取得測算文本
-      // -------------------------
-      const aiText = await callMiniReadingAI(parsed, mode);
+      // 2) 呼叫 AI（可能回 JSON 字串，也可能是純文字）
+      const aiRaw = await callMiniReadingAI(parsed, mode);
 
-      let result = {};
-      try {
-        result = JSON.parse(aiText);
-      } catch (e) {
-        console.log("AI JSON parse error:", aiText);
-        await pushText(userId, "系統塞車，請稍後再試一次🙏");
-        return true;
-      }
-
-      // -------------------------
-      // 3) 組合生日文字，給 Flex 用
-      // -------------------------
+      // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
       if (parsed.timeType === "hm") {
         birthDesc += ` ${parsed.time}（24 小時制）`;
@@ -1118,16 +1104,25 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         birthDesc += `（未提供時辰）`;
       }
 
-      // -------------------------
-      // 4) 丟 Flex 卡片（最終呈現）
-      // -------------------------
+      // 4) 嘗試把 AI 回傳當成 JSON 解析
+      let structuredResult = null;
+      try {
+        structuredResult = JSON.parse(aiRaw);
+      } catch (e) {
+        console.warn(
+          "[miniBaziFlow] AI 回傳不是 JSON，改用純文字顯示：",
+          e.message
+        );
+      }
+
+      // 5) 丟 Flex 卡片（如果有 JSON，就用區塊版；沒有就用純文字版）
       await sendMiniBaziResultFlex(userId, {
-        //birthDesc,
-        //mode,
-        result,
+        birthDesc,
+        mode,
+        aiText: aiRaw,
+        structured: structuredResult, // 可能是 null
       });
 
-      // 完成 → 清除 state
       delete conversationStates[userId];
       return true;
     } catch (err) {
@@ -1141,9 +1136,6 @@ async function handleMiniBaziFlow(userId, text, state, event) {
     }
   }
 
-  // -------------------------
-  // 未實作的 stage
-  // -------------------------
   return false;
 }
 
@@ -1195,7 +1187,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     baziSummaryText = summaryText;
   } catch (err) {
     console.error("[youhualao API error]", err);
-    // API 掛了就 fallback：讓 AI 自己算
+
+    // API 掛掉時的簡易 fallback：直接請 AI 自己算、直接回文字（不用 JSON）
     const fallbackSystemPrompt =
       "你是一位懂八字與紫微斗數的東方命理老師，講話溫和、實際，不宿命論，不嚇人。";
     const fallbackUserPrompt =
@@ -1203,9 +1196,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       `原始輸入格式：${raw}\n\n` +
       `${focusText}\n\n` +
       "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
-      "並依據上述重點，給予簡短的提醒與建議。";
+      "並依據上述重點，給予 150～200 字的簡短提醒與建議，語氣像朋友聊天。";
 
-    // 🔍 DEBUG：就算 fallback，也可以看一下丟什麼給 AI
     console.log(
       "[callMiniReadingAI][fallback] systemPrompt:\n",
       fallbackSystemPrompt
@@ -1215,13 +1207,14 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       fallbackUserPrompt
     );
 
+    // ❗ 這支在 fallback 就回「純文字」，上層記得視為 aiText 直接展示
     return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
   }
 
   // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
   let flowingGzText = "";
-  console.log("[callMiniReadingAI] mode:\n", mode);
-  // pattern 模式不用硬要查，year/month/day 再查就好
+  console.log("[callMiniReadingAI] mode:", mode);
+
   if (mode === "year" || mode === "month" || mode === "day") {
     try {
       const now = new Date();
@@ -1256,12 +1249,11 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       }
     } catch (err) {
       console.error("[youhualao ly] 取得當日干支失敗：", err);
-      // 失敗就不要硬塞，讓 AI 只看格局 + 基本八字就好
       flowingGzText = "";
     }
   }
 
-  // --- 系統提示 ---
+  // --- 系統提示：專心定義 JSON 輸出格式 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
     "講話溫和、實際，不宿命論，不嚇人。" +
@@ -1272,16 +1264,16 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加說明。" +
     "格式如下：" +
     "{ " +
-    '"personality": "人格特質，150-170 字", ' +
-    '"mate": "伴侶關係，150-170 字", ' +
-    '"social": "人際關係，150-170 字", ' +
-    '"family": "家庭互動，150-170 字", ' +
-    '"work": "學業/工作，150-170 字"' +
+    '"work": "工作節奏：大約 30～40 個中文字，描述適合的步調、節奏與注意事項", ' +
+    '"emotion": "情緒狀態：大約 30～40 個中文字，描述情緒習慣與調整方向", ' +
+    '"social": "人際溝通：大約 30～40 個中文字，描述與他人的互動風格與提醒", ' +
+    '"love": "感情互動：大約 30～40 個中文字，描述在親密關係中的風格與建議", ' +
+    '"selfcare": "自我照顧：大約 30～40 個中文字，描述如何照顧身心與補充能量"' +
     " }" +
-    "每段都要濃縮具體、只寫可行建議，不要廢話，不要重複。" +
-    "五段字數總共約 750～850 字（含標點）。" +
-    "務必符合 JSON 格式，不能出現換行錯誤、不能丟失引號。";
+    "每一欄位都要具體、避免重複內容，總字數約 150～250 個中文字（含標點）。" +
+    "務必符合 JSON 格式，不能在 JSON 外多輸出任何文字。";
 
+  // --- userPrompt：只放「資料與重點」，不再多管格式 ---
   const userPrompt =
     `【基本資料】\n` +
     `${birthDesc}\n` +
@@ -1290,27 +1282,16 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "【命盤結構摘要（請以此為準）】\n" +
     `${baziSummaryText}\n\n` +
     (flowingGzText ? `${flowingGzText}\n\n` : "") +
-    "【請你這樣做】\n" +
-    "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
-    "2. 以「格局 / 命盤基礎性格與人生主調」為主的話先用 2～3 行話，簡單說明這個命盤的整體調性與性格重點（可以提到日元、財官印比的強弱，但不要講太艱深）。\n" +
-    "3. 一開始請先寫出年柱、月柱、日柱、時柱，並寫出是什麼日主，最後計算一下五行數量(不用算藏干)，例:五行：金: 3, 木: 1, 水: 1, 火: 2, 土: 1\n" +
-    "4. 再根據【本次解讀重點】（格局 / 今年 / 這個月 / 今日），延伸 3～5 行具體建議：\n" +
-    "   - 可以談：工作節奏、情緒狀態、人際溝通、感情互動、自我照顧。\n" +
-    "   - 不要提：投資標的、醫療診斷、法律建議。\n" +
-    "5. 若時辰未知或僅為約略時段，請在文中自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
-    "6. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
-    "7. 最後用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
-    "8. 不要提到你是 AI 模型，也不要提到任何技術細節或資料來源。" +
-    "9. 請根據以上八字資料，依規格輸出五個區塊（JSON 格式）。";
+    "請依照上述八字與流年資訊，產生一份符合系統規定 JSON 格式的建議。" +
+    "不要重複解釋八字理論，重點放在實際生活建議。";
 
-  // 🔍 DEBUG：這裡就是「送給 AI 之前」最後的內容
   console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
   console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
   console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
-  // ---- 這裡用你自己的 AI Client 取代原本的 openai 呼叫 ---
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
 
+  // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
   return AI_Reading_Text;
 }
 
