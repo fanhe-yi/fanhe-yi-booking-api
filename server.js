@@ -1097,6 +1097,15 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       // -------------------------
       const aiText = await callMiniReadingAI(parsed, mode);
 
+      let result = {};
+      try {
+        result = JSON.parse(aiText);
+      } catch (e) {
+        console.log("AI JSON parse error:", aiText);
+        await pushText(userId, "系統塞車，請稍後再試一次🙏");
+        return true;
+      }
+
       // -------------------------
       // 3) 組合生日文字，給 Flex 用
       // -------------------------
@@ -1113,9 +1122,9 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       // 4) 丟 Flex 卡片（最終呈現）
       // -------------------------
       await sendMiniBaziResultFlex(userId, {
-        birthDesc,
-        mode,
-        aiText,
+        //birthDesc,
+        //mode,
+        result,
       });
 
       // 完成 → 清除 state
@@ -1264,9 +1273,9 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "格式如下：" +
     "{ " +
     '"personality": "人格特質，150-170 字", ' +
-    '"mate": "情緒狀態的分析，150-170 字", ' +
+    '"mate": "伴侶關係，150-170 字", ' +
     '"social": "人際關係，150-170 字", ' +
-    '"family": "感情互動的分析，150-170 字", ' +
+    '"family": "家庭互動，150-170 字", ' +
     '"work": "學業/工作，150-170 字"' +
     " }" +
     "每段都要濃縮具體、只寫可行建議，不要廢話，不要重複。" +
