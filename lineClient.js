@@ -497,8 +497,12 @@ async function sendBaziMenuFlex(userId) {
 
 // 🔮 八字測算結果 Flex：把 AI_Reading_Text 包成好看的卡片丟給用戶
 async function sendMiniBaziResultFlex(userId, payload) {
-  const { birthDesc, mode, aiText, structured } = payload;
+  const { birthDesc, mode, aiText } = payload;
 
+  // 1) 嘗試把 AI 回傳文字轉成結構化 JSON
+  const data = extractPureJSON(aiText);
+
+  // 測算模式的標題（放在 header 第二行）
   const modeLabelMap = {
     pattern: "格局 / 命盤基調",
     year: "流年運勢",
@@ -507,131 +511,203 @@ async function sendMiniBaziResultFlex(userId, payload) {
   };
   const modeLabel = modeLabelMap[mode] || "整體命盤解析";
 
-  // 如果有結構化 JSON，就拆成五個區塊
-  let contentBlocks = [];
+  // 如果 JSON 解析失敗，就用舊版單頁 fallback
+  if (!data) {
+    console.warn(
+      "[sendMiniBaziResultFlex] 無法解析 JSON，改用純文字單頁 bubble。"
+    );
 
-  if (structured && typeof structured === "object") {
-    const titleMap = {
-      work: "工作節奏",
-      emotion: "情緒狀態",
-      social: "人際溝通",
-      love: "感情互動",
-      selfcare: "自我照顧",
+    const fallbackBubble = {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "梵和易學｜八字測算",
+            weight: "bold",
+            size: "sm",
+            color: "#888888",
+          },
+          {
+            type: "text",
+            text: modeLabel,
+            weight: "bold",
+            size: "md",
+            margin: "sm",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: birthDesc,
+            size: "xs",
+            color: "#666666",
+            wrap: true,
+          },
+          {
+            type: "separator",
+            margin: "md",
+          },
+          {
+            type: "text",
+            text: aiText,
+            size: "sm",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "再測一次",
+              text: "八字測算",
+            },
+          },
+          {
+            type: "button",
+            style: "link",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "想預約完整論命",
+              text: "預約",
+            },
+          },
+        ],
+      },
     };
 
-    const keyOrder = ["work", "emotion", "social", "love", "selfcare"];
+    await pushFlex(userId, "八字測算結果", fallbackBubble);
+    return;
+  }
 
-    contentBlocks = keyOrder
-      .filter((key) => typeof structured[key] === "string")
-      .map((key) => {
-        return {
+  // 2) 定義五個欄位：key + 中文標題
+  const sections = [
+    { key: "personality", title: "人格特質" },
+    { key: "social", title: "人際關係" },
+    { key: "partner", title: "伴侶關係" },
+    { key: "family", title: "家庭互動" },
+    { key: "study_work", title: "學業 / 工作" },
+  ];
+
+  // 3) 把每一欄做成一個 bubble
+  const bubbles = sections
+    .filter((sec) => data[sec.key]) // 只拿有內容的欄位
+    .map((sec) => {
+      const text = String(data[sec.key] || "").trim();
+
+      return {
+        type: "bubble",
+        size: "mega",
+        header: {
           type: "box",
           layout: "vertical",
-          margin: "md",
           contents: [
             {
               type: "text",
-              text: `▪ ${titleMap[key] || key}`,
+              text: "梵和易學｜八字測算",
               weight: "bold",
               size: "sm",
-              color: "#555555",
+              color: "#888888",
             },
             {
               type: "text",
-              text: structured[key],
+              text: modeLabel,
+              weight: "bold",
+              size: "md",
+              margin: "sm",
+            },
+            {
+              type: "text",
+              text: sec.title,
               size: "sm",
-              wrap: true,
+              color: "#555555",
               margin: "sm",
             },
           ],
-        };
-      });
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: birthDesc,
+              size: "xs",
+              color: "#999999",
+              wrap: true,
+            },
+            {
+              type: "separator",
+              margin: "md",
+            },
+            {
+              type: "text",
+              text,
+              size: "sm",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "message",
+                label: "再測一次",
+                text: "八字測算",
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "message",
+                label: "想預約完整論命",
+                text: "預約",
+              },
+            },
+          ],
+        },
+      };
+    });
+
+  // 理論上會有 5 頁，但保險處理一下極端情況
+  let flexPayload;
+  if (bubbles.length === 1) {
+    flexPayload = bubbles[0];
+  } else {
+    flexPayload = {
+      type: "carousel",
+      contents: bubbles,
+    };
   }
 
-  // 如果沒成功 parse JSON，就退回「整段文字」版本
-  if (contentBlocks.length === 0) {
-    contentBlocks = [
-      {
-        type: "text",
-        text: aiText,
-        size: "sm",
-        wrap: true,
-      },
-    ];
-  }
-
-  const bubble = {
-    type: "bubble",
-    size: "mega",
-    header: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        {
-          type: "text",
-          text: "梵和易學｜八字測算",
-          weight: "bold",
-          size: "sm",
-          color: "#888888",
-        },
-        {
-          type: "text",
-          text: modeLabel,
-          weight: "bold",
-          size: "md",
-          margin: "sm",
-        },
-      ],
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
-        {
-          type: "text",
-          text: birthDesc,
-          size: "xs",
-          color: "#666666",
-          wrap: true,
-        },
-        {
-          type: "separator",
-          margin: "md",
-        },
-        ...contentBlocks,
-      ],
-    },
-    footer: {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      contents: [
-        {
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          action: {
-            type: "message",
-            label: "再測一次",
-            text: "八字測算",
-          },
-        },
-        {
-          type: "button",
-          style: "link",
-          height: "sm",
-          action: {
-            type: "message",
-            label: "想預約完整論命",
-            text: "預約",
-          },
-        },
-      ],
-    },
-  };
-
-  await pushFlex(userId, "八字測算結果", bubble);
+  await pushFlex(userId, "八字測算結果", flexPayload);
 }
 
 // ------------------------------------------------------------
