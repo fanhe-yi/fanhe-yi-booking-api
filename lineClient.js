@@ -528,10 +528,27 @@ function extractPureJSON(aiRaw) {
 async function sendMiniBaziResultFlex(userId, payload) {
   const { birthDesc, mode, aiText } = payload;
 
-  // 1) 嘗試把 AI 回傳文字轉成結構化 JSON
-  const data = extractPureJSON(aiText);
+  // 1) 解析 AI 回傳的 JSON
+  let aiJson;
+  try {
+    const pureJson = extractPureJSON(aiText);
+    aiJson = JSON.parse(pureJson);
+  } catch (err) {
+    console.error("[miniBazi] 解析 AI JSON 失敗，改用純文字：", err);
+    await pushText(userId, birthDesc);
+    await pushText(userId, aiText);
+    return;
+  }
 
-  // 測算模式的標題（放在 header 第二行）
+  // 2) 區塊順序 & 標題
+  const areaOrder = [
+    { key: "personality", title: "人格特質" },
+    { key: "social", title: "人際關係" },
+    { key: "mate", title: "伴侶關係" },
+    { key: "family", title: "家庭互動" },
+    { key: "work", title: "學業 / 工作" },
+  ];
+
   const modeLabelMap = {
     pattern: "格局 / 命盤基調",
     year: "流年運勢",
@@ -540,13 +557,40 @@ async function sendMiniBaziResultFlex(userId, payload) {
   };
   const modeLabel = modeLabelMap[mode] || "整體命盤解析";
 
-  // 如果 JSON 解析失敗，就用舊版單頁 fallback
-  if (!data) {
-    console.warn(
-      "[sendMiniBaziResultFlex] 無法解析 JSON，改用純文字單頁 bubble。"
-    );
+  // 3) 為每個區塊組一個 bubble
+  const bubbles = areaOrder.map((area, idx) => {
+    const mainText = aiJson[area.key] || "";
 
-    const fallbackBubble = {
+    // --- footer 內容：每頁都「再測一次」，只有最後一頁有「想預約完整論命」 ---
+    const footerContents = [
+      {
+        type: "button",
+        style: "secondary",
+        height: "sm",
+        action: {
+          type: "message",
+          label: "再測一次",
+          text: "八字測算",
+        },
+      },
+      // tab 區塊等一下在第 2 點加進來（我們先預留）
+    ];
+
+    // 只有最後一頁加上「想預約完整論命」
+    if (idx === areaOrder.length - 1) {
+      footerContents.push({
+        type: "button",
+        style: "link",
+        height: "sm",
+        action: {
+          type: "message",
+          label: "想預約完整論命",
+          text: "預約",
+        },
+      });
+    }
+
+    return {
       type: "bubble",
       size: "mega",
       header: {
@@ -566,6 +610,12 @@ async function sendMiniBaziResultFlex(userId, payload) {
             weight: "bold",
             size: "md",
             margin: "sm",
+          },
+          {
+            type: "text",
+            text: area.title,
+            size: "sm",
+            color: "#666666",
           },
         ],
       },
@@ -587,7 +637,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
           },
           {
             type: "text",
-            text: aiText,
+            text: mainText,
             size: "sm",
             wrap: true,
           },
@@ -597,146 +647,17 @@ async function sendMiniBaziResultFlex(userId, payload) {
         type: "box",
         layout: "vertical",
         spacing: "sm",
-        contents: [
-          {
-            type: "button",
-            style: "secondary",
-            height: "sm",
-            action: {
-              type: "message",
-              label: "再測一次",
-              text: "八字測算",
-            },
-          },
-          {
-            type: "button",
-            style: "link",
-            height: "sm",
-            action: {
-              type: "message",
-              label: "想預約完整論命",
-              text: "預約",
-            },
-          },
-        ],
+        contents: footerContents,
       },
     };
+  });
 
-    await pushFlex(userId, "八字測算結果", fallbackBubble);
-    return;
-  }
+  const carousel = {
+    type: "carousel",
+    contents: bubbles,
+  };
 
-  // 2) 定義五個欄位：key + 中文標題
-  const sections = [
-    { key: "personality", title: "人格特質" },
-    { key: "social", title: "人際關係" },
-    { key: "partner", title: "伴侶關係" },
-    { key: "family", title: "家庭互動" },
-    { key: "study_work", title: "學業 / 工作" },
-  ];
-
-  // 3) 把每一欄做成一個 bubble
-  const bubbles = sections
-    .filter((sec) => data[sec.key]) // 只拿有內容的欄位
-    .map((sec) => {
-      const text = String(data[sec.key] || "").trim();
-
-      return {
-        type: "bubble",
-        size: "mega",
-        header: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "text",
-              text: "梵和易學｜八字測算",
-              weight: "bold",
-              size: "sm",
-              color: "#888888",
-            },
-            {
-              type: "text",
-              text: modeLabel,
-              weight: "bold",
-              size: "md",
-              margin: "sm",
-            },
-            {
-              type: "text",
-              text: sec.title,
-              size: "sm",
-              color: "#555555",
-              margin: "sm",
-            },
-          ],
-        },
-        body: {
-          type: "box",
-          layout: "vertical",
-          spacing: "md",
-          contents: [
-            {
-              type: "text",
-              text: birthDesc,
-              size: "xs",
-              color: "#999999",
-              wrap: true,
-            },
-            {
-              type: "separator",
-              margin: "md",
-            },
-            {
-              type: "text",
-              text,
-              size: "sm",
-              wrap: true,
-            },
-          ],
-        },
-        footer: {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "再測一次",
-                text: "八字測算",
-              },
-            },
-            {
-              type: "button",
-              style: "link",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "想預約完整論命",
-                text: "預約",
-              },
-            },
-          ],
-        },
-      };
-    });
-
-  // 理論上會有 5 頁，但保險處理一下極端情況
-  let flexPayload;
-  if (bubbles.length === 1) {
-    flexPayload = bubbles[0];
-  } else {
-    flexPayload = {
-      type: "carousel",
-      contents: bubbles,
-    };
-  }
-
-  await pushFlex(userId, "八字測算結果", flexPayload);
+  await pushFlex(userId, "八字測算結果", carousel);
 }
 
 // ------------------------------------------------------------
