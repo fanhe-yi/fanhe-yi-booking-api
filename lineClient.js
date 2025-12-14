@@ -495,6 +495,35 @@ async function sendBaziMenuFlex(userId) {
   await pushFlex(userId, "八字測算選單", bubble);
 }
 
+// 🔧 幫八字測算解析 AI 回傳 JSON 的小工具
+function extractPureJSON(aiRaw) {
+  if (!aiRaw || typeof aiRaw !== "string") return null;
+
+  // 先把 ```json ... ``` 之類的外殼剝掉
+  let cleaned = aiRaw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // 再從第一個 { 到最後一個 } 抓出來
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+  if (first === -1 || last === -1) {
+    console.warn("[extractPureJSON] 找不到大括號範圍");
+    return null;
+  }
+
+  cleaned = cleaned.substring(first, last + 1);
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.warn("[extractPureJSON] JSON.parse 失敗：", err.message);
+    console.warn("[extractPureJSON] cleaned content:", cleaned);
+    return null;
+  }
+}
+
 // 🔮 八字測算結果 Flex：把 AI_Reading_Text 包成好看的卡片丟給用戶
 async function sendMiniBaziResultFlex(userId, payload) {
   const { birthDesc, mode, aiText } = payload;
