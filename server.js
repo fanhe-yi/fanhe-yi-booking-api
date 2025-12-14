@@ -1251,7 +1251,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       flowingGzText = "";
     }
   }
-
+  console.log("[callMiniReadingAI_test] flowingGzText:\n", flowingGzText);
   // --- 系統提示 ---
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
