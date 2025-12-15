@@ -673,6 +673,20 @@ async function sendMiniBaziResultFlex(userId, payload) {
               color: "#555555",
               margin: "sm",
             },
+            {
+              type: "text",
+              text: pillarsText,
+              size: "xs",
+              color: "#777777",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: fiveElementsText,
+              size: "xs",
+              color: "#777777",
+              wrap: true,
+            },
           ],
         },
         body: {

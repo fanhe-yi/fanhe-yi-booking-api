@@ -1051,33 +1051,6 @@ async function handleBookingPostback(userId, action, params, state) {
   await pushText(userId, `我有收到你的選擇：${action}（尚未實作詳細流程）。`);
 }
 
-///把「AI 的三個壞習慣」全砍掉再 parse
-function extractPureJSON(aiRaw) {
-  if (!aiRaw || typeof aiRaw !== "string") return null;
-
-  // 1) 去掉 ```json / ``` / ``` 之類 Markdown block
-  let cleaned = aiRaw
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
-
-  // 2) 找到第一個 { 以及最後一個 } （避免前後多餘文字）
-  const first = cleaned.indexOf("{");
-  const last = cleaned.lastIndexOf("}");
-
-  if (first === -1 || last === -1) return null;
-
-  cleaned = cleaned.substring(first, last + 1);
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (err) {
-    console.warn("[extractPureJSON] JSON.parse 仍然失敗：", err.message);
-    console.warn("[extractPureJSON] cleaned content:", cleaned);
-    return null;
-  }
-}
-
 // 八字測算對話流程（小占卜）
 // 之後會在這裡處理：等待生日 → 解析 → 丟 AI → 回覆
 //在這裡用 parseMiniBirthInput(text) 檢查生日格式。
@@ -1134,16 +1107,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         birthDesc += `（未提供時辰）`;
       }
 
-      // 4) 嘗試把 AI 回傳當成 JSON 解析
-      //let structuredResult = extractPureJSON(aiRaw);
-
-      //if (!structuredResult) {
-      //  console.warn(
-      //    "[miniBaziFlow] AI 回傳不是純 JSON，將 fallback 為純文字展示"
-      //  );
-      //}
-
-      // 5) 丟 Flex 卡片（如果有 JSON，就用區塊版；沒有就用純文字版）
+      // 4) 丟 Flex 卡片（如果有 JSON，就用區塊版；沒有就用純文字版）
       await sendMiniBaziResultFlex(userId, {
         birthDesc,
         mode,
