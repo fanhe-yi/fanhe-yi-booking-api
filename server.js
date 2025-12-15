@@ -1118,8 +1118,11 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       state.data && state.data.baziMode ? state.data.baziMode : "pattern";
 
     try {
-      // 2) 呼叫 AI（可能回 JSON 字串，也可能是純文字）
-      const aiRaw = await callMiniReadingAI(parsed, mode);
+      // 2) 呼叫 AI 取得測算文本（以及四柱 + 五行）
+      const { aiText, pillarsText, fiveElementsText } = await callMiniReadingAI(
+        parsed,
+        mode
+      );
 
       // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
@@ -1144,8 +1147,9 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       await sendMiniBaziResultFlex(userId, {
         birthDesc,
         mode,
-        aiText: aiRaw,
-        //structured: structuredResult, 目前沒用到
+        aiText,
+        pillarsText,
+        fiveElementsText,
       });
 
       delete conversationStates[userId];
@@ -1164,16 +1168,77 @@ async function handleMiniBaziFlow(userId, text, state, event) {
   return false;
 }
 
-////之後可能會搬到aiClient.js////
-// 🔮 小占卜：呼叫 AI 做簡單命格分析
-// birthObj 會長這樣：
-// {
-//   raw: "1992-12-05-0830",
-//   date: "1992-12-05",
-//   timeType: "hm" | "branch" | "unknown",
-//   time: "08:30" | null,
-//   branch: "辰" | null,
-// }
+// --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
+function extractPillars(baziSummaryText) {
+  const lines = baziSummaryText.split(/\r?\n/);
+
+  let year = "",
+    month = "",
+    day = "",
+    hour = "";
+
+  for (const line of lines) {
+    if (line.includes("年柱"))
+      year = line.replace(/.*?年柱[:：]\s*/, "").trim();
+    if (line.includes("月柱"))
+      month = line.replace(/.*?月柱[:：]\s*/, "").trim();
+    if (line.includes("日柱")) day = line.replace(/.*?日柱[:：]\s*/, "").trim();
+    if (line.includes("時柱"))
+      hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
+  }
+
+  return { year, month, day, hour };
+}
+
+// --- 天干五行對照表 ---
+const stemElement = {
+  甲: "木",
+  乙: "木",
+  丙: "火",
+  丁: "火",
+  戊: "土",
+  己: "土",
+  庚: "金",
+  辛: "金",
+  壬: "水",
+  癸: "水",
+};
+// --- 地支五行對照表 ---
+const branchElement = {
+  子: "水",
+  丑: "土",
+  寅: "木",
+  卯: "木",
+  辰: "土",
+  巳: "火",
+  午: "火",
+  未: "土",
+  申: "金",
+  酉: "金",
+  戌: "土",
+  亥: "水",
+};
+
+// --- 計算五行數量 ---
+function calcFiveElements({ year, month, day, hour }) {
+  const all = [year, month, day, hour];
+
+  const count = { 金: 0, 木: 0, 水: 0, 火: 0, 土: 0 };
+
+  for (const pillar of all) {
+    if (!pillar) continue;
+    const [stem, branch] = pillar.split("");
+
+    const e1 = stemElement[stem];
+    const e2 = branchElement[branch];
+
+    if (e1) count[e1] += 1;
+    if (e2) count[e2] += 1;
+  }
+
+  return count;
+}
+
 async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { raw, date, timeType, time, branch } = birthObj;
 
@@ -1246,6 +1311,14 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     // ❗ 這支在 fallback 就回「純文字」，上層記得視為 aiText 直接展示
     return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
   }
+
+  ///////放到header用//
+  // 解析四柱//////////
+  const { year, month, day, hour } = extractPillars(baziSummaryText);
+  // 計算五行
+  const fiveCount = calcFiveElements({ year, month, day, hour });
+  const pillarsText = `年柱：${year}　月柱：${month}　日柱：${day}　時柱：${hour}`;
+  const fiveElementsText = `五行：金 ${fiveCount.金}、木 ${fiveCount.木}、水 ${fiveCount.水}、火 ${fiveCount.火}、土 ${fiveCount.土}`;
 
   // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
   let flowingGzText = "";
@@ -1337,7 +1410,11 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
 
   // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
-  return AI_Reading_Text;
+  return {
+    aiText: AI_Reading_Text,
+    pillarsText,
+    fiveElementsText,
+  };
 }
 
 // --- Start server ---
