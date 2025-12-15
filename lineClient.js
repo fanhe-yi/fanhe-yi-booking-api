@@ -558,7 +558,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
             text: "梵和易學｜八字測算",
             weight: "bold",
             size: "sm",
-            color: "#888888",
+            color: "#B89B5E",
           },
           {
             type: "text",
@@ -653,7 +653,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
               text: "梵和易學｜八字測算",
               weight: "bold",
               size: "sm",
-              color: "#888888",
+              color: "#B89B5E",
             },
             {
               type: "text",
@@ -700,26 +700,30 @@ async function sendMiniBaziResultFlex(userId, payload) {
           layout: "vertical",
           spacing: "sm",
           contents: [
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "再測一次",
-                text: "八字測算",
-              },
-            },
-            {
-              type: "button",
-              style: "link",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "想預約完整論命",
-                text: "預約",
-              },
-            },
+            index === sections.length - 1
+              ? [
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: {
+                      type: "message",
+                      label: "再測一次",
+                      text: "八字測算",
+                    },
+                  },
+                  {
+                    type: "button",
+                    style: "link",
+                    height: "sm",
+                    action: {
+                      type: "message",
+                      label: "想預約完整論命",
+                      text: "預約",
+                    },
+                  },
+                ]
+              : [], // 前面 4 頁 footer 不放行動按鈕
           ],
         },
       };
