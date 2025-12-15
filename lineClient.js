@@ -526,7 +526,7 @@ function extractPureJSON(aiRaw) {
 
 // 🔮 八字測算結果 Flex：把 AI_Reading_Text 包成好看的卡片丟給用戶
 async function sendMiniBaziResultFlex(userId, payload) {
-  const { birthDesc, mode, aiText } = payload;
+  const { birthDesc, mode, aiText, pillarsText, fiveElementsText } = payload;
 
   // 1) 嘗試把 AI 回傳文字轉成結構化 JSON
   const data = extractPureJSON(aiText);
