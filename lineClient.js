@@ -558,7 +558,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
             text: "梵和易學｜八字測算",
             weight: "bold",
             size: "sm",
-            color: "#888888",
+            color: "#B89B5E", // 稍微金色一點
           },
           {
             type: "text",
@@ -578,7 +578,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
             type: "text",
             text: birthDesc,
             size: "xs",
-            color: "#666666",
+            color: "#777777",
             wrap: true,
           },
           {
@@ -598,6 +598,16 @@ async function sendMiniBaziResultFlex(userId, payload) {
         layout: "vertical",
         spacing: "sm",
         contents: [
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "切換其他模式",
+              text: "八字測算",
+            },
+          },
           {
             type: "button",
             style: "secondary",
@@ -637,9 +647,51 @@ async function sendMiniBaziResultFlex(userId, payload) {
 
   // 3) 把每一欄做成一個 bubble
   const bubbles = sections
-    .filter((sec) => data[sec.key]) // 只拿有內容的欄位
-    .map((sec) => {
+    .filter((sec) => data[sec.key])
+    .map((sec, idx, arr) => {
       const text = String(data[sec.key] || "").trim();
+      const isFirst = idx === 0;
+      const isLast = idx === arr.length - 1;
+      const showMainCTA = isFirst || isLast; // ✅ 再測一次 / 預約 只出現在第一頁 & 最後一頁
+
+      // footer 內容：每頁都有「切換模式」，第一 / 最後多兩個 CTA
+      const footerContents = [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "切換其他模式",
+            text: "八字測算", // 回到四個模式選單
+          },
+        },
+      ];
+
+      if (showMainCTA) {
+        footerContents.push(
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "再測一次",
+              text: "八字測算",
+            },
+          },
+          {
+            type: "button",
+            style: "link",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "想預約完整論命",
+              text: "預約",
+            },
+          }
+        );
+      }
 
       return {
         type: "bubble",
@@ -647,13 +699,14 @@ async function sendMiniBaziResultFlex(userId, payload) {
         header: {
           type: "box",
           layout: "vertical",
+          spacing: "xs",
           contents: [
             {
               type: "text",
               text: "梵和易學｜八字測算",
               weight: "bold",
               size: "sm",
-              color: "#888888",
+              color: "#B89B5E", // 品牌金色
             },
             {
               type: "text",
@@ -666,7 +719,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
               type: "text",
               text: sec.title,
               size: "sm",
-              color: "#555555",
+              color: "#666666",
               margin: "sm",
             },
           ],
@@ -699,28 +752,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
           type: "box",
           layout: "vertical",
           spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "再測一次",
-                text: "八字測算",
-              },
-            },
-            {
-              type: "button",
-              style: "link",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "想預約完整論命",
-                text: "預約",
-              },
-            },
-          ],
+          contents: footerContents,
         },
       };
     });

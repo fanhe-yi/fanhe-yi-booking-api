@@ -1145,7 +1145,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         birthDesc,
         mode,
         aiText: aiRaw,
-        structured: structuredResult, // 可能是 null
+        //structured: structuredResult, 目前沒用到
       });
 
       delete conversationStates[userId];
