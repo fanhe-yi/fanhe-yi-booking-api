@@ -1142,12 +1142,13 @@ function extractPillars(baziSummaryText) {
     hour = "";
 
   for (const line of lines) {
-    if (line.includes("年柱"))
+    if (line.includes("年柱："))
       year = line.replace(/.*?年柱[:：]\s*/, "").trim();
-    if (line.includes("月柱"))
+    if (line.includes("月柱："))
       month = line.replace(/.*?月柱[:：]\s*/, "").trim();
-    if (line.includes("日柱")) day = line.replace(/.*?日柱[:：]\s*/, "").trim();
-    if (line.includes("時柱"))
+    if (line.includes("日柱："))
+      day = line.replace(/.*?日柱[:：]\s*/, "").trim();
+    if (line.includes("時柱："))
       hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
   }
 
