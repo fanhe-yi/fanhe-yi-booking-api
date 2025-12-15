@@ -641,7 +641,11 @@ async function sendMiniBaziResultFlex(userId, payload) {
     .map((sec, index) => {
       const text = String(data[sec.key] || "").trim();
 
-      return {
+      // 先算出「這是最後一頁嗎」
+      const lastIndex = sections.length - 1;
+
+      // 先組共用的 bubble 結構
+      const bubble = {
         type: "bubble",
         size: "mega",
         header: {
@@ -695,38 +699,40 @@ async function sendMiniBaziResultFlex(userId, payload) {
             },
           ],
         },
-        footer: {
+      };
+
+      // 只有「最後一頁」加 footer CTA
+      if (index === lastIndex) {
+        bubble.footer = {
           type: "box",
           layout: "vertical",
           spacing: "sm",
           contents: [
-            index === sections.length - 1
-              ? [
-                  {
-                    type: "button",
-                    style: "secondary",
-                    height: "sm",
-                    action: {
-                      type: "message",
-                      label: "再測一次",
-                      text: "八字測算",
-                    },
-                  },
-                  {
-                    type: "button",
-                    style: "link",
-                    height: "sm",
-                    action: {
-                      type: "message",
-                      label: "想預約完整論命",
-                      text: "預約",
-                    },
-                  },
-                ]
-              : [], // 前面 4 頁 footer 不放行動按鈕
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "message",
+                label: "再測一次",
+                text: "八字測算",
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "message",
+                label: "想預約完整論命",
+                text: "預約",
+              },
+            },
           ],
-        },
-      };
+        };
+      }
+
+      return bubble;
     });
 
   // 理論上會有 5 頁，但保險處理一下極端情況
