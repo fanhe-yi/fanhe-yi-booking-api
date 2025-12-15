@@ -1282,7 +1282,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { year, month, day, hour } = extractPillars(baziSummaryText);
   // 計算五行
   const fiveCount = calcFiveElements({ year, month, day, hour });
-  const pillarsText = `年柱：${year}月柱：${month}日柱：${day}時柱：${hour}`;
+  const pillarsText = `-年柱：${year}\n-月柱：${month}\n-日柱：${day}\n-時柱：${hour}`;
   const fiveElementsText = `五行：木 ${fiveCount.木}、火 ${fiveCount.火}、土 ${fiveCount.土}、金 ${fiveCount.金}、水 ${fiveCount.水}`;
 
   // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
@@ -1338,14 +1338,14 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ``` 等 Markdown。" +
     "格式如下：" +
     "{ " +
-    '"personality": "人格特質的說明170-200 個中文字", ' +
-    '"social": "人際關係的說明，170-200 個中文字", ' +
-    '"partner": "伴侶 / 親密關係的說明，170-200 個中文字", ' +
-    '"family": "家庭互動 /原生家庭或家人互動的說明，170-200 個中文字", ' +
+    '"personality": "人格特質的說明-170 個中文字", ' +
+    '"social": "人際關係的說明，150-170 個中文字", ' +
+    '"partner": "伴侶 / 親密關係的說明，150-170 個中文字", ' +
+    '"family": "家庭互動 /原生家庭或家人互動的說明，150-170 個中文字", ' +
     '"study_work": "學業 / 工作方向與節奏的說明，150-170 個中文字"' +
     " }" +
     "每一段都要濃縮具體，只寫可行建議，不要廢話、不重覆、不講專業術語堆疊。" +
-    //"五段合計大約 750～850 個中文字（含標點）。" +
+    "五段合計大約 750～850 個中文字（含標點）。" +
     "務必符合 JSON 格式，所有 key 都要用雙引號包起來。";
 
   // --- userPrompt ---
