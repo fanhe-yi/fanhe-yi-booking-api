@@ -638,7 +638,7 @@ async function sendMiniBaziResultFlex(userId, payload) {
   // 3) 把每一欄做成一個 bubble
   const bubbles = sections
     .filter((sec) => data[sec.key]) // 只拿有內容的欄位
-    .map((sec) => {
+    .map((sec, index) => {
       const text = String(data[sec.key] || "").trim();
 
       return {
