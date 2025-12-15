@@ -1282,8 +1282,8 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { year, month, day, hour } = extractPillars(baziSummaryText);
   // 計算五行
   const fiveCount = calcFiveElements({ year, month, day, hour });
-  const pillarsText = `年柱：${year}　月柱：${month}　日柱：${day}　時柱：${hour}`;
-  const fiveElementsText = `五行：金 ${fiveCount.金}、木 ${fiveCount.木}、水 ${fiveCount.水}、火 ${fiveCount.火}、土 ${fiveCount.土}`;
+  const pillarsText = `年柱：${year}月柱：${month}日柱：${day}時柱：${hour}`;
+  const fiveElementsText = `五行：木 ${fiveCount.木}、火 ${fiveCount.火}、土 ${fiveCount.土}、金 ${fiveCount.金}、水 ${fiveCount.水}`;
 
   // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
   let flowingGzText = "";
