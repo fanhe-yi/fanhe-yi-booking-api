@@ -686,6 +686,14 @@ async function sendMiniBaziResultFlex(userId, payload) {
               size: "xs",
               color: "#777777",
               wrap: true,
+              margin: "none",
+            },
+            {
+              // ★ 這段是讓 header 視覺上更貼近 body
+              type: "box",
+              layout: "vertical",
+              height: "4px",
+              contents: [],
             },
           ],
         },
