@@ -1135,13 +1135,13 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       }
 
       // 4) 嘗試把 AI 回傳當成 JSON 解析
-      let structuredResult = extractPureJSON(aiRaw);
+      //let structuredResult = extractPureJSON(aiRaw);
 
-      if (!structuredResult) {
-        console.warn(
-          "[miniBaziFlow] AI 回傳不是純 JSON，將 fallback 為純文字展示"
-        );
-      }
+      //if (!structuredResult) {
+      //  console.warn(
+      //    "[miniBaziFlow] AI 回傳不是純 JSON，將 fallback 為純文字展示"
+      //  );
+      //}
 
       // 5) 丟 Flex 卡片（如果有 JSON，就用區塊版；沒有就用純文字版）
       await sendMiniBaziResultFlex(userId, {
