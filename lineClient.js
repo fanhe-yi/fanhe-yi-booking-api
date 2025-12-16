@@ -766,10 +766,15 @@ async function sendMiniBaziResultFlex(userId, payload) {
 async function sendBaziMatchResultFlex(userId, payload) {
   const {
     aiText,
-    matchDisplayText, // 用戶端顯示這個
-    // matchPromptText, // 這個可以不用顯示，但保留在 payload 裡給你 debug 用
+    matchDisplayText, // 目前沒顯示在 header，但先保留
     malePillars,
     femalePillars,
+
+    // 新的「人話時間」欄位（優先用這個）
+    maleBirthDisplay,
+    femaleBirthDisplay,
+
+    // 舊的 raw 欄位（當備用 / debug 用）
     maleBirthRaw,
     femaleBirthRaw,
   } = payload;
@@ -794,6 +799,10 @@ async function sendBaziMatchResultFlex(userId, payload) {
   const challenges = Array.isArray(data.challenges) ? data.challenges : [];
   const advice = String(data.advice || "").trim();
 
+  // 🔹 真正要顯示在 header 上的「人話時間」
+  const maleDisplay = maleBirthDisplay || maleBirthRaw || "未提供"; // 有 display 用 display，沒有就退回 raw
+  const femaleDisplay = femaleBirthDisplay || femaleBirthRaw || "未提供";
+
   const flexPayload = {
     type: "bubble",
     size: "mega",
@@ -817,7 +826,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `男方：${maleBirthRaw}`,
+          text: `男方：${maleDisplay}`, // ✅ 人話時間（或至少是原始字串）
           size: "xs",
           color: "#777777",
           margin: "md",
@@ -825,7 +834,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `女方：${femaleBirthRaw}`,
+          text: `女方：${femaleDisplay}`, // ✅ 人話時間（或至少是原始字串）
           size: "xs",
           color: "#777777",
           wrap: true,
@@ -838,14 +847,15 @@ async function sendBaziMatchResultFlex(userId, payload) {
           margin: "md",
           wrap: true,
         },
-        //{
-        //  type: "text",
-        //  text: matchDisplayText, // 預留一個版面
-        ///  size: "xs",
-        //  color: "#777777",
-        //  wrap: true,
-        //  margin: "md",
-        //},
+        // 如果之後你想多一行描述可以再打開這段
+        // {
+        //   type: "text",
+        //   text: matchDisplayText || "",
+        //   size: "xs",
+        //   color: "#777777",
+        //   wrap: true,
+        //   margin: "md",
+        // },
       ],
     },
     body: {

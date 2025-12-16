@@ -647,7 +647,50 @@ function parseMiniBirthInput(input) {
   // 其他格式不吃
   return null;
 }
+///把 parse 出來的 birthObj 轉成「人話時間」字串
+function formatBirthForDisplay(birth) {
+  if (!birth || !birth.date) return "未提供";
 
+  const datePart = birth.date; // "YYYY-MM-DD"
+
+  // 1) 使用者有輸入明確時分：1992-12-05-0830
+  if (birth.timeType === "hm" && birth.time) {
+    return `${datePart} ${birth.time}`; // e.g. "1992-12-05 08:30"
+  }
+
+  // 2) 使用者用地支時辰：1992-12-05-辰 / 辰時
+  if (birth.timeType === "branch" && birth.branch) {
+    // 不顯示「辰」這個字，直接換成時間區間（人話，不講地支）
+    const rangeMap = {
+      子: "23:00–01:00",
+      丑: "01:00–03:00",
+      寅: "03:00–05:00",
+      卯: "05:00–07:00",
+      辰: "07:00–09:00",
+      巳: "09:00–11:00",
+      午: "11:00–13:00",
+      未: "13:00–15:00",
+      申: "15:00–17:00",
+      酉: "17:00–19:00",
+      戌: "19:00–21:00",
+      亥: "21:00–23:00",
+    };
+
+    const range = rangeMap[birth.branch] || null;
+    if (range) {
+      return `${datePart} 約 ${range}`;
+    }
+    return `${datePart} 時間約略`;
+  }
+
+  // 3) 時辰未知
+  if (birth.timeType === "unknown") {
+    return `${datePart}（時間未知）`;
+  }
+
+  // 4) 其他奇怪情況，至少有日期
+  return datePart;
+}
 //////////////////////////////////////
 /// 在 handleLineEvent 把聊天預約接進來 ///
 //////////////////////////////////////
@@ -1235,6 +1278,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
  *
  * 此函式僅負責「流程控制與 state 管理」，不負責八字推算或 UI 格式化。
  */
+// 🔮 八字合婚流程
 async function handleBaziMatchFlow(userId, text, state, event) {
   if (!state || state.mode !== "bazi_match") return false;
 
@@ -1295,30 +1339,19 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     state.data.femaleBirth = parsed;
 
     try {
-      const {
-        aiText,
-        matchPromptText, // 給你之後要記 log / debug 用（不給使用者看）
-        matchDisplayText, // 給使用者看的那行說明文字（不含地支 & 不含「幫我合婚」）
-        maleBirthRaw,
-        femaleBirthRaw,
-        malePillars,
-        femalePillars,
-        maleSummary,
-        femaleSummary,
-      } = await callBaziMatchAI(state.data.maleBirth, parsed);
+      // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
+      const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
-      // 🔚 丟 Flex 合婚結果（顯示用只丟 matchDisplayText）
+      // 👉 這裡用「人話時間」格式給 Flex header 用
+      // 需要先在上面有定義 formatBirthForDisplay(birthObj)
+      const maleBirthDisplay = formatBirthForDisplay(state.data.maleBirth);
+      const femaleBirthDisplay = formatBirthForDisplay(parsed);
+
+      // 🔚 丟 Flex 合婚結果
       await sendBaziMatchResultFlex(userId, {
-        aiText,
-        matchDisplayText,
-        maleBirthRaw, // 👈 一定要往下傳
-        femaleBirthRaw, // 👈 一定要往下傳
-        malePillars,
-        femalePillars,
-        maleSummary,
-        femaleSummary,
-        // matchPromptText 你要的話可以順便傳進去，之後要存 DB / log 方便用
-        matchPromptText,
+        ...result, // 包含 aiText、matchDisplayText、matchPromptText 等
+        maleBirthDisplay, // 給 header 顯示「男方：YYYY-MM-DD HH:mm / 約 XX:XX–XX:XX」
+        femaleBirthDisplay, // 給 header 顯示「女方：...」
       });
 
       delete conversationStates[userId];
@@ -1743,6 +1776,10 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
 
   const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  // 🔹 在這裡做「人話時間」版本
+  const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
+  const femaleBirthDisplay = formatBirthForDisplay(femaleBirthObj);
 
   // 跟單人一樣先不 parse，交給 lineClient 處理
   return {
