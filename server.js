@@ -1685,16 +1685,26 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   const femaleMonthBranch = (femalePillars.month || "").slice(1);
   const femaleDayBranch = (femalePillars.day || "").slice(1);
 
-  // 3) 組你說的「合婚 text」
-  const matchText =
+  // 3) 組給 AI 的「內部合婚提示」
+  //    👉 含 月支 / 日支 + 「幫我合婚」，只給 AI 用
+  const matchPromptText =
     `男命 月支${maleMonthBranch} 日支${maleDayBranch} ` +
     `女命 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
+
+  // 4) 組給使用者看的說明文字（看你要不要更 detail）
+  //    👉 不出現地支、也不出現「幫我合婚」
+  const matchDisplayText =
+    "本次合婚是依照雙方的出生年月日，" +
+    "以八字命盤的整體結構來評估緣分走向與相處模式計分。";
 
   // 4) 系統提示：要求 JSON + 分數
   const systemPrompt =
     "你是一位專門看八字合婚的東方命理老師，講話溫和、實際，不宿命論，不嚇人。" +
     "請根據提供的兩造八字摘要，重點參考月支與日支之間的生剋、合沖、刑害等關係，" +
     "同時兼顧整體命格互補與落差，給出合婚評估。" +
+    // ⬇️ 這段是關鍵禁止條款
+    "請注意：在輸出的 JSON 文字內容中，不要出現「子、丑、寅、卯、辰、巳、午、未、申、酉、戌、亥」這些字眼，" +
+    "也不要使用「月支」「日支」「地支」等專業術語。你可以在心裡參考這些資訊，但不要寫出來。" +
     "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ```。" +
     "JSON 格式如下：" +
     "{ " +
@@ -1714,8 +1724,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     "【女命八字摘要】\n" +
     femaleBaziSummaryText +
     "\n\n" +
-    "【合婚提示】\n" +
-    matchText +
+    "【合婚提示（內部用）】\n" +
+    matchPromptText +
     "\n\n" +
     "請直接輸出 JSON。";
 
@@ -1727,7 +1737,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   // 跟單人一樣先不 parse，交給 lineClient 處理
   return {
     aiText,
-    matchText,
+    matchPromptText, // 給你 debug / 之後要記錄用
+    matchDisplayText, // 給 Flex 顯示用
     malePillars,
     femalePillars,
     maleSummary: maleBaziSummaryText,

@@ -764,7 +764,13 @@ async function sendMiniBaziResultFlex(userId, payload) {
 }
 
 async function sendBaziMatchResultFlex(userId, payload) {
-  const { aiText, matchText, malePillars, femalePillars } = payload;
+  const {
+    aiText,
+    matchDisplayText, // 用戶端顯示這個
+    // matchPromptText, // 這個可以不用顯示，但保留在 payload 裡給你 debug 用
+    malePillars,
+    femalePillars,
+  } = payload;
 
   const data = extractPureJSON(aiText);
 
@@ -809,7 +815,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: matchText, // 男命月支日支 + 女命月支日支
+          text: matchDisplayText, // 男命月支日支 + 女命月支日支
           size: "xs",
           color: "#777777",
           wrap: true,
