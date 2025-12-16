@@ -763,6 +763,170 @@ async function sendMiniBaziResultFlex(userId, payload) {
   await pushFlex(userId, "八字測算結果", flexPayload);
 }
 
+async function sendBaziMatchResultFlex(userId, payload) {
+  const { aiText, matchText, malePillars, femalePillars } = payload;
+
+  const data = extractPureJSON(aiText);
+
+  // 如果 JSON 爆掉，就直接回純文字
+  if (!data || typeof data !== "object" || typeof data.score === "undefined") {
+    const fallbackText =
+      "【八字合婚結果】\n\n" +
+      (typeof aiText === "string" && aiText.trim()
+        ? aiText
+        : "系統目前無法解析合婚結果，之後可以改成由老師手動說明。");
+
+    await pushText(userId, fallbackText);
+    return;
+  }
+
+  const score = data.score;
+  const summary = String(data.summary || "").trim();
+  const strengths = Array.isArray(data.strengths) ? data.strengths : [];
+  const challenges = Array.isArray(data.challenges) ? data.challenges : [];
+  const advice = String(data.advice || "").trim();
+
+  const flexPayload = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜八字合婚",
+          weight: "bold",
+          size: "sm",
+          color: "#B89B5E",
+        },
+        {
+          type: "text",
+          text: `合婚分數：${score} 分`,
+          weight: "bold",
+          size: "xl",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: matchText, // 男命月支日支 + 女命月支日支
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+          margin: "md",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            { type: "text", text: "整體總評", weight: "bold", size: "sm" },
+            {
+              type: "text",
+              text: summary,
+              size: "xs",
+              wrap: true,
+              margin: "sm",
+            },
+          ],
+        },
+        ...(strengths.length
+          ? [
+              {
+                type: "box",
+                layout: "vertical",
+                margin: "md",
+                contents: [
+                  {
+                    type: "text",
+                    text: "優點 / 相處亮點",
+                    weight: "bold",
+                    size: "sm",
+                  },
+                  ...strengths.map((s) => ({
+                    type: "text",
+                    text: `• ${s}`,
+                    size: "xs",
+                    wrap: true,
+                    margin: "sm",
+                  })),
+                ],
+              },
+            ]
+          : []),
+        ...(challenges.length
+          ? [
+              {
+                type: "box",
+                layout: "vertical",
+                margin: "md",
+                contents: [
+                  {
+                    type: "text",
+                    text: "潛在磨合點",
+                    weight: "bold",
+                    size: "sm",
+                  },
+                  ...challenges.map((c) => ({
+                    type: "text",
+                    text: `• ${c}`,
+                    size: "xs",
+                    wrap: true,
+                    margin: "sm",
+                  })),
+                ],
+              },
+            ]
+          : []),
+        {
+          type: "box",
+          layout: "vertical",
+          margin: "md",
+          contents: [
+            {
+              type: "text",
+              text: "經營建議",
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: advice,
+              size: "xs",
+              wrap: true,
+              margin: "sm",
+            },
+          ],
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "message",
+            label: "想預約完整合婚諮詢",
+            text: "預約",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "八字合婚結果", flexPayload);
+}
+
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
@@ -774,4 +938,5 @@ module.exports = {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  sendBaziMatchResultFlex,
 };

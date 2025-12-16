@@ -13,6 +13,7 @@ const {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  sendBaziMatchResultFlex,
 } = require("./lineClient");
 
 //AI 訊息回覆相關
@@ -698,8 +699,8 @@ async function handleLineEvent(event) {
 }
 
 //routeGeneralCommands：處理「進入某個模式」的指令(入口/觸發點)
+//也就是說這是路由路口
 //預約：丟服務/日期/時段 Flex（你的 booking flow）
-//小占卜 → 之後要改名成「八字測算」
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
   // 1) 預約指令（沿用你原本的行為）
@@ -730,8 +731,28 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 3) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
-  await pushText(userId, `我有聽到你說：「${text}」`);
+  // 3) 八字合婚
+  if (text === "八字合婚") {
+    conversationStates[userId] = {
+      mode: "bazi_match",
+      stage: "wait_male_birth_input",
+      data: {},
+    };
+
+    await pushText(
+      userId,
+      "八字合婚模式啟動 💍\n\n" +
+        "請先輸入「男方」的西元生日與時間（時間可省略）：\n\n" +
+        "1) 1992-12-05-0830\n" +
+        "2) 1992-12-05-辰時\n" +
+        "3) 1992-12-05-辰\n" +
+        "如果不想提供時辰，可以輸入：1992-12-05-未知"
+    );
+    return;
+  }
+
+  // 4) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
+  await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
 //routeByConversationState：依照 state 分發到各個 flow//
@@ -749,6 +770,10 @@ async function routeByConversationState(userId, text, state, event) {
   if (mode === "mini_bazi") {
     // 交給八字測算流程處理
     return await handleMiniBaziFlow(userId, text, state, event);
+  }
+
+  if (mode === "bazi_match") {
+    return await handleBaziMatchFlow(userId, text, state, event);
   }
 
   // 其他未支援的 mode
@@ -1162,6 +1187,146 @@ async function handleMiniBaziFlow(userId, text, state, event) {
   return false;
 }
 
+/**
+ * 🔮 handleBaziMatchFlow
+ * -----------------------
+ * 八字合婚模式的主要控制流程（mode: "bazi_match"）。
+ *
+ * 【整體流程】
+ * 1. wait_male_birth_input
+ *    - 等待使用者輸入「男方」生日字串。
+ *    - 使用 parseMiniBirthInput() 解析生日格式。
+ *    - 若格式正確 → 暫存於 state.data.maleBirth 並進入下一階段。
+ *
+ * 2. wait_female_birth_input
+ *    - 等待使用者輸入「女方」生日字串。
+ *    - 同樣以 parseMiniBirthInput() 解析。
+ *    - 若成功 → 呼叫 callBaziMatchAI() 取得：
+ *         - aiText：AI 回傳的合婚 JSON（或純文字）
+ *         - matchText：組合後的「男命月支日支 × 女命月支日支」合婚提示文字
+ *         - malePillars / femalePillars：兩人八字拆出的四柱資訊
+ *         - maleSummary / femaleSummary：兩人八字摘要（baziSummaryText）
+ *
+ * 3. 丟給 sendBaziMatchResultFlex()（位於 lineClient.js）
+ *    - 將 AI 的 JSON 解析後轉成 Flex Message 回傳給用戶。
+ *    - 若 JSON 解析失敗，則以純文字方式 fallback 回覆。
+ *
+ * 【使用到的元件 / 工具】
+ * - parseMiniBirthInput()
+ *      將 "1992-12-05-0830" / "1992-12-05-辰" 解析成日期物件。
+ *
+ * - getBaziSummaryForAI()
+ *      透過第三方 API 取得命主八字摘要（summaryText）。
+ *
+ * - extractPillars()
+ *      從 summaryText 中拆出「年柱 / 月柱 / 日柱 / 時柱」。
+ *
+ * - callBaziMatchAI()
+ *      將男女雙方的八字 + 月支/日支關係送入 AI_Reading()，
+ *      取得合婚 JSON 結果（score、summary、strengths、challenges、advice）。
+ *
+ * - sendBaziMatchResultFlex()
+ *      使用 LINE Flex Message 將合婚結果呈現給使用者。
+ *
+ * 【注意事項】
+ * - 不修改任何現有八字測算流程所使用的 key（如 baziSummaryText）。
+ * - 合婚流程完全獨立於 mini_bazi，避免交互影響。
+ * - state.stage 決定目前處理進度，請確保每個階段正確轉換。
+ *
+ * 此函式僅負責「流程控制與 state 管理」，不負責八字推算或 UI 格式化。
+ */
+async function handleBaziMatchFlow(userId, text, state, event) {
+  if (!state || state.mode !== "bazi_match") return false;
+
+  console.log(
+    `[baziMatchFlow] from ${userId}, stage=${state.stage}, text=${text}`
+  );
+
+  // 1) 等男方生日
+  if (state.stage === "wait_male_birth_input") {
+    const parsed = parseMiniBirthInput(text);
+
+    if (!parsed) {
+      await pushText(
+        userId,
+        "男方生日格式好像怪怪的 😅\n\n" +
+          "請用以下任一種格式再試一次：\n" +
+          "1) 1992-12-05-0830\n" +
+          "2) 1992-12-05-辰時\n" +
+          "3) 1992-12-05-辰\n" +
+          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+      );
+      return true;
+    }
+
+    state.data = state.data || {};
+    state.data.maleBirth = parsed;
+
+    state.stage = "wait_female_birth_input";
+    await pushText(
+      userId,
+      "收到 ✅\n\n接下來請輸入「女方」的西元生日與時間，格式同樣是：\n" +
+        "1992-12-05-0830 / 1992-12-05-辰 / 1992-12-05-未知"
+    );
+    return true;
+  }
+
+  // 2) 等女方生日
+  if (state.stage === "wait_female_birth_input") {
+    const parsed = parseMiniBirthInput(text);
+
+    if (!parsed) {
+      await pushText(
+        userId,
+        "女方生日格式好像怪怪的 😅\n\n" +
+          "請用以下任一種格式再試一次：\n" +
+          "1) 1992-12-05-0830\n" +
+          "2) 1992-12-05-辰時\n" +
+          "3) 1992-12-05-辰\n" +
+          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+      );
+      return true;
+    }
+
+    state.data = state.data || {};
+    state.data.femaleBirth = parsed;
+
+    try {
+      const {
+        aiText,
+        matchText,
+        malePillars,
+        femalePillars,
+        maleSummary,
+        femaleSummary,
+      } = await callBaziMatchAI(state.data.maleBirth, parsed);
+
+      // 🔚 丟 Flex 合婚結果（下面會設計）
+      await sendBaziMatchResultFlex(userId, {
+        aiText,
+        matchText,
+        malePillars,
+        femalePillars,
+        maleSummary,
+        femaleSummary,
+      });
+
+      delete conversationStates[userId];
+      return true;
+    } catch (err) {
+      console.error("[baziMatchFlow] AI error:", err);
+      await pushText(
+        userId,
+        "合婚這邊目前有點塞車 😅\n你可以晚點再試一次，或直接輸入「預約」詢問完整合婚。"
+      );
+      delete conversationStates[userId];
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
 function extractPillars(baziSummaryText) {
   const lines = baziSummaryText.split(/\r?\n/);
@@ -1234,6 +1399,7 @@ function calcFiveElements({ year, month, day, hour }) {
   return count;
 }
 
+////把八字結果組合成文字呼叫AI
 async function callMiniReadingAI(
   birthObj,
   mode = "pattern",
@@ -1435,6 +1601,137 @@ async function callMiniReadingAI(
     aiText: AI_Reading_Text,
     pillarsText,
     fiveElementsText,
+  };
+}
+
+/**
+ * 八字合婚主流程（Bazi Match Pipeline）
+ * ------------------------------------------------------------
+ * 此函式負責整合「男方」與「女方」的八字資料，並透過 AI
+ * 產生完整的合婚評估 JSON（含分數 / 優點 / 磨合點 / 建議）。
+ *
+ * 【主要流程】
+ * 1) 取得男、女雙方的八字摘要（getBaziSummaryForAI）
+ *    - 此步驟與單人八字測算相同，沿用同一份 API 摘要格式。
+ *    - 回傳值中的 summaryText 即為 baziSummaryText。
+ *
+ * 2) 解析四柱（extractPillars）
+ *    - 從八字摘要文字中抓取：年柱、月柱、日柱、時柱。
+ *    - 合婚僅需「月支」＋「日支」作為核心判斷基礎：
+ *        malePillars.month  → 男方月柱（取地支）
+ *        malePillars.day    → 男方日柱（取地支）
+ *        femalePillars.month → 女方月柱（取地支）
+ *        femalePillars.day   → 女方日柱（取地支）
+ *
+ * 3) 組合合婚提示語句（matchText）
+ *    - 依你指定格式組成：
+ *        例：「男命 月支申 日支寅 女命 月支亥 日支丑 幫我合婚」
+ *    - 此文字會直接丟給 GPT 當作合婚語境的提示。
+ *
+ * 4) 呼叫 AI_Reading（GPT / fallback）
+ *    - systemPrompt：
+ *        定義合婚邏輯、輸出風格、強制 JSON 格式。
+ *    - userPrompt：
+ *        包含男命摘要、女命摘要、matchText。
+ *    - AI 僅被允許回傳 JSON，格式包含：
+ *        {
+ *          score: 0-100,          // 合婚分數
+ *          summary: "...",        // 整體總評
+ *          strengths: [...],      // 互補亮點
+ *          challenges: [...],     // 潛在磨合點
+ *          advice: "..."          // 經營方向建議
+ *        }
+ *
+ * 5) 回傳給上層（handleBaziMatchFlow）
+ *    - 不在此階段解析 JSON，由 lineClient.js 的
+ *      sendBaziMatchResultFlex 負責解析與生成 Flex Message。
+ *    - 回傳結構：
+ *        {
+ *          aiText,                // AI 原始回應（string）
+ *          matchText,             // 合婚提示語句
+ *          malePillars,           // 男方四柱
+ *          femalePillars,         // 女方四柱
+ *          maleSummary,           // 男方八字摘要文字
+ *          femaleSummary          // 女方八字摘要文字
+ *        }
+ *
+ * 【使用到的元件 / 工具】
+ * - getBaziSummaryForAI     ：取得 youhualao 的八字摘要文字
+ * - extractPillars           ：從摘要中解析出四柱干支
+ * - AI_Reading               ：包裝 GPT（優先）＋ Gemini（fallback）
+ * - parseMiniBirthInput      ：解析生日輸入格式（於上層流程使用）
+ *
+ * ------------------------------------------------------------
+ * 注意：
+ * - 完全不改動單人測算流程的 baziSummaryText 結構。
+ * - 合婚的 maleSummary / femaleSummary 皆為新變數，不會影響現有流程。
+ * - Flex 呈現邏輯獨立於 lineClient.js 中處理。
+ */
+async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
+  // 1) 先拿兩邊的八字摘要（沿用你原本那顆 getBaziSummaryForAI）
+  const { summaryText: maleBaziSummaryText } = await getBaziSummaryForAI(
+    maleBirthObj
+  );
+  const { summaryText: femaleBaziSummaryText } = await getBaziSummaryForAI(
+    femaleBirthObj
+  );
+
+  // 2) 拆出四柱，再取月支 + 日支
+  const malePillars = extractPillars(maleBaziSummaryText); // { year, month, day, hour }
+  const femalePillars = extractPillars(femaleBaziSummaryText);
+
+  const maleMonthBranch = (malePillars.month || "").slice(1); // 取第 2 個字當地支
+  const maleDayBranch = (malePillars.day || "").slice(1);
+  const femaleMonthBranch = (femalePillars.month || "").slice(1);
+  const femaleDayBranch = (femalePillars.day || "").slice(1);
+
+  // 3) 組你說的「合婚 text」
+  const matchText =
+    `男命 月支${maleMonthBranch} 日支${maleDayBranch} ` +
+    `女命 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
+
+  // 4) 系統提示：要求 JSON + 分數
+  const systemPrompt =
+    "你是一位專門看八字合婚的東方命理老師，講話溫和、實際，不宿命論，不嚇人。" +
+    "請根據提供的兩造八字摘要，重點參考月支與日支之間的生剋、合沖、刑害等關係，" +
+    "同時兼顧整體命格互補與落差，給出合婚評估。" +
+    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ```。" +
+    "JSON 格式如下：" +
+    "{ " +
+    '"score": 0-100 的整數合婚分數,' +
+    '"summary": "整體合婚總評，約 80～120 字",' +
+    '"strengths": ["優點 1", "優點 2", "可互補的地方等"],' +
+    '"challenges": ["潛在摩擦點 1", "生活節奏／價值觀差異等"],' +
+    '"advice": "給雙方的具體經營建議，約 120～180 字"' +
+    " }";
+
+  // 5) userPrompt：丟「兩份摘要 + 合婚 text」
+  const userPrompt =
+    "以下是兩位當事人的八字摘要，請你依照 JSON 格式做合婚評估：\n\n" +
+    "【男命八字摘要】\n" +
+    maleBaziSummaryText +
+    "\n\n" +
+    "【女命八字摘要】\n" +
+    femaleBaziSummaryText +
+    "\n\n" +
+    "【合婚提示】\n" +
+    matchText +
+    "\n\n" +
+    "請直接輸出 JSON。";
+
+  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
+  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
+
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  // 跟單人一樣先不 parse，交給 lineClient 處理
+  return {
+    aiText,
+    matchText,
+    malePillars,
+    femalePillars,
+    maleSummary: maleBaziSummaryText,
+    femaleSummary: femaleBaziSummaryText,
   };
 }
 
