@@ -1148,18 +1148,21 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 
     const mode =
       state.data && state.data.baziMode ? state.data.baziMode : "pattern";
+    const gender =
+      state.data && state.data.gender ? state.data.gender : "unknown";
 
     try {
       // 2) 呼叫 AI 取得測算文本（以及四柱 + 五行）
       const { aiText, pillarsText, fiveElementsText } = await callMiniReadingAI(
         parsed,
-        mode
+        mode,
+        gender
       );
 
       // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
       if (parsed.timeType === "hm") {
-        birthDesc += ` ${parsed.time}（24 小時制）`;
+        birthDesc += ` ${parsed.time}`;
       } else if (parsed.timeType === "branch") {
         birthDesc += ` ${parsed.branch}時（地支時辰）`;
       } else if (parsed.timeType === "unknown") {
@@ -1263,7 +1266,11 @@ function calcFiveElements({ year, month, day, hour }) {
   return count;
 }
 
-async function callMiniReadingAI(birthObj, mode = "pattern") {
+async function callMiniReadingAI(
+  birthObj,
+  mode = "pattern",
+  gender = "unknown"
+) {
   const { raw, date, timeType, time, branch } = birthObj;
 
   // --- 組合生日文字描述 ---
@@ -1305,6 +1312,26 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
     timePhraseHint = "";
   }
 
+  // --- 性別補充說明 ---
+  let genderHintForSystem = "";
+  let genderHintForUser = "";
+
+  if (gender === "male") {
+    genderHintForSystem =
+      "本次解讀對象為「男命」，請以男性命主的角度來描述，用詞自然即可。";
+    genderHintForUser =
+      "這次請以男命的角度說明命盤特質與建議，不用一直重複「男命」二字。";
+  } else if (gender === "female") {
+    genderHintForSystem =
+      "本次解讀對象為「女命」，請以女性命主的角度來描述，用詞自然即可。";
+    genderHintForUser =
+      "這次請以女命的角度說明命盤特質與建議，不用一直重複「女命」二字。";
+  } else {
+    genderHintForSystem =
+      "本次解讀對象未特別標註性別，請使用中性的稱呼，不要自行猜測性別。";
+    genderHintForUser = "";
+  }
+
   // --- 先向 youhualao 取得八字摘要（已組成給 AI 用的文字） ---
   let baziSummaryText = "";
   try {
@@ -1320,6 +1347,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
       `${birthDesc}\n` +
       `原始輸入格式：${raw}\n\n` +
       `${focusText}\n\n` +
+      (genderHintForUser ? genderHintForUser + "\n\n" : "") +
       "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
       "並依據上述重點，給予 150～200 字的簡短提醒與建議，語氣像朋友聊天。";
 
@@ -1390,6 +1418,7 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const systemPrompt =
     "你是一位懂八字與紫微斗數的東方命理老師，" +
     "講話溫和、實際，不宿命論，不嚇人。" +
+    genderHintForSystem + //systemPrompt / fallback 補上「男命 / 女命」語氣
     "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
     "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
     "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。" +
