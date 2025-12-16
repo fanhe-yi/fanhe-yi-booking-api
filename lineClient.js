@@ -800,8 +800,8 @@ async function sendBaziMatchResultFlex(userId, payload) {
   const advice = String(data.advice || "").trim();
 
   // 🔹 真正要顯示在 header 上的「人話時間」
-  const maleDisplay = maleBirthDisplay; // 有 display 用 display，沒有就退回 raw
-  const femaleDisplay = femaleBirthDisplay;
+  const maleDisplay = maleBirthDisplay || maleBirthRaw || "未提供"; // 有 display 用 display，沒有就退回 raw
+  const femaleDisplay = femaleBirthDisplay || femaleBirthRaw || "未提供";
 
   const flexPayload = {
     type: "bubble",
