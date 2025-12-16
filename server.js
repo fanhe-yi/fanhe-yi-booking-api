@@ -1299,6 +1299,8 @@ async function handleBaziMatchFlow(userId, text, state, event) {
         aiText,
         matchPromptText, // 給你之後要記 log / debug 用（不給使用者看）
         matchDisplayText, // 給使用者看的那行說明文字（不含地支 & 不含「幫我合婚」）
+        maleBirthRaw,
+        femaleBirthRaw,
         malePillars,
         femalePillars,
         maleSummary,
@@ -1309,6 +1311,8 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       await sendBaziMatchResultFlex(userId, {
         aiText,
         matchDisplayText,
+        maleBirthRaw, // 👈 一定要往下傳
+        femaleBirthRaw, // 👈 一定要往下傳
         malePillars,
         femalePillars,
         maleSummary,
@@ -1747,9 +1751,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     matchDisplayText, // 給 Flex 顯示用
     malePillars,
     femalePillars,
-    // 新增：用戶原始輸入
-    maleBirthRaw: maleBirthObj.raw,
-    femaleBirthRaw: femaleBirthObj.raw,
+    maleBirthRaw: maleBirthObj.raw, // ⭐ 給 header 用
+    femaleBirthRaw: femaleBirthObj.raw, // ⭐ 給 header 用
     maleSummary: maleBaziSummaryText,
     femaleSummary: femaleBaziSummaryText,
   };
