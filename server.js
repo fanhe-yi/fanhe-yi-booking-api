@@ -1083,6 +1083,49 @@ async function handleMiniBaziFlow(userId, text, state, event) {
     `[miniBaziFlow] from ${userId}, stage=${state.stage}, text=${text}`
   );
 
+  // 0) 先問「男命 / 女命」
+  if (state.stage === "wait_gender") {
+    const trimmed = (text || "").trim();
+
+    let gender = null;
+    if (["男", "男生", "男命", "m", "M"].includes(trimmed)) {
+      gender = "male";
+    } else if (["女", "女生", "女命", "f", "F"].includes(trimmed)) {
+      gender = "female";
+    }
+
+    // 判斷不了就請他重打
+    if (!gender) {
+      await pushText(
+        userId,
+        "我這邊要先知道是「男命」還是「女命」。\n\n" +
+          "可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+      );
+      return true;
+    }
+
+    // 設定好性別，下一步才是生日
+    state.stage = "wait_birth_input";
+    state.data = state.data || {};
+    state.data.gender = gender;
+
+    const genderLabel = gender === "male" ? "男命" : "女命";
+    console.log(
+      `[miniBaziFlow] from ${genderLabel}, stage=${state.stage}, data=${state.data}`
+    );
+    await pushText(
+      userId,
+      `好的，這次就先以「${genderLabel}」來看。\n\n` +
+        "接下來請輸入你的西元生日與時間（時間可省略）：\n\n" +
+        "1) 1992-12-05-未知\n" +
+        "2) 1992-12-05-0830\n" +
+        "3) 1992-12-05-辰時 或 1992-12-05-辰\n\n" +
+        "如果不想提供時辰，可以在最後寫「未知」。"
+    );
+
+    return true;
+  }
+
   // -------------------------
   // 1) 等使用者輸入生日
   // -------------------------
