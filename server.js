@@ -1265,8 +1265,11 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     state.stage = "wait_female_birth_input";
     await pushText(
       userId,
-      "收到 ✅\n\n接下來請輸入「女方」的西元生日與時間，格式同樣是：\n" +
-        "1992-12-05-0830 / 1992-12-05-辰 / 1992-12-05-未知"
+      "收到 ✅\n\n接著輸入「女方」的西元生日與時間（時間可省略）：\n\n" +
+        "1) 1992-12-05-0830\n" +
+        "2) 1992-12-05-辰時\n" +
+        "3) 1992-12-05-辰\n" +
+        "如果不想提供時辰，可以輸入：1992-12-05-未知"
     );
     return true;
   }
@@ -1294,21 +1297,24 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     try {
       const {
         aiText,
-        matchText,
+        matchPromptText, // 給你之後要記 log / debug 用（不給使用者看）
+        matchDisplayText, // 給使用者看的那行說明文字（不含地支 & 不含「幫我合婚」）
         malePillars,
         femalePillars,
         maleSummary,
         femaleSummary,
       } = await callBaziMatchAI(state.data.maleBirth, parsed);
 
-      // 🔚 丟 Flex 合婚結果（下面會設計）
+      // 🔚 丟 Flex 合婚結果（顯示用只丟 matchDisplayText）
       await sendBaziMatchResultFlex(userId, {
         aiText,
-        matchText,
+        matchDisplayText,
         malePillars,
         femalePillars,
         maleSummary,
         femaleSummary,
+        // matchPromptText 你要的話可以順便傳進去，之後要存 DB / log 方便用
+        matchPromptText,
       });
 
       delete conversationStates[userId];
