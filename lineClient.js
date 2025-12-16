@@ -770,6 +770,8 @@ async function sendBaziMatchResultFlex(userId, payload) {
     // matchPromptText, // 這個可以不用顯示，但保留在 payload 裡給你 debug 用
     malePillars,
     femalePillars,
+    maleBirthRaw,
+    femaleBirthRaw,
   } = payload;
 
   const data = extractPureJSON(aiText);
@@ -815,7 +817,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `男方：${maleBirth.raw}`,
+          text: `男方：${maleBirthRaw}`,
           size: "xs",
           color: "#777777",
           margin: "md",
@@ -823,7 +825,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `女方：${femaleBirth.raw}`,
+          text: `女方：${femaleBirthRaw}`,
           size: "xs",
           color: "#777777",
           wrap: true,
