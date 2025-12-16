@@ -675,6 +675,13 @@ async function sendMiniBaziResultFlex(userId, payload) {
             },
             {
               type: "text",
+              text: birthDesc,
+              size: "xs",
+              color: "#777777",
+              wrap: true,
+            },
+            {
+              type: "text",
               text: pillarsText,
               size: "xs",
               color: "#777777",
@@ -686,29 +693,14 @@ async function sendMiniBaziResultFlex(userId, payload) {
               size: "xs",
               color: "#777777",
               wrap: true,
-              margin: "none",
-            },
-            {
-              // ★ 這段是讓 header 視覺上更貼近 body
-              type: "box",
-              layout: "vertical",
-              height: "4px",
-              contents: [],
             },
           ],
         },
         body: {
           type: "box",
           layout: "vertical",
-          spacing: "none",
+          spacing: "xs",
           contents: [
-            {
-              type: "text",
-              text: birthDesc,
-              size: "xs",
-              color: "#999999",
-              wrap: true,
-            },
             {
               type: "separator",
               margin: "md",

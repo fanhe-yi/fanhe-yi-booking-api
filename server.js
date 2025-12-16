@@ -790,6 +790,22 @@ async function routePostback(userId, data, state) {
       return;
     }
 
+    // ✅ 先記住 mode，下一步改成問「男命 / 女命」
+    conversationStates[userId] = {
+      mode: "mini_bazi",
+      stage: "wait_gender",
+      data: {
+        baziMode: mode,
+      },
+    };
+
+    await pushText(
+      userId,
+      "這次要以「男命」還是「女命」來看呢？\n\n" +
+        "請輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+    );
+    return;
+
     // 設定對話狀態：已經選好「哪一種測算」，下一步要問生日
     conversationStates[userId] = {
       mode: "mini_bazi",
@@ -1208,9 +1224,9 @@ async function callMiniReadingAI(birthObj, mode = "pattern") {
   const { raw, date, timeType, time, branch } = birthObj;
 
   // --- 組合生日文字描述 ---
-  let birthDesc = `西元生日：${date}`;
+  let birthDesc = `-西元生日：${date}`;
   if (timeType === "hm") {
-    birthDesc += ` ${time}（24 小時制）`;
+    birthDesc += ` ${time}`;
   } else if (timeType === "branch") {
     birthDesc += ` ${branch}時（地支時辰，未提供分鐘）`;
   } else if (timeType === "unknown") {
