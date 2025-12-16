@@ -815,12 +815,35 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: matchDisplayText, // 男命月支日支 + 女命月支日支
+          text: `男方：${maleBirth.raw}`,
+          size: "xs",
+          color: "#777777",
+          margin: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: `女方：${femaleBirth.raw}`,
           size: "xs",
           color: "#777777",
           wrap: true,
-          margin: "md",
         },
+        {
+          type: "text",
+          text: "＊本合婚結果僅供參考，不做命定論＊",
+          size: "xxs",
+          color: "#999999",
+          margin: "md",
+          wrap: true,
+        },
+        //{
+        //  type: "text",
+        //  text: matchDisplayText, // 預留一個版面
+        ///  size: "xs",
+        //  color: "#777777",
+        //  wrap: true,
+        //  margin: "md",
+        //},
       ],
     },
     body: {

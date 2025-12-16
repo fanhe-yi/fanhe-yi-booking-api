@@ -1747,6 +1747,9 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     matchDisplayText, // 給 Flex 顯示用
     malePillars,
     femalePillars,
+    // 新增：用戶原始輸入
+    maleBirthRaw: maleBirthObj.raw,
+    femaleBirthRaw: femaleBirthObj.raw,
     maleSummary: maleBaziSummaryText,
     femaleSummary: femaleBaziSummaryText,
   };
