@@ -2234,7 +2234,14 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
 async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   // 1) 基本資料
   const gzArr = (hexData && hexData.ganzhi) || [];
-  const gzText = gzArr.length ? gzArr.join("，") : "（干支資料缺失）";
+  const gzLabels = ["年", "月", "日", "時"];
+  const gzText =
+    gzArr && gzArr.length
+      ? gzArr
+          .slice(0, 4)
+          .map((v, i) => `${v}${gzLabels[i] || ""}`)
+          .join("，")
+      : "（干支資料缺失）";
 
   // 2) 旺相休囚死 + 月破（你現在做的函式）
   // 期望回傳例如：{ text: "木相，火死，土囚，金休，水旺，巳，月破" }
@@ -2259,10 +2266,10 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `你是一個六爻解卦大師\n` +
     `今天有${genderText}\n` +
     `主題：${topicText}\n` +
-    `卦象如下：\n` +
     `${gzText}\n` +
     (phaseText ? `${phaseText}\n` : "") +
     `\n` +
+    `卦象如下：\n` +
     `${sixLinesText}\n` +
     `\n` +
     `${genderText}${topicText}\n` +
