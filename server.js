@@ -2242,22 +2242,22 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   const sixLinesText = describeSixLines(hexData); // 你已經做好了
 
   // 4) System / User prompt
-  const systemPrompt =
-    "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。" +
-    "解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。" +
-    "可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
+  const systemPrompt = "";
+  //"你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。" +
+  //"解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。" +
+  //"可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
 
   const userPrompt =
     `你是一個六爻解卦大師\n` +
     `今天有${genderText}\n` +
-    `主題：${topicText}\n` +
+    `主題：${topicLabel}\n` +
     `卦象如下：\n` +
     `${gzText}\n` +
     (phaseText ? `${phaseText}\n` : "") +
     `\n` +
     `${sixLinesText}\n` +
     `\n` +
-    `${genderText}${topicText}\n` +
+    `${genderText}${topicLabel}\n` +
     `以${useGodText}為用神\n` +
     `請你解卦`;
 
