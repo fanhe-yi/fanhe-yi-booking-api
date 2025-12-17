@@ -24,7 +24,7 @@ const { AI_Reading } = require("./aiClient");
 const { getBaziSummaryForAI } = require("./baziApiClient");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
-const { describeSixLines } = require("./liuYaoParser");
+const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 
 // 先創造 app
 const app = express();
@@ -1641,6 +1641,43 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     // 3) 丟進 AI_Reading 產生解卦
     // 我們可以在下一輪一起把這三步補上。
 
+    try {
+      const timeParams = buildLiuYaoTimeParams(state);
+      const { y, m, d, h, mi } = timeParams;
+
+      // 呼叫 youhualao 取得完整卦象
+      const hexData = await getLiuYaoHexagram({
+        y,
+        m,
+        d,
+        h,
+        mi,
+        yy: finalCode,
+      });
+
+      // 存起來（可選，但建議）
+      state.data.hexData = hexData;
+
+      // ⬇️【就貼在這裡】呼叫 AI 解卦
+      const { aiText } = await callLiuYaoAI({
+        genderText: state.data.gender === "female" ? "女命" : "男命",
+        topicText: state.data.topic || "感情",
+        hexData: state.data.hexData,
+        useGodText: "官鬼",
+      });
+
+      await pushText(userId, aiText);
+
+      delete conversationStates[userId];
+      return true;
+    } catch (err) {
+      console.error("[liuyao] AI error:", err);
+      await pushText(userId, "六爻解卦 AI 剛剛小卡住 😅 你可以稍後再試一次。");
+      delete conversationStates[userId];
+      return true;
+    }
+
+    /*
     /////////////六爻逐行測試區////start
     try {
       // 1) 先算起卦時間
@@ -1685,9 +1722,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         "我在整理這一卦的文字時發生錯誤，你可以把錯誤訊息截圖給工程師自己看看看（或貼回來繼續修）。"
       );
       delete conversationStates[userId];
-    }
-
-    return true;
+    }*/
   }
 
   return false;
@@ -2185,6 +2220,55 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     maleSummary: maleBaziSummaryText,
     femaleSummary: femaleBaziSummaryText,
   };
+}
+
+////呼叫AI收六爻
+async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
+  // 1) 基本資料
+  const gzArr = (hexData && hexData.ganzhi) || [];
+  const gzText = gzArr.length ? gzArr.join("，") : "（干支資料缺失）";
+
+  // 2) 旺相休囚死 + 月破（你現在做的函式）
+  // 期望回傳例如：{ text: "木相，火死，土囚，金休，水旺，巳，月破" }
+  let phaseText = "";
+  try {
+    const phase = buildElementPhase(gzArr);
+    phaseText = phase?.text ? phase.text : "";
+  } catch (e) {
+    phaseText = "";
+  }
+
+  // 3) 六爻六條
+  const sixLinesText = describeSixLines(hexData); // 你已經做好了
+
+  // 4) System / User prompt
+  const systemPrompt =
+    "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。" +
+    "解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。" +
+    "可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
+
+  const userPrompt =
+    `你是一個六爻解卦大師\n` +
+    `今天有${genderText}\n` +
+    `主題：${topicText}\n` +
+    `卦象如下：\n` +
+    `${gzText}\n` +
+    (phaseText ? `${phaseText}\n` : "") +
+    `\n` +
+    `${sixLinesText}\n` +
+    `\n` +
+    `${genderText}${topicText}\n` +
+    `以${useGodText}為用神\n` +
+    `請你解卦`;
+
+  // ✅ 想先人工檢查 prompt 就打開這兩行
+  // console.log("[liuyao] systemPrompt:\n", systemPrompt);
+  // console.log("[liuyao] userPrompt:\n", userPrompt);
+
+  // 5) Call AI
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  return { aiText, userPrompt, systemPrompt };
 }
 
 // --- Start server ---

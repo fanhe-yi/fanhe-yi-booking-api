@@ -1,3 +1,96 @@
+// ====== 求旺相休囚死月破 ===============
+// ===== 五行氣勢（旺相休囚死）＋ 月破（ =====
+
+const BRANCHES = "子丑寅卯辰巳午未申酉戌亥";
+
+// 月正沖 → 月破
+const BRANCH_CLASH = {
+  子: "午",
+  午: "子",
+  丑: "未",
+  未: "丑",
+  寅: "申",
+  申: "寅",
+  卯: "酉",
+  酉: "卯",
+  辰: "戌",
+  戌: "辰",
+  巳: "亥",
+  亥: "巳",
+};
+
+// 月令 → 當令五行（你指定的版本）
+function branchToMonthElement(branch) {
+  if ("寅卯".includes(branch)) return "木";
+  if ("巳午".includes(branch)) return "火";
+  if ("申酉".includes(branch)) return "金";
+  if ("亥子".includes(branch)) return "水";
+  if ("辰戌丑未".includes(branch)) return "土";
+  return null;
+}
+
+// 五行生剋
+const GENERATE = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
+const CONTROL = { 木: "土", 土: "水", 水: "火", 火: "金", 金: "木" };
+
+// 從干支字串取地支
+function extractBranch(gz) {
+  if (!gz) return null;
+  for (const ch of gz) {
+    if (BRANCHES.includes(ch)) return ch;
+  }
+  return null;
+}
+
+/**
+ * 規則：
+ * 同月令者＝旺
+ * 月生者＝相
+ * 月剋者＝死
+ * 剋月者＝囚
+ * 生月者＝休
+ * 月正沖者＝月破
+ *
+ * 固定輸出順序：木火土金水
+ */
+function buildElementPhase(ganzhiArr) {
+  if (!Array.isArray(ganzhiArr) || ganzhiArr.length < 2) {
+    return { text: "", dominant: null, breaker: null };
+  }
+
+  const monthBranch = extractBranch(ganzhiArr[1]); // 月支
+  if (!monthBranch) return { text: "", dominant: null, breaker: null };
+
+  const dominant = branchToMonthElement(monthBranch); // 月令五行
+  if (!dominant) return { text: "", dominant: null, breaker: null };
+
+  // 五行定位（以「月令五行」为中心）
+  const phaseMap = {};
+  phaseMap[dominant] = "旺"; // 同月令者＝旺
+  phaseMap[GENERATE[dominant]] = "相"; // 月生者＝相（dominant 生出的那个）
+  phaseMap[CONTROL[dominant]] = "死"; // 月剋者＝死（dominant 克的那个）
+
+  // 剋月者＝囚：谁克 dominant？
+  for (const [k, v] of Object.entries(CONTROL)) {
+    if (v === dominant) phaseMap[k] = "囚";
+  }
+
+  // 生月者＝休：谁生 dominant？
+  for (const [k, v] of Object.entries(GENERATE)) {
+    if (v === dominant) phaseMap[k] = "休";
+  }
+
+  // 固定輸出順序：木火土金水
+  const order = ["木", "火", "土", "金", "水"];
+  const phaseText = order.map((e) => `${e}${phaseMap[e] || ""}`).join("，");
+
+  // 月破：月支正沖
+  const breaker = BRANCH_CLASH[monthBranch] || null;
+  const finalText = breaker ? `${phaseText}，月破，${breaker}` : phaseText;
+
+  return { text: finalText, dominant, breaker };
+}
+
 // ====== 六爻工具：六親 / 地支五行 / 空亡 / 行文描述 ======
 
 // 六親轉成完整用字
@@ -280,4 +373,5 @@ function describeSixLines(hexData) {
 
 module.exports = {
   describeSixLines,
+  buildElementPhase,
 };
