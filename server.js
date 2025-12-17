@@ -68,7 +68,7 @@ const SERVICE_NAME_MAP = {
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
-//六爻顯示共用區
+//六爻主題標題共用區
 const LIU_YAO_TOPIC_LABEL = {
   love: "感情",
   career: "事業",
@@ -1757,7 +1757,7 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
     "2️⃣ 問眼前真實狀況：盡量針對正在發生、或即將發生的具體情境。\n" +
     "3️⃣ 心念要穩：起卦前讓自己的心情稍微平靜一下，問題想清楚再開始。\n\n" +
     "接下來，請你在心裡專注在「" +
-    topicText +
+    topicLabel +
     "」這個主題上，默念你心中的問題。";
 
   const spellText =
@@ -2250,10 +2250,10 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   const sixLinesText = describeSixLines(hexData); // 你已經做好了
 
   // 4) System / User prompt
-  const systemPrompt = "";
-  //"你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。" +
-  //"解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。" +
-  //"可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
+  const systemPrompt =
+    "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。" +
+    "解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。" +
+    "可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
 
   const userPrompt =
     `你是一個六爻解卦大師\n` +
@@ -2265,7 +2265,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `\n` +
     `${sixLinesText}\n` +
     `\n` +
-    `${genderText}${topicLabel}\n` +
+    `${genderText}${topicText}\n` +
     `以${useGodText}為用神\n` +
     `請你解卦`;
 
