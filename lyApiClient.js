@@ -90,7 +90,11 @@ async function getLiuYaoHexagram(params) {
       "[youhualao ly] 卦象回傳格式不正確：" + JSON.stringify(data)
     );
   }
-
+  // data.data 的結構大致為：
+  // {
+  //   beishu, gongli, nongli, ganzhi, xunkong,
+  //   liushen, bengua, biangua, benguax, bianguax, guaci ...
+  // }
   // 直接把 data.data 原封不動丟回去給上層（裡面有 beishu / benguax / bianguax ...）
   return data.data;
 }
@@ -98,8 +102,4 @@ async function getLiuYaoHexagram(params) {
 module.exports = {
   getLiuYaoGanzhiForDate,
   getLiuYaoHexagram,
-};
-
-module.exports = {
-  getLiuYaoGanzhiForDate,
 };
