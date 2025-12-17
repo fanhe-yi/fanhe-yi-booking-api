@@ -14,6 +14,8 @@ const {
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
   sendBaziMatchResultFlex,
+  sendLiuYaoMenuFlex,
+  sendLiuYaoTimeModeFlex,
 } = require("./lineClient");
 
 //AI 訊息回覆相關
@@ -794,7 +796,19 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 4) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
+  // 4) 六爻占卜入口
+  if (text === "六爻占卜") {
+    conversationStates[userId] = {
+      mode: "liuyao",
+      stage: "wait_topic", // 先選感情 / 事業 / 財運 / 健康
+      data: {},
+    };
+
+    await sendLiuYaoMenuFlex(userId);
+    return;
+  }
+
+  // 5) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
   await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
@@ -819,6 +833,10 @@ async function routeByConversationState(userId, text, state, event) {
     return await handleBaziMatchFlow(userId, text, state, event);
   }
 
+  // 新增：六爻占卜
+  if (mode === "liuyao") {
+    return await handleLiuYaoFlow(userId, text, state, event);
+  }
   // 其他未支援的 mode
   return false;
 }
@@ -866,7 +884,84 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  // 預設：按按鈕就回一行，避免沒反應
+  // ⭐ 六爻：選主題（感情 / 事業 / 財運 / 健康）
+  if (action === "liuyao_topic") {
+    const topic = params.get("topic"); // love / career / wealth / health
+    const allow = ["love", "career", "wealth", "health"];
+
+    if (!allow.includes(topic)) {
+      await pushText(userId, "這個占卜主題我看不懂，請重新點一次按鈕試試。");
+      return;
+    }
+
+    conversationStates[userId] = {
+      mode: "liuyao",
+      stage: "wait_gender",
+      data: {
+        topic,
+      },
+    };
+
+    await pushText(
+      userId,
+      "好的～這一卦要問「" +
+        (topic === "love"
+          ? "感情"
+          : topic === "career"
+          ? "事業"
+          : topic === "wealth"
+          ? "財運"
+          : "健康") +
+        "」。\n\n先跟我說，這是「男占」還是「女占」？\n\n可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+    );
+    return;
+  }
+
+  // 六爻：選起卦時間模式（現在 / 指定）
+  if (action === "liuyao_time_mode") {
+    const mode = params.get("mode"); // now / custom
+
+    // 理論上 state 一定存在，但多一道保護
+    const currState = state || conversationStates[userId];
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(
+        userId,
+        "目前沒有正在進行的六爻占卜流程，如果要重來，可以先輸入「六爻占卜」。"
+      );
+      return;
+    }
+
+    if (mode === "now") {
+      currState.data.timeMode = "now";
+      currState.data.questionTime = new Date().toISOString(); // 之後呼叫六爻 API 會用到
+      currState.stage = "collect_yao_notice"; // 下一步：占卦須知 + 請神咒 + 開始記錄一爻一爻
+      conversationStates[userId] = currState;
+
+      await sendLiuYaoNoticeAndAskFirstYao(userId, currState);
+      return;
+    }
+
+    if (mode === "custom") {
+      currState.data.timeMode = "custom";
+      currState.stage = "wait_custom_time_input";
+      conversationStates[userId] = currState;
+
+      await pushText(
+        userId,
+        "好的，我們用「指定時間」起卦。\n\n請輸入此卦的時間點，格式如下：\n\n" +
+          "1) 2025-11-24-2150\n" +
+          "2) 2025-11-24-亥時\n" +
+          "3) 2025-11-24-亥\n\n" +
+          "⚠️ 六爻起卦盡量不要用「未知」，至少要大約時辰區間。"
+      );
+      return;
+    }
+
+    await pushText(userId, "起卦時間的選項怪怪的，請再點一次按鈕看看。");
+    return;
+  }
+
+  // 預設：其他 action（暫時沒實作）
   await pushText(userId, `我有收到你的選擇：${data}`);
 }
 
@@ -1368,6 +1463,168 @@ async function handleBaziMatchFlow(userId, text, state, event) {
   }
 
   return false;
+}
+
+// ========================
+//  六爻占卜主流程
+// ========================
+async function handleLiuYaoFlow(userId, text, state, event) {
+  if (!state || state.mode !== "liuyao") return false;
+
+  console.log(
+    `[liuYaoFlow] from ${userId}, stage=${state.stage}, text=${text}`
+  );
+
+  const trimmed = (text || "").trim();
+
+  // 0) 問「男占 / 女占」
+  if (state.stage === "wait_gender") {
+    let gender = null;
+    if (["男", "男生", "男命", "m", "M", "男占"].includes(trimmed)) {
+      gender = "male";
+    } else if (["女", "女生", "女命", "f", "F", "女占"].includes(trimmed)) {
+      gender = "female";
+    }
+
+    if (!gender) {
+      await pushText(
+        userId,
+        "我這邊要先知道是「男占」還是「女占」。\n\n可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+      );
+      return true;
+    }
+
+    state.data.gender = gender;
+    state.stage = "wait_time_mode";
+    conversationStates[userId] = state;
+
+    await sendLiuYaoTimeModeFlex(userId);
+    return true;
+  }
+
+  // 1) 等使用者輸入「指定起卦時間」
+  if (state.stage === "wait_custom_time_input") {
+    const birth = parseMiniBirthInput(trimmed);
+    if (!birth || !birth.date || birth.timeType === "unknown") {
+      await pushText(
+        userId,
+        "時間格式好像怪怪的，或者沒有包含時辰。\n\n請用這種格式再輸入一次，例如：\n" +
+          "- 2025-11-24-2150\n" +
+          "- 2025-11-24-亥時\n" +
+          "- 2025-11-24-亥"
+      );
+      return true;
+    }
+
+    // 這個 birth 只是拿來當「起卦時間」
+    state.data.customBirth = birth;
+    state.stage = "collect_yao_notice";
+    conversationStates[userId] = state;
+
+    await sendLiuYaoNoticeAndAskFirstYao(userId, state);
+    return true;
+  }
+
+  // 2) 一爻一爻記錄：已經進入「collect_yao」階段
+  if (state.stage === "collect_yao") {
+    // 先確保有初始化
+    if (!state.data.yy) {
+      state.data.yy = "";
+    }
+    if (!state.data.yaoIndex) {
+      state.data.yaoIndex = 1;
+    }
+
+    // 這裡先用「單一數字」當作每一爻的代碼（你之後可以改成擲銅錢的 6 / 7 / 8 / 9 等）
+    if (!/^[0-9]$/.test(trimmed)) {
+      await pushText(
+        userId,
+        "繼續輸入數字代碼（0~3），代表這一爻的起卦結果。\n\n記得：3代表三個正面(沒數字那面)，2代表二個正面，以此類推。"
+      );
+      return true;
+    }
+
+    state.data.yy += trimmed;
+
+    const nowIndex = state.data.yaoIndex;
+    const nextIndex = nowIndex + 1;
+    state.data.yaoIndex = nextIndex;
+
+    // 還沒滿六爻 → 繼續下一爻
+    if (state.data.yy.length < 6) {
+      conversationStates[userId] = state;
+      await pushText(
+        userId,
+        `已記錄第 ${nowIndex} 爻，目前累積碼：${state.data.yy}\n\n請輸入第 ${nextIndex} 爻的代碼（單一數字）。`
+      );
+      return true;
+    }
+
+    // ✅ 已經湊滿 6 碼
+    const finalCode = state.data.yy.slice(0, 6);
+    state.stage = "wait_ai_result"; // 下一步我們會串 youhualao API + AI 解卦
+    conversationStates[userId] = state;
+
+    await pushText(
+      userId,
+      `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n我這邊會先整理卦象資料，接著幫你做 AI 解卦。`
+    );
+
+    // 👉 這裡下一步就是：
+    // 1) 把起卦時間（now 或 customBirth） + finalCode 丟進 getLiuYaoHexagram(...)
+    // 2) 把 API 回傳整理成你要的六爻文字
+    // 3) 丟進 AI_Reading 產生解卦
+    // 我們可以在下一輪一起把這三步補上。
+
+    return true;
+  }
+
+  return false;
+}
+
+// 六爻占卜：說明占卦須知 + 請神咒 + 問第 1 爻
+async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
+  const topic = state?.data?.topic || "general";
+
+  const topicLabel =
+    topic === "love"
+      ? "感情"
+      : topic === "career"
+      ? "事業"
+      : topic === "wealth"
+      ? "財運"
+      : topic === "health"
+      ? "健康"
+      : "這件事情";
+
+  const noticeText =
+    "在起卦之前，先跟你說明一下六爻占卜的小提醒：\n\n" +
+    "1️⃣ 一卦一問：這一卦專心只看一個主題，不要混太多問題。\n" +
+    "2️⃣ 問眼前真實狀況：盡量針對正在發生、或即將發生的具體情境。\n" +
+    "3️⃣ 心念要穩：起卦前讓自己的心情稍微平靜一下，問題想清楚再開始。\n\n" +
+    "接下來，請你在心裡專注在「" +
+    topicLabel +
+    "」這個主題上，默念你心中的問題。";
+
+  const spellText =
+    "如果你不排斥，也可以在心裡或小聲唸一段簡單請神文，加一點儀式感：\n\n" +
+    "「弟子某某，誠心焚香起卦，祈請諸位神明、祖先護祐，\n" +
+    "指點關於此事的因果與趨勢，使我得以趨吉避凶、安穩前行。」\n\n" +
+    "不用一定照字逐字唸，抓大意就好，重點是專心。";
+
+  await pushText(userId, noticeText);
+  await pushText(userId, spellText);
+
+  // 把 stage 切成 collect_yao，等使用者輸入第一爻
+  state.stage = "collect_yao";
+  state.data.yaoIndex = 1;
+  state.data.yy = "";
+  conversationStates[userId] = state;
+
+  await pushText(
+    userId,
+    "這邊請直接輸入一個數字代碼（0~3），代表這一爻的起卦結果。\n\n例如：3代表三個正面(沒數字那面)，2代表二個正面。"
+  );
 }
 
 // --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---

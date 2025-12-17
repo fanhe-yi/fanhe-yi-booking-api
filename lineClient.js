@@ -495,6 +495,148 @@ async function sendBaziMenuFlex(userId) {
   await pushFlex(userId, "八字測算選單", bubble);
 }
 
+// 六爻占卜主選單 Flex
+async function sendLiuYaoMenuFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🔮 梵和易學｜六爻占卜",
+          weight: "bold",
+          size: "md",
+          color: "#6A4C93",
+        },
+        {
+          type: "text",
+          text: "請先選擇你想占卜的主題：",
+          size: "sm",
+          color: "#555555",
+          margin: "sm",
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "感情",
+            displayText: "用六爻占卜感情",
+            data: "action=liuyao_topic&topic=love",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "事業",
+            displayText: "用六爻占卜事業",
+            data: "action=liuyao_topic&topic=career",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "財運",
+            displayText: "用六爻占卜財運",
+            data: "action=liuyao_topic&topic=wealth",
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "健康",
+            displayText: "用六爻占卜健康",
+            data: "action=liuyao_topic&topic=health",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻占卜主選單", bubble);
+}
+
+// 六爻占卜：起卦時間選擇 Flex
+async function sendLiuYaoTimeModeFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "六爻起卦時間",
+          weight: "bold",
+          size: "md",
+          color: "#6A4C93",
+        },
+        {
+          type: "text",
+          text: "起卦時間代表這個問題真正「扣動」的那一刻。",
+          size: "sm",
+          color: "#555555",
+          wrap: true,
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: "你可以直接用現在時間起卦，或輸入你覺得最代表此事的時間點。",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
+          margin: "sm",
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "用現在時間起卦",
+            displayText: "用現在時間起卦",
+            data: "action=liuyao_time_mode&mode=now",
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "指定時間起卦",
+            displayText: "我要指定起卦時間",
+            data: "action=liuyao_time_mode&mode=custom",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "選擇六爻起卦時間", bubble);
+}
+
 // 🔧 幫八字測算解析 AI 回傳 JSON 的小工具
 function extractPureJSON(aiRaw) {
   if (!aiRaw || typeof aiRaw !== "string") return null;
@@ -980,4 +1122,6 @@ module.exports = {
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
   sendBaziMatchResultFlex,
+  sendLiuYaoMenuFlex,
+  sendLiuYaoTimeModeFlex,
 };

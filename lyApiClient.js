@@ -53,6 +53,53 @@ async function getLiuYaoGanzhiForDate(dateObj) {
   };
 }
 
+// 取得完整六爻卦（本卦 / 變卦 / 六神 / 倍數碼等）
+// params: { y, m, d, h, mi, yy }
+// - y/m/d/h/mi：起卦的公曆日期時間
+// - yy：六爻「倍數碼」或你要丟給優化老的 6 碼字串（例如 103211）
+async function getLiuYaoHexagram(params) {
+  const { y, m, d, h, mi, yy } = params || {};
+
+  if (!y || !m || !d) {
+    throw new Error("[youhualao ly] getLiuYaoHexagram 缺少必要日期參數");
+  }
+
+  const query = {
+    c: "ly",
+    key: YOUHUALAO_KEY,
+    y: Number(y),
+    m: Number(m),
+    d: Number(d),
+    h: typeof h === "number" ? h : 12,
+    mi: typeof mi === "number" ? mi : 0,
+    type: 1,
+  };
+
+  if (yy !== undefined && yy !== null) {
+    query.yy = String(yy);
+  }
+
+  const qs = new URLSearchParams(query).toString();
+  const url = `${YOUHUALAO_BASE}?${qs}`;
+
+  const resp = await axios.get(url);
+  const data = resp.data;
+
+  if (!data || data.msg !== "ok" || !data.data) {
+    throw new Error(
+      "[youhualao ly] 卦象回傳格式不正確：" + JSON.stringify(data)
+    );
+  }
+
+  // 直接把 data.data 原封不動丟回去給上層（裡面有 beishu / benguax / bianguax ...）
+  return data.data;
+}
+
+module.exports = {
+  getLiuYaoGanzhiForDate,
+  getLiuYaoHexagram,
+};
+
 module.exports = {
   getLiuYaoGanzhiForDate,
 };
