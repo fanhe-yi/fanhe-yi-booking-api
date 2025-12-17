@@ -1660,20 +1660,20 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       const sixLinesText = describeSixLines(hexData);
 
       // 4) 順便把 userPrompt 組出來看
-      const { systemPrompt, userPrompt } = buildLiuYaoPrompts(
-        state,
-        hexData,
-        desc
-      );
+      //const { systemPrompt, userPrompt } = buildLiuYaoPrompts(
+      // state,
+      //  hexData,
+      //  desc
+      //);
 
       // 先丟「六條爻文字」給你看
       await pushText(userId, "【六爻逐條解析（測試用）】\n" + sixLinesText);
 
       // 再丟 userPrompt（你可以確認格式、行文、變數是否有誤）
-      await pushText(userId, "【User Prompt 給 AI（測試用）】\n" + userPrompt);
+      //await pushText(userId, "【User Prompt 給 AI（測試用）】\n" + userPrompt);
 
       // systemPrompt 比較長，不一定要推給用戶，可以先只 console.log
-      console.log("[LiuYao SystemPrompt]\n", systemPrompt);
+      //console.log("[LiuYao SystemPrompt]\n", systemPrompt);
 
       // 測試完就清 state，避免卡著
       delete conversationStates[userId];
