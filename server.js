@@ -68,6 +68,14 @@ const SERVICE_NAME_MAP = {
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
+//六爻顯示共用區
+const LIU_YAO_TOPIC_LABEL = {
+  love: "感情",
+  career: "事業",
+  wealth: "財運",
+  health: "健康",
+};
+
 function loadBookings() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -1661,7 +1669,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       // ⬇️【就貼在這裡】呼叫 AI 解卦
       const { aiText } = await callLiuYaoAI({
         genderText: state.data.gender === "female" ? "女命" : "男命",
-        topicText: state.data.topic || "感情",
+        topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
         hexData: state.data.hexData,
         useGodText: "官鬼",
       });
