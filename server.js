@@ -1757,7 +1757,7 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
     "2️⃣ 問眼前真實狀況：盡量針對正在發生、或即將發生的具體情境。\n" +
     "3️⃣ 心念要穩：起卦前讓自己的心情稍微平靜一下，問題想清楚再開始。\n\n" +
     "接下來，請你在心裡專注在「" +
-    topicLabel +
+    topicText +
     "」這個主題上，默念你心中的問題。";
 
   const spellText =
@@ -2258,7 +2258,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   const userPrompt =
     `你是一個六爻解卦大師\n` +
     `今天有${genderText}\n` +
-    `主題：${topicLabel}\n` +
+    `主題：${topicText}\n` +
     `卦象如下：\n` +
     `${gzText}\n` +
     (phaseText ? `${phaseText}\n` : "") +
