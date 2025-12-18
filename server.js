@@ -2315,10 +2315,11 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   // 4) System / User prompt
   const systemPrompt =
     "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。\n" +
-    "解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。\n" +
+    //"解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。\n" +
     //"可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
-    "最後分段輸出①過去 ②現在 ③未來\n" +
-    "並拿掉六爻的專業術語，可以比較嘴炮風又帶親切的回覆";
+    "結論分段輸出①過去 ②現在 ③未來\n" +
+    "並拿掉六爻的專業術語，可以比較嘴炮風又帶親切的回覆\n" +
+    "整體不要超過1000中文字";
 
   const userPrompt =
     `你是一個六爻解卦大師\n` +
@@ -2332,7 +2333,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `\n` +
     `${genderText}${topicText}\n` +
     `以${useGodText}為用神\n` +
-    `請你解卦,最後請以繁體中文回覆,整體不要超過1000中文字`;
+    `請你解卦,最後請以繁體中文回覆`;
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
   //console.log("[liuyao] systemPrompt:\n", systemPrompt);
