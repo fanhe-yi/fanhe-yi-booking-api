@@ -2277,8 +2277,8 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `請你解卦,最後請以繁體中文回覆`;
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
-  console.log("[liuyao] systemPrompt:\n", systemPrompt);
-  console.log("[liuyao] userPrompt:\n", userPrompt);
+  //console.log("[liuyao] systemPrompt:\n", systemPrompt);
+  //console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
