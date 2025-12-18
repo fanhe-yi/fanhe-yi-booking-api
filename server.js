@@ -76,6 +76,26 @@ const LIU_YAO_TOPIC_LABEL = {
   health: "健康",
 };
 
+//全域中斷
+function isAbortCommand(text) {
+  const t = (text || "").trim();
+  return ["取消", "回主選單", "主選單", "選單", "重來", "重新開始"].includes(t);
+}
+//全域中斷
+function isEntryCommand(text) {
+  const t = (text || "").trim();
+  return [
+    "預約",
+    "八字測算",
+    "小占卜",
+    "八字合婚",
+    "六爻占卜",
+    "關於我",
+    "我的主官網",
+    "官網",
+  ].includes(t);
+}
+
 function loadBookings() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -797,6 +817,22 @@ async function handleLineEvent(event) {
     const text = (event.message.text || "").trim();
     //console.log(`👤 ${userId} 說：${text}`);
 
+    // 0) Abort：直接中斷並回覆提示
+    if (isAbortCommand(text)) {
+      delete conversationStates[userId];
+      await pushText(
+        userId,
+        "已中斷目前流程 ✅\n\n你可以輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
+      );
+      return;
+    }
+
+    // 1) Entry：只要是入口指令，就先清 state，然後繼續往下走
+    // （不要 return，讓它後面正常進 routeGeneralCommands）
+    if (isEntryCommand(text)) {
+      delete conversationStates[userId];
+    }
+
     // 2-1. 如果目前在某個對話流程中（例如預約 / 小占卜）
     if (state) {
       const handled = await routeByConversationState(
@@ -816,86 +852,45 @@ async function handleLineEvent(event) {
   console.log("目前尚未處理的事件類型：", event.type);
 }
 
-// ========================
-// routeGeneralCommands：處理「進入某個模式」的指令(入口/觸發點)
-// ✅ 任何入口指令都會先清掉舊 state，避免卡在 wait_xxx
-// ✅ 也支援全域中斷：取消/重來/主選單
-// ========================
+//routeGeneralCommands：處理「進入某個模式」的指令(入口/觸發點)
+//也就是說這是路由路口
+//預約：丟服務/日期/時段 Flex（你的 booking flow）
+//這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
-  const t = (text || "").trim();
-
-  // 0) 全域中斷 / 回主選單
-  const abortCommands = new Set([
-    "取消",
-    "退出",
-    "結束",
-    "停止",
-    "算了",
-    "不弄了",
-    "重來",
-    "重新開始",
-    "回主選單",
-    "主選單",
-    "選單",
-    "menu",
-    "restart",
-    "start over",
-  ]);
-  if (abortCommands.has(t.toLowerCase()) || abortCommands.has(t)) {
-    delete conversationStates[userId];
-    await pushText(
-      userId,
-      "已幫你中斷目前流程 ✅\n\n你可以輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
-    );
-    return;
-  }
-
-  // 1) 入口指令（會切換 mode 的）→ 先清掉舊流程
-  const entryCommands = new Set([
-    "預約",
-    "八字測算",
-    "小占卜",
-    "八字合婚",
-    "六爻占卜",
-    "關於我",
-    "我的主官網",
-    "官網",
-  ]);
-  if (entryCommands.has(t)) {
-    delete conversationStates[userId];
-  }
-
-  // 2) 預約
-  if (t === "預約") {
+  // 1) 預約指令（沿用你原本的行為）
+  if (text === "預約") {
+    // 清掉舊的對話狀態，避免卡在別的流程
     conversationStates[userId] = {
-      mode: "booking",
-      stage: "idle",
-      data: {},
-      updatedAt: Date.now(),
+      mode: "booking", // 標記：現在是在預約流程
+      stage: "idle", // 先沒有在問問題，只是在選服務/日期/時段
+      data: {}, // 後面會塞 serviceId / date / timeSlot
     };
+
+    // 丟「八字 / 紫微 / 姓名」那顆 Bubble
     await sendServiceSelectFlex(userId);
     return;
   }
 
-  // 3) 八字測算（小占卜）
-  if (t === "八字測算" || t === "小占卜") {
+  // 2) 八字測算（原本的小占卜）
+  if (text === "八字測算" || text === "小占卜") {
+    // 設定對話狀態：等待輸入生日字串
     conversationStates[userId] = {
       mode: "mini_bazi",
-      stage: "wait_mode", // 先讓用戶選 格局 / 流年 / 流月 / 流日
+      stage: "wait_mode", // 先讓用戶選 A/B/C/D
       data: {},
-      updatedAt: Date.now(),
     };
+    // 丟出「格局 / 流年 / 流月 / 流日」的 Flex 選單
     await sendBaziMenuFlex(userId);
+
     return;
   }
 
-  // 4) 八字合婚
-  if (t === "八字合婚") {
+  // 3) 八字合婚
+  if (text === "八字合婚") {
     conversationStates[userId] = {
       mode: "bazi_match",
       stage: "wait_male_birth_input",
       data: {},
-      updatedAt: Date.now(),
     };
 
     await pushText(
@@ -905,25 +900,24 @@ async function routeGeneralCommands(userId, text) {
         "1) 1992-12-05-0830\n" +
         "2) 1992-12-05-辰時\n" +
         "3) 1992-12-05-辰\n" +
-        "如果不想提供時辰，可以輸入：1992-12-05-未知\n\n" +
-        "（隨時輸入「取消」可中斷）"
+        "如果不想提供時辰，可以輸入：1992-12-05-未知"
     );
     return;
   }
 
-  // 5) 六爻占卜
-  if (t === "六爻占卜") {
+  // 4) 六爻占卜入口
+  if (text === "六爻占卜") {
     conversationStates[userId] = {
       mode: "liuyao",
       stage: "wait_topic", // 先選感情 / 事業 / 財運 / 健康
       data: {},
-      updatedAt: Date.now(),
     };
+
     await sendLiuYaoMenuFlex(userId);
     return;
   }
 
-  // 6) 關於我（未來做）
+  // 5) 關於我（未來做）
   if (t === "關於我") {
     // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
@@ -933,7 +927,7 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 7) 官網 / LIFF（未來做）
+  // 6) 官網 / LIFF（未來做）
   if (t === "我的主官網" || t === "官網") {
     // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
@@ -943,11 +937,8 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 8) 其他文字（fallback）
-  await pushText(
-    userId,
-    `我有聽到你說：「${t}」\n\n你可以輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜`
-  );
+  // 7) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
+  await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
 //routeByConversationState：依照 state 分發到各個 flow//
