@@ -14,6 +14,7 @@ const googleAi = new GoogleGenAI({
 });
 
 // ---- 內部：呼叫 OpenAI（主力）----
+/* gpt-4o-mini
 async function callOpenAI(userPrompt, systemPrompt) {
   const resp = await openai.chat.completions.create({
     model: "gpt-4o-mini", // ✅ 預設用 GPT
@@ -29,6 +30,22 @@ async function callOpenAI(userPrompt, systemPrompt) {
     "這次星星沒有成功排好隊，你可以等等再試一次～";
 
   console.log("[AI_Reading][OpenAI] 發送成功");
+  return text;
+}*/
+////gpt5.1
+async function callOpenAI(userPrompt, systemPrompt) {
+  const resp = await openai.responses.create({
+    model: "gpt-5.1",
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+
+  const text =
+    resp.output_text?.trim() || "這次星星沒有成功排好隊，你可以等等再試一次～";
+
+  console.log("[AI_Reading][OpenAI][gpt-5.1] 發送成功");
   return text;
 }
 
