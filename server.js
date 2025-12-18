@@ -918,7 +918,7 @@ async function routeGeneralCommands(userId, text) {
   }
 
   // 5) 關於我（未來做）
-  if (t === "關於我") {
+  if (text === "關於我") {
     // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
       userId,
@@ -928,7 +928,7 @@ async function routeGeneralCommands(userId, text) {
   }
 
   // 6) 官網 / LIFF（未來做）
-  if (t === "我的主官網" || t === "官網") {
+  if (text === "我的主官網" || text === "官網") {
     // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
       userId,
