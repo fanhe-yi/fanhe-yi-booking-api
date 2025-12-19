@@ -1706,87 +1706,19 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     // 我們可以在下一輪一起把這三步補上。
 
     try {
-      const timeParams = buildLiuYaoTimeParams(state);
-      const { y, m, d, h, mi } = timeParams;
+      const aiText = await callLiuYaoAI(state, finalCode);
 
-      // 呼叫 youhualao 取得完整卦象
-      const hexData = await getLiuYaoHexagram({
-        y,
-        m,
-        d,
-        h,
-        mi,
-        yy: finalCode,
-      });
-
-      // 存起來（可選，但建議）
-      state.data.hexData = hexData;
-
-      // ⬇️【就貼在這裡】呼叫 AI 解卦
-      const { aiText } = await callLiuYaoAI({
-        genderText: state.data.gender === "female" ? "女命" : "男命",
-        topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
-        hexData: state.data.hexData,
-        useGodText: "官鬼",
-      });
-
+      // 回給用戶（先用純文字版，有需要再做 Flex 排版）
       await pushText(userId, aiText);
 
+      // 用完就清掉狀態，避免卡住
       delete conversationStates[userId];
-      return true;
     } catch (err) {
       console.error("[liuyao] AI error:", err);
       await pushText(userId, "六爻解卦 AI 剛剛小卡住 😅 你可以稍後再試一次。");
       delete conversationStates[userId];
       return true;
     }
-
-    /*
-    /////////////六爻逐行測試區////start
-    try {
-      // 1) 先算起卦時間
-      const timeParams = buildLiuYaoTimeParams(state);
-      const { y, m, d, h, mi, desc } = timeParams;
-
-      // 2) 叫 youhualao 拿卦
-      const hexData = await getLiuYaoHexagram({
-        y,
-        m,
-        d,
-        h,
-        mi,
-        yy: finalCode,
-      });
-
-      // 3) 用新的 describeSixLines() 整理六條文字
-      const sixLinesText = describeSixLines(hexData);
-
-      // 4) 順便把 userPrompt 組出來看
-      //const { systemPrompt, userPrompt } = buildLiuYaoPrompts(
-      // state,
-      //  hexData,
-      //  desc
-      //);
-
-      // 先丟「六條爻文字」給你看
-      await pushText(userId, "【六爻逐條解析（測試用）】\n" + sixLinesText);
-
-      // 再丟 userPrompt（你可以確認格式、行文、變數是否有誤）
-      //await pushText(userId, "【User Prompt 給 AI（測試用）】\n" + userPrompt);
-
-      // systemPrompt 比較長，不一定要推給用戶，可以先只 console.log
-      //console.log("[LiuYao SystemPrompt]\n", systemPrompt);
-
-      // 測試完就清 state，避免卡著
-      delete conversationStates[userId];
-    } catch (err) {
-      console.error("[handleLiuYaoFlow] 測試六爻字串時錯誤：", err);
-      await pushText(
-        userId,
-        "我在整理這一卦的文字時發生錯誤，你可以把錯誤訊息截圖給工程師自己看看看（或貼回來繼續修）。"
-      );
-      delete conversationStates[userId];
-    }*/
   }
 
   return false;
@@ -2286,8 +2218,90 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   };
 }
 
+//////////////不確定區/////////////
+// --- 六爻用：決定主題文字 / 用神類型 ---
+function getLiuYaoTopicInfo(topic, gender) {
+  let topicLabel = "這件事情";
+  let questionDesc = "";
+  let yongshen = "";
+
+  if (topic === "love") {
+    topicLabel = "感情";
+    questionDesc =
+      "請重點看感情 / 伴侶關係的走向與現況（含單身對象或穩定關係）。";
+    if (gender === "female") {
+      yongshen = "官鬼"; // 女占感情多以官鬼為用神
+    } else {
+      yongshen = "妻財"; // 男占感情多以妻財為用神
+    }
+  } else if (topic === "career") {
+    topicLabel = "事業 / 工作";
+    questionDesc =
+      "請重點看工作單位、職場環境、升遷發展與穩定度，包含轉職與留任的考量。";
+    yongshen = "父母"; // 男占工作單位常以父母爻為用神
+  } else if (topic === "wealth") {
+    topicLabel = "財運";
+    questionDesc = "請重點看收入穩定度、財務流動、兼職外快與投資偏財等面向。";
+    yongshen = "妻財";
+  } else if (topic === "health") {
+    topicLabel = "健康";
+    questionDesc = "請重點看身體狀況、慢性疾病、免疫力與生活作息對健康的影響。";
+    yongshen = "子孫";
+  } else {
+    questionDesc = "請綜合卦象，分析此卦顯示的現況與未來發展。";
+    yongshen = "用神";
+  }
+
+  return { topicLabel, questionDesc, yongshen };
+}
+
+// --- 六爻用：組 systemPrompt / userPrompt ---
+function buildLiuYaoPrompts(state, hexData, timeDesc) {
+  const data = state.data || {};
+  const topic = data.topic || "general";
+  const gender = data.gender || "unknown";
+
+  const { topicLabel, questionDesc, yongshen } = getLiuYaoTopicInfo(
+    topic,
+    gender
+  );
+
+  const genderLabel =
+    gender === "male" ? "男命" : gender === "female" ? "女命" : "命主";
+
+  const sixLinesText = describeSixLines(hexData);
+
+  const systemPrompt =
+    "你是一位擅長六爻占卜與卦象解析的大師，講話實際、溫和，不嚇人，也不宿命論。\n" +
+    "請根據提供的六爻卦資訊，重點參考用神的旺衰、六親配置、動爻、世應、合沖刑害與變卦關係，" +
+    "以生活化、白話的文字給出判斷與建議。\n" +
+    "不要教學式解釋專有名詞（例如「什麼是世爻」），而是內化後再用故事與比喻讓命主聽得懂。\n" +
+    "請先給整體結論，再分段說明：目前狀況、未來趨勢、建議行動。";
+
+  const userPrompt =
+    `今天有一位${genderLabel}，主題是「${topicLabel}」。\n` +
+    `${questionDesc}\n\n` +
+    `${timeDesc}\n\n` +
+    `卦象基本資料如下：\n` +
+    `- 本卦：${hexData.bengua || ""}\n` +
+    `- 變卦：${hexData.biangua || ""}\n` +
+    (Array.isArray(hexData.ganzhi)
+      ? `- 起卦干支（年、月、日、時）：${hexData.ganzhi.join(" / ")}\n`
+      : "") +
+    (Array.isArray(hexData.xunkong)
+      ? `- 該卦旬空：${hexData.xunkong.join(" / ")}\n`
+      : "") +
+    `\n六爻逐爻資訊：\n${sixLinesText}\n\n` +
+    `本題以「${yongshen}」爻為用神，請特別參考其旺衰、動變、合沖刑害等情況，` +
+    `幫我用淺白的文字解釋這一卦對於「${topicLabel}」的啟示與建議。`;
+
+  return { systemPrompt, userPrompt };
+}
+
+/////////////////////////////////
+
 ////呼叫AI收六爻
-async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
+async function callLiuYaoAI({ state, finalCode }) {
   // 1) 基本資料
   const gzArr = (hexData && hexData.ganzhi) || [];
   const gzLabels = ["年", "月", "日", "時"];
@@ -2309,9 +2323,10 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     phaseText = "";
   }
 
-  // 3) 六爻六條
+  // 3) 六爻六條逐行
   const sixLinesText = describeSixLines(hexData); // 你已經做好了
 
+  /*
   // 4) System / User prompt
   const systemPrompt =
     "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。\n" +
@@ -2334,6 +2349,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `${genderText}${topicText}\n` +
     `以${useGodText}為用神\n` +
     `請你解卦,最後請以繁體中文回覆`;
+  */
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
   //console.log("[liuyao] systemPrompt:\n", systemPrompt);
