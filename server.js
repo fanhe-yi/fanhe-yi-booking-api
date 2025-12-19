@@ -1727,7 +1727,6 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         genderText: state.data.gender === "female" ? "女命" : "男命",
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
         hexData: state.data.hexData,
-        useGodText: "官鬼",
       });
 
       await pushText(userId, aiText);
