@@ -2368,11 +2368,18 @@ function inferUseGod({ topicText, genderText }) {
 }
 
 ////呼叫AI收六爻
-async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
+async function callLiuYaoAI({
+  userId,
+  genderText,
+  topicText,
+  hexData,
+  useGodText,
+}) {
   // 0) 用神（有傳就用；沒傳就推導）
   const finalUseGodText =
     useGodText || inferUseGod({ topicText, genderText }) || "用神";
   // 1) 基本資料
+  const userRecord = getUser(userId);
   const gzArr = (hexData && hexData.ganzhi) || [];
   const gzLabels = ["年", "月", "日", "時"];
   const gzText =
@@ -2427,8 +2434,8 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `請你解卦,最後請以繁體中文回覆`;
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
-  console.log("[liuyao] systemPrompt:\n", systemPrompt);
-  console.log("[liuyao] userPrompt:\n", userPrompt);
+  //console.log("[liuyao] systemPrompt:\n", systemPrompt);
+  //console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
