@@ -42,7 +42,7 @@ const { getUser, saveUser } = require("./accessStore");
 const {
   redeemCoupon,
   getEligibility,
-  consumeEligibility,
+  consumeUsage,
 } = require("./accessControl");
 
 // 先創造 app
