@@ -1,5 +1,11 @@
-// accessStore.js (CommonJS) — bazimatch 版
-// JSON 檔先撐住；之後換 PostgreSQL 時，外部呼叫端不用改：替換此檔實作即可。
+// accessStore.js (CommonJS) — Schema A (firstFree + quota + redeemedCoupons)
+// ✅ 特色：最少欄位、最貼近「首次免費 + 優惠碼加次數 + 付款加次數」的規則
+//
+// 預設檔案位置：
+// - ./data/userAccess.json
+// 可用 .env 覆寫：
+// - ACCESS_DATA_DIR
+// - ACCESS_FILE_PATH
 
 const fs = require("fs");
 const path = require("path");
@@ -9,6 +15,22 @@ const FILE_PATH = process.env.ACCESS_FILE_PATH || path.join(DATA_DIR, "userAcces
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
+// ✅ 新用戶預設：三個功能各 1 次首次體驗
+function defaultUserRecord(userId) {
+  const t = nowISO();
+  return {
+    userId,
+    firstFree: { liuyao: 1, bazimatch: 1, minibazi: 1 },
+    quota: { liuyao: 0, bazimatch: 0, minibazi: 0 },
+    redeemedCoupons: {}, // { "FREE99": true }
+    meta: { createdAt: t, updatedAt: t },
+  };
 }
 
 function readAll() {
@@ -28,23 +50,6 @@ function writeAll(obj) {
   const tmp = FILE_PATH + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), "utf8");
   fs.renameSync(tmp, FILE_PATH);
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-// ✅ 預設新用戶：六爻/八字合婚（bazimatch）各 1 次新手體驗
-function defaultUserRecord(userId) {
-  const t = nowISO();
-  return {
-    userId,
-    paid: { liuyao: false, bazimatch: false },
-    freeQuota: { liuyao: 1, bazimatch: 1 },
-    credits: { liuyao: 0, bazimatch: 0 },
-    coupons: [],
-    meta: { createdAt: t, updatedAt: t }
-  };
 }
 
 // 取得 user；若不存在則自動建立一份預設資料
@@ -70,9 +75,9 @@ function saveUser(user) {
 module.exports = {
   getUser,
   saveUser,
+  defaultUserRecord,
   readAll,
   writeAll,
-  defaultUserRecord,
   FILE_PATH,
   DATA_DIR,
 };

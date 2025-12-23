@@ -1,0 +1,22 @@
+{
+  "FREE99": {
+    "feature": "liuyao",
+    "add": 5,
+    "expireAt": "2026-12-31"
+  },
+  "CASS3330": {
+    "feature": "liuyao",
+    "add": 10,
+    "expireAt": "2026-12-31"
+  },
+  "MATCH5": {
+    "feature": "bazimatch",
+    "add": 5,
+    "expireAt": "2026-12-31"
+  },
+  "MINI3": {
+    "feature": "minibazi",
+    "add": 3,
+    "expireAt": "2026-12-31"
+  }
+}

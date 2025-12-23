@@ -20,20 +20,30 @@ const {
 
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
-
-// ✅ 使用者資格/權限（先用 JSON 撐住；之後可換 DB）
-const { getUser, saveUser } = require("./accessStore");
-const {
-  getEligibility,
-  consumeEligibility,
-  redeemCoupon,
-} = require("./accessControl");
-
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
+
+// 付費權限用法：
+// - featureKey 用 "liuyao" / "bazimatch"（之後擴充就加字串）
+// - guest 目前先擋掉（不解）
+// - first_time/coupon/付費：允許使用高階模型（由 divinationType 控制）
+/*
+| 階段        | 使用的 function                      |
+| --------- | --------------------------------- |
+| 功能入口 gate | `getUser` + `getEligibility`      |
+| 優惠碼輸入     | `redeemCoupon` + `saveUser`       |
+| AI 成功後    | `consumeEligibility` + `saveUser` |
+| 金流完成      | `saveUser`（補 credits / paid）      |
+*/
+const { getUser, saveUser } = require("./accessStore");
+const {
+  redeemCoupon,
+  getEligibility,
+  consumeEligibility,
+} = require("./accessControl");
 
 // 先創造 app
 const app = express();
@@ -234,6 +244,37 @@ function getNextDays(count) {
 
   return results;
 }
+
+//檢查使用者付費/權限的入口函式
+async function gateFeature(userId, featureKey, featureLabel) {
+  const userRecord = getUser(userId);
+  const eligibility = getEligibility(userRecord, featureKey);
+
+  if (!eligibility.allow) {
+    await pushText(
+      userId,
+      `🔒 ${featureLabel} 目前需要「首次體驗 / 優惠碼 / 付款」才能使用。\n\n` +
+        `✅ 若你有優惠碼，直接輸入即可（例如：FREE99）\n` +
+        `或完成付款後再回來啟用。`
+    );
+    return { allow: false, source: "none" };
+  }
+
+  // ✅ 入口先講清楚：這次到底是免費還是扣次數
+  if (eligibility.source === "firstFree") {
+    await pushText(userId, `🎁 你是首次體驗，這次 ${featureLabel} 免費一次。`);
+  } else if (eligibility.source === "quota") {
+    const remaining = Number(userRecord.quota?.[featureKey] || 0);
+    await pushText(
+      userId,
+      `✅ 你目前還有 ${remaining} 次 ${featureLabel} 可用次數。`
+    );
+  }
+
+  // 入口只檢查 + 提示，不扣次
+  return { allow: true, source: eligibility.source };
+}
+
 ////////////////////////////////////////
 ///新增「選服務」的 Flex（第一層 bubble/）//
 ////////////////////////////////////////
@@ -866,36 +907,37 @@ async function handleLineEvent(event) {
 //預約：丟服務/日期/時段 Flex（你的 booking flow）
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
-  // 1) 預約指令（沿用你原本的行為）
+  // 1) 預約
   if (text === "預約") {
-    // 清掉舊的對話狀態，避免卡在別的流程
     conversationStates[userId] = {
-      mode: "booking", // 標記：現在是在預約流程
-      stage: "idle", // 先沒有在問問題，只是在選服務/日期/時段
-      data: {}, // 後面會塞 serviceId / date / timeSlot
+      mode: "booking",
+      stage: "idle",
+      data: {},
     };
-
-    // 丟「八字 / 紫微 / 姓名」那顆 Bubble
     await sendServiceSelectFlex(userId);
     return;
   }
 
-  // 2) 八字測算（原本的小占卜）
+  // 2) 八字測算（minibazi）
   if (text === "八字測算" || text === "小占卜") {
-    // 設定對話狀態：等待輸入生日字串
+    const gate = await gateFeature(userId, "minibazi", "八字測算");
+    if (!gate.allow) return;
+
     conversationStates[userId] = {
       mode: "mini_bazi",
-      stage: "wait_mode", // 先讓用戶選 A/B/C/D
+      stage: "wait_mode",
       data: {},
     };
-    // 丟出「格局 / 流年 / 流月 / 流日」的 Flex 選單
-    await sendBaziMenuFlex(userId);
 
+    await sendBaziMenuFlex(userId);
     return;
   }
 
-  // 3) 八字合婚
+  // 3) 八字合婚（bazimatch）
   if (text === "八字合婚") {
+    const gate = await gateFeature(userId, "bazimatch", "八字合婚");
+    if (!gate.allow) return;
+
     conversationStates[userId] = {
       mode: "bazi_match",
       stage: "wait_male_birth_input",
@@ -914,11 +956,14 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 4) 六爻占卜入口
+  // 4) 六爻占卜（liuyao）
   if (text === "六爻占卜") {
+    const gate = await gateFeature(userId, "liuyao", "六爻占卜");
+    if (!gate.allow) return;
+
     conversationStates[userId] = {
       mode: "liuyao",
-      stage: "wait_topic", // 先選感情 / 事業 / 財運 / 健康
+      stage: "wait_topic",
       data: {},
     };
 
@@ -926,9 +971,8 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 5) 關於我（未來做）
+  // 5) 關於我
   if (text === "關於我") {
-    // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
       userId,
       "關於我功能還在施工中 🛠️\n\n你可以先輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
@@ -936,9 +980,8 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 6) 官網 / LIFF（未來做）
+  // 6) 官網 / LIFF
   if (text === "我的主官網" || text === "官網") {
-    // 先清狀態避免卡住（上面已做），這裡先用文字占位
     await pushText(
       userId,
       "官網連結功能還在施工中 🛠️\n\n你可以先輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
@@ -946,7 +989,7 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 7) 其他文字 → 類似 echo 或之後你要做 FAQ / 論命前須知 可以在這裡加
+  // 7) 其他
   await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
@@ -1573,40 +1616,8 @@ async function handleBaziMatchFlow(userId, text, state, event) {
 
     try {
       // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
-      // ✅ 合婚（bazimatch）呼叫 AI 前：先做「優惠碼兌換 / 使用資格判斷」
-      const featureKey = "bazimatch";
-      const accessUser = getUser(userId);
-
-      // 先輸入優惠碼再解（若你有在流程裡收 couponCode，放到 state.data.couponCode）
-      if (state?.data?.couponCode) {
-        const r = redeemCoupon(accessUser, state.data.couponCode);
-        console.log("[COUPON][bazimatch]", {
-          userId,
-          code: state.data.couponCode,
-          ...r,
-        });
-        saveUser(accessUser);
-      }
-
-      const eligibility = getEligibility(accessUser, featureKey);
-
-      if (!eligibility.allow) {
-        await pushText(
-          userId,
-          "🔒 合婚需要付費或體驗資格才能使用。\n" +
-            "你可以：\n" +
-            "1️⃣ 輸入優惠碼\n" +
-            "2️⃣ 完成付款後再試"
-        );
-        delete conversationStates[userId];
-        return true;
-      }
-
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
-      // ✅ AI 成功後才扣（paid 不扣）
-      consumeEligibility(accessUser, featureKey, eligibility.source);
-      saveUser(accessUser);
       // 👉 這裡用「人話時間」格式給 Flex header 用
       // 需要先在上面有定義 formatBirthForDisplay(birthObj)
       const maleBirthDisplay = formatBirthForDisplay(state.data.maleBirth);
@@ -1763,47 +1774,12 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       // 存起來（可選，但建議）
       state.data.hexData = hexData;
 
-      // ⬇️【就貼在這裡】AI 解卦前：先做「優惠碼兌換 / 使用資格判斷」（不改你原本流程，只加一層殼）
-      const featureKey = "liuyao";
-      const accessUser = getUser(userId);
-
-      // ✅ 先輸入優惠碼再解：若 state.data.couponCode 有值，先兌換成 credits（可用次數）
-      if (state?.data?.couponCode) {
-        const r = redeemCoupon(accessUser, state.data.couponCode);
-        console.log("[COUPON][liuyao]", {
-          userId,
-          code: state.data.couponCode,
-          ...r,
-        });
-        saveUser(accessUser);
-      }
-
-      // ✅ 判斷本次是否允許用高階模型（paid → credits → freeQuota → none）
-      const eligibility = getEligibility(accessUser, featureKey);
-
-      if (!eligibility.allow) {
-        await pushText(
-          userId,
-          "🔒 這一卦需要付費或體驗資格才能解卦。\n" +
-            "你可以：\n" +
-            "1️⃣ 輸入優惠碼\n" +
-            "2️⃣ 完成付款後再來解卦"
-        );
-        delete conversationStates[userId];
-        return true;
-      }
-
-      // ✅ 通過後才呼叫 AI（AI 成功後才扣次）
+      // ⬇️【就貼在這裡】呼叫 AI 解卦
       const { aiText } = await callLiuYaoAI({
         genderText: state.data.gender === "female" ? "女命" : "男命",
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
         hexData: state.data.hexData,
-        divinationType: featureKey,
       });
-
-      // ✅ AI 成功後才扣：扣掉這次使用的來源（paid 不扣）
-      consumeEligibility(accessUser, featureKey, eligibility.source);
-      saveUser(accessUser);
 
       await pushText(userId, aiText);
 
@@ -2333,9 +2309,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
 
   console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
   console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
-  const aiText = await AI_Reading(userPrompt, systemPrompt, {
-    divinationType: "bazimatch",
-  });
+
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
 
   // 🔹 在這裡做「人話時間」版本
   const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
@@ -2377,13 +2352,7 @@ function inferUseGod({ topicText, genderText }) {
 }
 
 ////呼叫AI收六爻
-async function callLiuYaoAI({
-  genderText,
-  topicText,
-  hexData,
-  useGodText,
-  divinationType = "liuyao",
-}) {
+async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   // 0) 用神（有傳就用；沒傳就推導）
   const finalUseGodText =
     useGodText || inferUseGod({ topicText, genderText }) || "用神";
@@ -2446,7 +2415,7 @@ async function callLiuYaoAI({
   console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
-  const aiText = await AI_Reading(userPrompt, systemPrompt, { divinationType });
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
 
   return { aiText, userPrompt, systemPrompt };
 }

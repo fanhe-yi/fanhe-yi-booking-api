@@ -1,13 +1,14 @@
-// accessControl.js (CommonJS) — bazimatch 版
+// accessControl.js (CommonJS) — Schema A (firstFree + quota + redeemedCoupons)
 //
-// 目標：server.js 決定「這一次」能不能用高階模型（例如 gpt-5.1）
-// 設計原則：判斷（getEligibility）與扣除（consumeEligibility）必須分離
-//
-// 權限判斷順序（建議）：
-// 1) paid[feature] === true        → 允許（不扣次）
-// 2) credits[feature] > 0          → 允許（扣 1）
-// 3) freeQuota[feature] > 0        → 允許（扣 1，新手體驗）
-// 4) 否則                          → 不允許（guest 擋掉）
+// ✅ 你要的規則：
+// 1) 首次使用免費：firstFree[feature] 預設 1，用完歸 0
+// 2) 優惠碼免費：同一 userId 同一 coupon 只能兌換一次；兌換後 quota[feature] += N
+// 3) 付款用戶免費用一次：付款成功時 quota[feature] += 1（或 +N）
+// 4) 扣次：AI 成功後才扣（先扣 firstFree，再扣 quota）
+
+function normalizeCode(code) {
+  return String(code || "").trim().toUpperCase();
+}
 
 function isExpired(expireAt) {
   if (!expireAt) return false;
@@ -15,82 +16,124 @@ function isExpired(expireAt) {
   return Date.now() > end;
 }
 
-/**
- * redeemCoupon(user, code)
- * - 將「優惠碼」轉成「可用次數（credits）」
- * - 會檢查：不存在/已兌換/過期/remaining 是否足夠
- * - 成功：credits[feature] += addCredits，remaining--，用完會 redeemed=true
- */
-function redeemCoupon(user, code) {
-  if (!code) return { ok: false, reason: "no_code" };
+function ensureFeatureBuckets(user, feature) {
+  user.firstFree = user.firstFree || {};
+  user.quota = user.quota || {};
+  user.redeemedCoupons = user.redeemedCoupons || {};
 
-  const coupons = user.coupons || [];
-  const c = coupons.find(x => String(x.code).toUpperCase() === String(code).toUpperCase());
-
-  if (!c) return { ok: false, reason: "not_found" };
-  if (c.redeemed) return { ok: false, reason: "already_redeemed" };
-  if (isExpired(c.expireAt)) return { ok: false, reason: "expired" };
-  if (typeof c.remaining === "number" && c.remaining <= 0) return { ok: false, reason: "no_remaining" };
-
-  const feature = c.feature;
-  const add = Number(c.addCredits || 0);
-
-  user.credits = user.credits || {};
-  user.credits[feature] = Number(user.credits[feature] || 0) + add;
-
-  if (typeof c.remaining === "number") c.remaining -= 1;
-  if (!c.remaining || c.remaining <= 0) c.redeemed = true;
-
-  return { ok: true, feature, added: add, coupon: c };
+  if (typeof user.firstFree[feature] !== "number") user.firstFree[feature] = 0;
+  if (typeof user.quota[feature] !== "number") user.quota[feature] = 0;
 }
 
 /**
  * getEligibility(user, feature)
- * - 只做「判斷」，不改資料
- * - 回傳：
- *   { allow: true,  source: "paid" | "credits" | "free" }
- *   { allow: false, source: "none" }
+ * - 入口 gate 用：只判斷，不改資料
+ * - 回傳 source：
+ *   - "firstFree"：本次會走首次免費（提示用）
+ *   - "quota"：本次會走次數池（優惠碼/付費給的次數）
+ *   - "none"：沒有資格
  */
 function getEligibility(user, feature) {
-  user.paid = user.paid || {};
-  user.credits = user.credits || {};
-  user.freeQuota = user.freeQuota || {};
+  ensureFeatureBuckets(user, feature);
 
-  if (user.paid[feature]) return { allow: true, source: "paid" };
+  const first = Number(user.firstFree[feature] || 0);
+  if (first > 0) return { allow: true, source: "firstFree" };
 
-  const credits = Number(user.credits[feature] || 0);
-  if (credits > 0) return { allow: true, source: "credits" };
-
-  const free = Number(user.freeQuota[feature] || 0);
-  if (free > 0) return { allow: true, source: "free" };
+  const q = Number(user.quota[feature] || 0);
+  if (q > 0) return { allow: true, source: "quota" };
 
   return { allow: false, source: "none" };
 }
 
 /**
- * consumeEligibility(user, feature, source)
- * - 真正扣掉一次資格（paid 不扣）
- * - 你可以選擇「AI 成功後才扣」來避免誤扣
+ * consumeAfterSuccess(user, feature, source)
+ * - AI 成功後才扣（依 source 扣）
  */
-function consumeEligibility(user, feature, source) {
-  user.credits = user.credits || {};
-  user.freeQuota = user.freeQuota || {};
+function consumeAfterSuccess(user, feature, source) {
+  ensureFeatureBuckets(user, feature);
 
-  if (source === "credits") {
-    user.credits[feature] = Math.max(0, Number(user.credits[feature] || 0) - 1);
-    return { ok: true };
+  if (source === "firstFree") {
+    user.firstFree[feature] = Math.max(0, Number(user.firstFree[feature] || 0) - 1);
+    return { ok: true, consumed: "firstFree" };
   }
-  if (source === "free") {
-    user.freeQuota[feature] = Math.max(0, Number(user.freeQuota[feature] || 0) - 1);
-    return { ok: true };
+
+  if (source === "quota") {
+    user.quota[feature] = Math.max(0, Number(user.quota[feature] || 0) - 1);
+    return { ok: true, consumed: "quota" };
   }
-  if (source === "paid") return { ok: true };
 
   return { ok: false, reason: "invalid_source" };
 }
 
+/**
+ * consumeAfterSuccessPreferFirstFree(user, feature)
+ * - AI 成功後才扣（更保險）：永遠先扣 firstFree（有就扣），不然扣 quota
+ */
+function consumeAfterSuccessPreferFirstFree(user, feature) {
+  ensureFeatureBuckets(user, feature);
+
+  const first = Number(user.firstFree[feature] || 0);
+  if (first > 0) {
+    user.firstFree[feature] = Math.max(0, first - 1);
+    return { ok: true, consumed: "firstFree" };
+  }
+
+  const q = Number(user.quota[feature] || 0);
+  if (q > 0) {
+    user.quota[feature] = Math.max(0, q - 1);
+    return { ok: true, consumed: "quota" };
+  }
+
+  return { ok: false, reason: "no_balance" };
+}
+
+/**
+ * redeemCoupon(user, couponCode, couponRules)
+ * - couponRules 建議從 JSON 讀入（例如 couponRules.json）
+ * - 成功：quota[feature] += add，並標記 redeemedCoupons[CODE] = true
+ */
+function redeemCoupon(user, couponCode, couponRules) {
+  const code = normalizeCode(couponCode);
+  if (!code) return { ok: false, reason: "no_code" };
+
+  user.redeemedCoupons = user.redeemedCoupons || {};
+  if (user.redeemedCoupons[code]) return { ok: false, reason: "already_redeemed" };
+
+  const rules = couponRules || {};
+  const rule = rules[code];
+  if (!rule) return { ok: false, reason: "not_found" };
+
+  if (isExpired(rule.expireAt)) return { ok: false, reason: "expired" };
+
+  const feature = rule.feature;
+  const add = Number(rule.add || 0);
+  if (!feature || add <= 0) return { ok: false, reason: "invalid_rule" };
+
+  ensureFeatureBuckets(user, feature);
+  user.quota[feature] = Number(user.quota[feature] || 0) + add;
+
+  user.redeemedCoupons[code] = true;
+
+  return { ok: true, code, feature, added: add };
+}
+
+/**
+ * grantQuota(user, feature, add)
+ * - 付款成功後用：quota[feature] += add（預設 1）
+ */
+function grantQuota(user, feature, add = 1) {
+  ensureFeatureBuckets(user, feature);
+  const n = Number(add || 0);
+  if (n <= 0) return { ok: false, reason: "invalid_add" };
+
+  user.quota[feature] = Number(user.quota[feature] || 0) + n;
+  return { ok: true, feature, added: n };
+}
+
 module.exports = {
-  redeemCoupon,
   getEligibility,
-  consumeEligibility,
+  consumeAfterSuccess,
+  consumeAfterSuccessPreferFirstFree,
+  redeemCoupon,
+  grantQuota,
 };
