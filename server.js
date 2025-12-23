@@ -42,7 +42,7 @@ const { getUser, saveUser } = require("./accessStore");
 const {
   redeemCoupon,
   getEligibility,
-  consumeUsage,
+  consumeEligibility,
 } = require("./accessControl");
 
 // 先創造 app
@@ -1471,6 +1471,15 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         gender
       );
 
+      //quota扣次
+      const userRecord = getUser(userId);
+      const consumedFrom = consumeUsage(userRecord, "minibazi");
+      saveUser(userRecord);
+      console.log(
+        `[USAGE] user=${userId} feature=minibazi consumedFrom=${consumedFrom}`
+      );
+      //quota扣次
+
       // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
       if (parsed.timeType === "hm") {
@@ -1617,6 +1626,15 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     try {
       // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
+
+      ////quota使用扣次
+      const userRecord = getUser(userId);
+      const consumedFrom = consumeUsage(userRecord, "bazimatch");
+      saveUser(userRecord);
+      console.log(
+        `[USAGE] user=${userId} feature=bazimatch consumedFrom=${consumedFrom}`
+      );
+      //////////////quota使用扣次
 
       // 👉 這裡用「人話時間」格式給 Flex header 用
       // 需要先在上面有定義 formatBirthForDisplay(birthObj)
@@ -1780,6 +1798,15 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
         hexData: state.data.hexData,
       });
+
+      // ✅ 使用成立 → 扣次quota（這裡拿userId）
+      const userRecord = getUser(userId);
+      const consumedFrom = consumeUsage(userRecord, "liuyao");
+      saveUser(userRecord);
+      console.log(
+        `[USAGE] user=${userId} feature=liuyao consumedFrom=${consumedFrom}`
+      );
+      //////////////////////////////////////////
 
       await pushText(userId, aiText);
 
@@ -2157,14 +2184,6 @@ async function callMiniReadingAI(
 
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
 
-  // 使用成立 → 必quota
-  const consumedFrom = consumeUsage(userRecord, "minibazi");
-  saveUser(userRecord);
-
-  console.log(
-    `[USAGE] user=${userId} feature=minibazi consumedFrom=${consumedFrom}`
-  );
-
   // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
   return {
     aiText: AI_Reading_Text,
@@ -2315,18 +2334,10 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     "\n\n" +
     "請直接輸出 JSON。";
 
-  //console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
-  //console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
+  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
+  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
 
   const aiText = await AI_Reading(userPrompt, systemPrompt);
-
-  // 使用成立 → 必扣quota
-  const consumedFrom = consumeUsage(userRecord, "bazimatch");
-  saveUser(userRecord);
-
-  console.log(
-    `[USAGE] user=${userId} feature=bazimatch consumedFrom=${consumedFrom}`
-  );
 
   // 🔹 在這裡做「人話時間」版本
   const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
@@ -2368,18 +2379,11 @@ function inferUseGod({ topicText, genderText }) {
 }
 
 ////呼叫AI收六爻
-async function callLiuYaoAI({
-  userId,
-  genderText,
-  topicText,
-  hexData,
-  useGodText,
-}) {
+async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   // 0) 用神（有傳就用；沒傳就推導）
   const finalUseGodText =
     useGodText || inferUseGod({ topicText, genderText }) || "用神";
   // 1) 基本資料
-  const userRecord = getUser(userId);
   const gzArr = (hexData && hexData.ganzhi) || [];
   const gzLabels = ["年", "月", "日", "時"];
   const gzText =
@@ -2434,19 +2438,11 @@ async function callLiuYaoAI({
     `請你解卦,最後請以繁體中文回覆`;
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
-  //console.log("[liuyao] systemPrompt:\n", systemPrompt);
-  //console.log("[liuyao] userPrompt:\n", userPrompt);
+  console.log("[liuyao] systemPrompt:\n", systemPrompt);
+  console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
-
-  // 使用成立 → 必扣quota
-  const consumedFrom = consumeUsage(userRecord, "liuyao");
-  saveUser(userRecord);
-
-  console.log(
-    `[USAGE] user=${userId} feature=liuyao consumedFrom=${consumedFrom}`
-  );
 
   return { aiText, userPrompt, systemPrompt };
 }
