@@ -2151,11 +2151,19 @@ async function callMiniReadingAI(
     "7. 最後在某一欄位的結尾，用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
     "8. 非常重要：最終輸出只能是 JSON 物件本身，不要出現任何解釋文字、不要多一句話、不要加 ```json。";
 
-  console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
-  console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
-  console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
+  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+  //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
+
+  // 使用成立 → 必quota
+  const consumedFrom = consumeUsage(userRecord, "minibazi");
+  saveUser(userRecord);
+
+  console.log(
+    `[USAGE] user=${userId} feature=minibazi consumedFrom=${consumedFrom}`
+  );
 
   // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
   return {
@@ -2307,10 +2315,18 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     "\n\n" +
     "請直接輸出 JSON。";
 
-  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
-  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
+  //console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
+  //console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
 
   const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  // 使用成立 → 必扣quota
+  const consumedFrom = consumeUsage(userRecord, "bazimatch");
+  saveUser(userRecord);
+
+  console.log(
+    `[USAGE] user=${userId} feature=bazimatch consumedFrom=${consumedFrom}`
+  );
 
   // 🔹 在這裡做「人話時間」版本
   const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
@@ -2416,6 +2432,14 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 
   // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  // 使用成立 → 必扣quota
+  const consumedFrom = consumeUsage(userRecord, "liuyao");
+  saveUser(userRecord);
+
+  console.log(
+    `[USAGE] user=${userId} feature=liuyao consumedFrom=${consumedFrom}`
+  );
 
   return { aiText, userPrompt, systemPrompt };
 }

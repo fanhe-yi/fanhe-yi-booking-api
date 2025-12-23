@@ -1,139 +1,150 @@
-// accessControl.js (CommonJS) — Schema A (firstFree + quota + redeemedCoupons)
+// accessControl.js (CommonJS)
+// Schema A：firstFree + quota + redeemedCoupons
 //
-// ✅ 你要的規則：
-// 1) 首次使用免費：firstFree[feature] 預設 1，用完歸 0
-// 2) 優惠碼免費：同一 userId 同一 coupon 只能兌換一次；兌換後 quota[feature] += N
-// 3) 付款用戶免費用一次：付款成功時 quota[feature] += 1（或 +N）
-// 4) 扣次：AI 成功後才扣（先扣 firstFree，再扣 quota）
-
-function normalizeCode(code) {
-  return String(code || "").trim().toUpperCase();
-}
-
-function isExpired(expireAt) {
-  if (!expireAt) return false;
-  const end = new Date(expireAt + "T23:59:59.999Z").getTime();
-  return Date.now() > end;
-}
+// 職責：
+// - gate：判斷能不能使用（不改資料）
+// - consumeUsage：使用成立後扣一次（必扣，扣不到就是錯）
+// - redeemCoupon：兌換優惠碼（增加 quota）
+// - grantQuota：付款成功後增加 quota
 
 function ensureFeatureBuckets(user, feature) {
   user.firstFree = user.firstFree || {};
   user.quota = user.quota || {};
   user.redeemedCoupons = user.redeemedCoupons || {};
 
-  if (typeof user.firstFree[feature] !== "number") user.firstFree[feature] = 0;
-  if (typeof user.quota[feature] !== "number") user.quota[feature] = 0;
+  if (typeof user.firstFree[feature] !== "number") {
+    user.firstFree[feature] = 0;
+  }
+  if (typeof user.quota[feature] !== "number") {
+    user.quota[feature] = 0;
+  }
+}
+
+function normalizeCouponCode(code) {
+  return String(code || "")
+    .trim()
+    .toUpperCase();
+}
+
+function isExpired(expireAt) {
+  if (!expireAt) return false;
+  // 支援 YYYY-MM-DD
+  const end = new Date(expireAt + "T23:59:59.999Z").getTime();
+  return Date.now() > end;
 }
 
 /**
- * getEligibility(user, feature)
- * - 入口 gate 用：只判斷，不改資料
- * - 回傳 source：
- *   - "firstFree"：本次會走首次免費（提示用）
- *   - "quota"：本次會走次數池（優惠碼/付費給的次數）
- *   - "none"：沒有資格
+ * gate：判斷是否可以使用某功能（不扣次）
+ * 回傳：
+ * - { allow: true, source: "firstFree" | "quota" }
+ * - { allow: false, source: "none" }
  */
 function getEligibility(user, feature) {
   ensureFeatureBuckets(user, feature);
 
-  const first = Number(user.firstFree[feature] || 0);
-  if (first > 0) return { allow: true, source: "firstFree" };
+  if (user.firstFree[feature] > 0) {
+    return { allow: true, source: "firstFree" };
+  }
 
-  const q = Number(user.quota[feature] || 0);
-  if (q > 0) return { allow: true, source: "quota" };
+  if (user.quota[feature] > 0) {
+    return { allow: true, source: "quota" };
+  }
 
   return { allow: false, source: "none" };
 }
 
 /**
- * consumeAfterSuccess(user, feature, source)
- * - AI 成功後才扣（依 source 扣）
+ * 使用成立後扣一次
+ * 規則：
+ * 1) 先扣 firstFree
+ * 2) 再扣 quota
+ * 扣不到 = 系統錯（理論上 gate 已經擋過）
  */
-function consumeAfterSuccess(user, feature, source) {
+function consumeUsage(user, feature) {
   ensureFeatureBuckets(user, feature);
 
-  if (source === "firstFree") {
-    user.firstFree[feature] = Math.max(0, Number(user.firstFree[feature] || 0) - 1);
-    return { ok: true, consumed: "firstFree" };
+  if (user.firstFree[feature] > 0) {
+    user.firstFree[feature] -= 1;
+    return "firstFree";
   }
 
-  if (source === "quota") {
-    user.quota[feature] = Math.max(0, Number(user.quota[feature] || 0) - 1);
-    return { ok: true, consumed: "quota" };
+  if (user.quota[feature] > 0) {
+    user.quota[feature] -= 1;
+    return "quota";
   }
 
-  return { ok: false, reason: "invalid_source" };
+  // 不應發生，發生就是流程錯誤
+  throw new Error(
+    `[USAGE_ERROR] consumeUsage failed: no remaining usage for feature=${feature}`
+  );
 }
 
 /**
- * consumeAfterSuccessPreferFirstFree(user, feature)
- * - AI 成功後才扣（更保險）：永遠先扣 firstFree（有就扣），不然扣 quota
- */
-function consumeAfterSuccessPreferFirstFree(user, feature) {
-  ensureFeatureBuckets(user, feature);
-
-  const first = Number(user.firstFree[feature] || 0);
-  if (first > 0) {
-    user.firstFree[feature] = Math.max(0, first - 1);
-    return { ok: true, consumed: "firstFree" };
-  }
-
-  const q = Number(user.quota[feature] || 0);
-  if (q > 0) {
-    user.quota[feature] = Math.max(0, q - 1);
-    return { ok: true, consumed: "quota" };
-  }
-
-  return { ok: false, reason: "no_balance" };
-}
-
-/**
- * redeemCoupon(user, couponCode, couponRules)
- * - couponRules 建議從 JSON 讀入（例如 couponRules.json）
- * - 成功：quota[feature] += add，並標記 redeemedCoupons[CODE] = true
+ * 兌換優惠碼（增加 quota）
+ * - 同一 userId + coupon 只能用一次
+ * - couponRules 由外部 JSON 傳入
  */
 function redeemCoupon(user, couponCode, couponRules) {
-  const code = normalizeCode(couponCode);
-  if (!code) return { ok: false, reason: "no_code" };
+  const code = normalizeCouponCode(couponCode);
+  if (!code) {
+    throw new Error("[COUPON_ERROR] empty coupon code");
+  }
 
   user.redeemedCoupons = user.redeemedCoupons || {};
-  if (user.redeemedCoupons[code]) return { ok: false, reason: "already_redeemed" };
+  if (user.redeemedCoupons[code]) {
+    throw new Error(`[COUPON_ERROR] coupon already redeemed: ${code}`);
+  }
 
-  const rules = couponRules || {};
-  const rule = rules[code];
-  if (!rule) return { ok: false, reason: "not_found" };
+  const rule = couponRules?.[code];
+  if (!rule) {
+    throw new Error(`[COUPON_ERROR] coupon not found: ${code}`);
+  }
 
-  if (isExpired(rule.expireAt)) return { ok: false, reason: "expired" };
+  if (isExpired(rule.expireAt)) {
+    throw new Error(`[COUPON_ERROR] coupon expired: ${code}`);
+  }
 
   const feature = rule.feature;
   const add = Number(rule.add || 0);
-  if (!feature || add <= 0) return { ok: false, reason: "invalid_rule" };
+
+  if (!feature || add <= 0) {
+    throw new Error(`[COUPON_ERROR] invalid coupon rule: ${code}`);
+  }
 
   ensureFeatureBuckets(user, feature);
-  user.quota[feature] = Number(user.quota[feature] || 0) + add;
 
+  user.quota[feature] += add;
   user.redeemedCoupons[code] = true;
 
-  return { ok: true, code, feature, added: add };
+  return {
+    code,
+    feature,
+    added: add,
+  };
 }
 
 /**
- * grantQuota(user, feature, add)
- * - 付款成功後用：quota[feature] += add（預設 1）
+ * 付款成功後增加使用次數
  */
 function grantQuota(user, feature, add = 1) {
   ensureFeatureBuckets(user, feature);
-  const n = Number(add || 0);
-  if (n <= 0) return { ok: false, reason: "invalid_add" };
 
-  user.quota[feature] = Number(user.quota[feature] || 0) + n;
-  return { ok: true, feature, added: n };
+  const n = Number(add || 0);
+  if (n <= 0) {
+    throw new Error("[USAGE_ERROR] grantQuota add must be > 0");
+  }
+
+  user.quota[feature] += n;
+
+  return {
+    feature,
+    added: n,
+  };
 }
 
 module.exports = {
   getEligibility,
-  consumeAfterSuccess,
-  consumeAfterSuccessPreferFirstFree,
+  consumeUsage,
   redeemCoupon,
   grantQuota,
 };
