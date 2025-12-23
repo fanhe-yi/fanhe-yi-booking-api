@@ -1,0 +1,37 @@
+{
+  "userId": "Uxxxxxxxx",
+  "paid": {
+    "liuyao": false,
+    "bazimatch": false
+  },
+  "freeQuota": {
+    "liuyao": 1,
+    "bazimatch": 1
+  },
+  "credits": {
+    "liuyao": 0,
+    "bazimatch": 0
+  },
+  "coupons": [
+    {
+      "code": "FREE8888",
+      "feature": "liuyao",
+      "addCredits": 1,
+      "remaining": 1,
+      "expireAt": "2025-12-31",
+      "redeemed": false
+    },
+    {
+      "code": "MATCHFREE1",
+      "feature": "bazimatch",
+      "addCredits": 1,
+      "remaining": 1,
+      "expireAt": "2026-01-31",
+      "redeemed": false
+    }
+  ],
+  "meta": {
+    "createdAt": "2025-12-22T00:00:00+08:00",
+    "updatedAt": "2025-12-22T00:00:00+08:00"
+  }
+}

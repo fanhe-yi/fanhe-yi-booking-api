@@ -20,6 +20,15 @@ const {
 
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
+
+// ✅ 使用者資格/權限（先用 JSON 撐住；之後可換 DB）
+const { getUser, saveUser } = require("./accessStore");
+const {
+  getEligibility,
+  consumeEligibility,
+  redeemCoupon,
+} = require("./accessControl");
+
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
 //六爻相關
@@ -1564,8 +1573,40 @@ async function handleBaziMatchFlow(userId, text, state, event) {
 
     try {
       // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
+      // ✅ 合婚（bazimatch）呼叫 AI 前：先做「優惠碼兌換 / 使用資格判斷」
+      const featureKey = "bazimatch";
+      const accessUser = getUser(userId);
+
+      // 先輸入優惠碼再解（若你有在流程裡收 couponCode，放到 state.data.couponCode）
+      if (state?.data?.couponCode) {
+        const r = redeemCoupon(accessUser, state.data.couponCode);
+        console.log("[COUPON][bazimatch]", {
+          userId,
+          code: state.data.couponCode,
+          ...r,
+        });
+        saveUser(accessUser);
+      }
+
+      const eligibility = getEligibility(accessUser, featureKey);
+
+      if (!eligibility.allow) {
+        await pushText(
+          userId,
+          "🔒 合婚需要付費或體驗資格才能使用。\n" +
+            "你可以：\n" +
+            "1️⃣ 輸入優惠碼\n" +
+            "2️⃣ 完成付款後再試"
+        );
+        delete conversationStates[userId];
+        return true;
+      }
+
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
+      // ✅ AI 成功後才扣（paid 不扣）
+      consumeEligibility(accessUser, featureKey, eligibility.source);
+      saveUser(accessUser);
       // 👉 這裡用「人話時間」格式給 Flex header 用
       // 需要先在上面有定義 formatBirthForDisplay(birthObj)
       const maleBirthDisplay = formatBirthForDisplay(state.data.maleBirth);
@@ -1722,12 +1763,47 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       // 存起來（可選，但建議）
       state.data.hexData = hexData;
 
-      // ⬇️【就貼在這裡】呼叫 AI 解卦
+      // ⬇️【就貼在這裡】AI 解卦前：先做「優惠碼兌換 / 使用資格判斷」（不改你原本流程，只加一層殼）
+      const featureKey = "liuyao";
+      const accessUser = getUser(userId);
+
+      // ✅ 先輸入優惠碼再解：若 state.data.couponCode 有值，先兌換成 credits（可用次數）
+      if (state?.data?.couponCode) {
+        const r = redeemCoupon(accessUser, state.data.couponCode);
+        console.log("[COUPON][liuyao]", {
+          userId,
+          code: state.data.couponCode,
+          ...r,
+        });
+        saveUser(accessUser);
+      }
+
+      // ✅ 判斷本次是否允許用高階模型（paid → credits → freeQuota → none）
+      const eligibility = getEligibility(accessUser, featureKey);
+
+      if (!eligibility.allow) {
+        await pushText(
+          userId,
+          "🔒 這一卦需要付費或體驗資格才能解卦。\n" +
+            "你可以：\n" +
+            "1️⃣ 輸入優惠碼\n" +
+            "2️⃣ 完成付款後再來解卦"
+        );
+        delete conversationStates[userId];
+        return true;
+      }
+
+      // ✅ 通過後才呼叫 AI（AI 成功後才扣次）
       const { aiText } = await callLiuYaoAI({
         genderText: state.data.gender === "female" ? "女命" : "男命",
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
         hexData: state.data.hexData,
+        divinationType: featureKey,
       });
+
+      // ✅ AI 成功後才扣：扣掉這次使用的來源（paid 不扣）
+      consumeEligibility(accessUser, featureKey, eligibility.source);
+      saveUser(accessUser);
 
       await pushText(userId, aiText);
 
@@ -2257,8 +2333,9 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
 
   console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
   console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
-
-  const aiText = await AI_Reading(userPrompt, systemPrompt);
+  const aiText = await AI_Reading(userPrompt, systemPrompt, {
+    divinationType: "bazimatch",
+  });
 
   // 🔹 在這裡做「人話時間」版本
   const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
@@ -2300,7 +2377,13 @@ function inferUseGod({ topicText, genderText }) {
 }
 
 ////呼叫AI收六爻
-async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
+async function callLiuYaoAI({
+  genderText,
+  topicText,
+  hexData,
+  useGodText,
+  divinationType = "liuyao",
+}) {
   // 0) 用神（有傳就用；沒傳就推導）
   const finalUseGodText =
     useGodText || inferUseGod({ topicText, genderText }) || "用神";
@@ -2363,7 +2446,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
   console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
-  const aiText = await AI_Reading(userPrompt, systemPrompt);
+  const aiText = await AI_Reading(userPrompt, systemPrompt, { divinationType });
 
   return { aiText, userPrompt, systemPrompt };
 }
