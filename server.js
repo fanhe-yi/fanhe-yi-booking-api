@@ -926,6 +926,7 @@ async function handleLineEvent(event) {
     console.log("沒有 userId 的事件，略過：", event.type);
     return;
   }
+
   // 取出這個使用者目前的對話狀態
   const state = conversationStates[userId] || null;
 
@@ -941,12 +942,38 @@ async function handleLineEvent(event) {
     return;
   }
 
-  // --- 2) 處理文字訊息 ---
+  // ==========================
+  // 處理文字訊息
+  // ==========================
   if (event.type === "message" && event.message.type === "text") {
     const text = (event.message.text || "").trim();
-    //console.log(`👤 ${userId} 說：${text}`);
 
-    // 0) Abort：直接中斷並回覆提示
+    // --------------------------------------------------
+    // 0) 優惠碼攔截（輕量版）
+    //
+    // 用途：
+    // - 讓被 gate 擋住的使用者，直接輸入優惠碼也能兌換
+    // - 避免一定要先進入流程，才吃得到優惠碼
+    //
+    // 規則：
+    // - 只有「看起來像優惠碼」才嘗試兌換
+    // - 預約流程（booking）不吃，避免體驗怪
+    // - 若成功/失敗有回覆，直接結束本次事件
+    // --------------------------------------------------
+    const looksLikeCoupon =
+      /^(優惠碼|coupon)\s+[A-Za-z0-9_-]{4,20}$/i.test(text) ||
+      /^[A-Za-z0-9_-]{4,20}$/.test(text);
+
+    const currentMode = conversationStates[userId]?.mode || null;
+
+    if (looksLikeCoupon && currentMode !== "booking") {
+      const hit = await tryRedeemCouponFromText(userId, text);
+      if (hit.handled) return;
+    }
+
+    // --------------------------------------------------
+    // 1) Abort：使用者主動中斷流程
+    // --------------------------------------------------
     if (isAbortCommand(text)) {
       delete conversationStates[userId];
       await pushText(
@@ -956,13 +983,17 @@ async function handleLineEvent(event) {
       return;
     }
 
-    // 1) Entry：只要是入口指令，就先清 state，然後繼續往下走
-    // （不要 return，讓它後面正常進 routeGeneralCommands）
+    // --------------------------------------------------
+    // 2) Entry：入口指令（切換功能）
+    // - 清掉舊 state，讓新流程乾淨開始
+    // --------------------------------------------------
     if (isEntryCommand(text)) {
       delete conversationStates[userId];
     }
 
-    // 2-1. 如果目前在某個對話流程中（例如預約 / 小占卜）
+    // --------------------------------------------------
+    // 3) 若目前在某個對話流程中，優先交給該流程處理（例如預約 / 六爻 / 合婚）
+    // --------------------------------------------------
     if (state) {
       const handled = await routeByConversationState(
         userId,
@@ -970,10 +1001,13 @@ async function handleLineEvent(event) {
         state,
         event
       );
-      if (handled) return; // 若已被對應流程吃掉，這次就結束
+      if (handled) return;
     }
 
-    // 2-2. 沒有在進行中的對話 → 看是不是指令（預約 / 八字測算 / 其他）
+    // --------------------------------------------------
+    // 4) 不在流程中 → 當成一般指令處理
+    //    沒有在進行中的對話 → 看是不是指令（預約 / 八字測算 / 其他）
+    // --------------------------------------------------
     await routeGeneralCommands(userId, text);
     return;
   }
@@ -1083,13 +1117,13 @@ async function routeByConversationState(userId, text, state, event) {
     // 交給預約流程處理
     return await handleBookingFlow(userId, text, state, event);
   }
-
+  /*
   // 在「付費功能流程」內攔截優惠碼
   if (mode === "mini_bazi" || mode === "bazi_match" || mode === "liuyao") {
     console.log("有進到攔截優惠碼的流程\n");
     const hit = await tryRedeemCouponFromText(userId, text);
     if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
-  }
+  }*/
 
   if (mode === "mini_bazi") {
     // 交給八字測算流程處理
