@@ -61,6 +61,21 @@ const UNAVAILABLE_FILE = path.join(__dirname, "unavailable.json");
 // 簡易後台 Token（正式上線可以改成環境變數）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "dev-secret";
 
+//////載入 couponRules（一次）
+const COUPON_RULES_PATH =
+  process.env.COUPON_RULES_PATH || path.join(__dirname, "couponRules.json");
+
+function loadCouponRules() {
+  try {
+    const raw = fs.readFileSync(COUPON_RULES_PATH, "utf8");
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.error("[COUPON] Failed to load couponRules.json:", e.message);
+    return {};
+  }
+}
+//////載入 couponRules（一次）
+
 function requireAdmin(req, res, next) {
   const token = req.headers["x-admin-token"];
   if (token !== ADMIN_TOKEN) {
