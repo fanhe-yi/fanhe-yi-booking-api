@@ -275,6 +275,85 @@ async function gateFeature(userId, featureKey, featureLabel) {
   return { allow: true, source: eligibility.source };
 }
 
+//quota扣次function
+function quotaUsage(userId, feature) {
+  const userRecord = getUser(userId);
+  const consumedFrom = consumeUsage(userRecord, feature);
+  saveUser(userRecord);
+  console.log(
+    `[quotaUSAGE] user=${userId} feature=${feature} consumedFrom=${consumedFrom}`
+  );
+}
+
+/**
+ * 嘗試從使用者輸入文字中兌換優惠碼（流程攔截用）
+ *
+ * 使用時機：
+ * - 只在「付費功能流程中」（六爻 / 八字合婚 / 八字測算）呼叫
+ * - 在進入各 handleXXXFlow 之前攔截
+ *
+ * 行為說明：
+ * - 若 text 看起來是優惠碼（FREE99 / 優惠碼 FREE99）
+ *   → 嘗試兌換並增加對應 feature 的 quota
+ *   → 成功或失敗都會主動回覆使用者
+ *   → 回傳 { handled: true }，流程應中斷
+ *
+ * - 若 text 不是優惠碼
+ *   → 不處理、不回覆
+ *   → 回傳 { handled: false }，流程繼續往下走
+ *
+ * 注意事項：
+ * - 成功兌換後不改變對話 state（不影響目前流程階段）
+ * - 同一使用者同一優惠碼只能兌換一次
+ * - 僅負責「兌換 + 回覆」，不負責 gate 或扣次
+ *
+ * @param {string} userId - LINE 使用者 ID
+ * @param {string} text - 使用者輸入文字
+ * @returns {Promise<{handled: boolean}>}
+ */
+async function tryRedeemCouponFromText(userId, text) {
+  const input = String(text || "").trim();
+  if (!input) return { handled: false };
+
+  // 支援兩種：FREE99 / 優惠碼 FREE99
+  let code = "";
+  const m = input.match(/^(優惠碼|coupon|COUPON)\s+([A-Za-z0-9_-]+)$/i);
+  if (m) code = m[2];
+  if (!code && /^[A-Za-z0-9_-]{4,20}$/.test(input)) code = input;
+
+  if (!code) return { handled: false };
+
+  try {
+    const couponRules = loadCouponRules();
+    const userRecord = getUser(userId);
+
+    const result = redeemCoupon(userRecord, code, couponRules);
+    saveUser(userRecord);
+
+    await pushText(
+      userId,
+      `✅ 優惠碼兌換成功：${result.code}\n` +
+        `已增加「${result.feature}」可用次數：+${result.added}\n\n` +
+        `你可以繼續輸入你的資料，我會接著幫你解。`
+    );
+
+    console.log(
+      `[COUPON] user=${userId} code=${result.code} feature=${result.feature} added=${result.added}`
+    );
+
+    return { handled: true };
+  } catch (e) {
+    await pushText(
+      userId,
+      `❌ 優惠碼兌換失敗：${e.message.replace(/^\[.*?\]\s*/, "")}\n` +
+        `（提示：同一張券同一人只能用一次，或可能已過期）`
+    );
+
+    console.warn(`[COUPON] redeem failed user=${userId} err=${e.message}`);
+    return { handled: true };
+  }
+}
+
 ////////////////////////////////////////
 ///新增「選服務」的 Flex（第一層 bubble/）//
 ////////////////////////////////////////
@@ -1005,6 +1084,12 @@ async function routeByConversationState(userId, text, state, event) {
     return await handleBookingFlow(userId, text, state, event);
   }
 
+  // ✅ 在「付費功能流程」內攔截優惠碼
+  if (mode === "mini_bazi" || mode === "bazi_match" || mode === "liuyao") {
+    const hit = await tryRedeemCouponFromText(userId, text);
+    if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
+  }
+
   if (mode === "mini_bazi") {
     // 交給八字測算流程處理
     return await handleMiniBaziFlow(userId, text, state, event);
@@ -1471,14 +1556,8 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         gender
       );
 
-      //quota扣次
-      const userRecord = getUser(userId);
-      const consumedFrom = consumeUsage(userRecord, "minibazi");
-      saveUser(userRecord);
-      console.log(
-        `[USAGE] user=${userId} feature=minibazi consumedFrom=${consumedFrom}`
-      );
-      //quota扣次
+      // 2.5) quota扣次
+      quotaUsage(userId, "minibazi");
 
       // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
@@ -1628,12 +1707,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
       ////quota使用扣次
-      const userRecord = getUser(userId);
-      const consumedFrom = consumeUsage(userRecord, "bazimatch");
-      saveUser(userRecord);
-      console.log(
-        `[USAGE] user=${userId} feature=bazimatch consumedFrom=${consumedFrom}`
-      );
+      quotaUsage(userId, "bazimatch");
       //////////////quota使用扣次
 
       // 👉 這裡用「人話時間」格式給 Flex header 用
@@ -1799,13 +1873,8 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         hexData: state.data.hexData,
       });
 
-      // ✅ 使用成立 → 扣次quota（這裡拿userId）
-      const userRecord = getUser(userId);
-      const consumedFrom = consumeUsage(userRecord, "liuyao");
-      saveUser(userRecord);
-      console.log(
-        `[USAGE] user=${userId} feature=liuyao consumedFrom=${consumedFrom}`
-      );
+      // 扣次quota
+      quotaUsage(userId, "liuyao");
       //////////////////////////////////////////
 
       await pushText(userId, aiText);
