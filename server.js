@@ -1084,8 +1084,9 @@ async function routeByConversationState(userId, text, state, event) {
     return await handleBookingFlow(userId, text, state, event);
   }
 
-  // ✅ 在「付費功能流程」內攔截優惠碼
+  // 在「付費功能流程」內攔截優惠碼
   if (mode === "mini_bazi" || mode === "bazi_match" || mode === "liuyao") {
+    console.log("有進到攔截優惠碼的流程\n");
     const hit = await tryRedeemCouponFromText(userId, text);
     if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
   }
