@@ -39,6 +39,7 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 | 金流完成      | `saveUser`（補 credits / paid）      |
 */
 const {
+  getUser,
   consumeQuotaAtomic,
   addQuotaAtomic,
   markCouponRedeemedAtomic,
