@@ -2,7 +2,7 @@
 // ✅ 特色：最少欄位、最貼近「首次免費 + 優惠碼加次數 + 付款加次數」的規則
 //
 // 預設檔案位置：
-// - ./data/userAccess.json
+// - ./userAccess.json
 // 可用 .env 覆寫：
 // - ACCESS_DATA_DIR
 // - ACCESS_FILE_PATH
@@ -11,7 +11,9 @@ const fs = require("fs");
 const path = require("path");
 
 const DATA_DIR = process.env.ACCESS_DATA_DIR || path.join(__dirname, "data");
-const FILE_PATH = process.env.ACCESS_FILE_PATH || path.join(DATA_DIR, "userAccess.json");
+const FILE_PATH =
+  process.env.ACCESS_FILE_PATH || path.join(__dirname, "userAccess.json");
+//const FILE_PATH = process.env.ACCESS_FILE_PATH || path.join(DATA_DIR, "userAccess.json");
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });

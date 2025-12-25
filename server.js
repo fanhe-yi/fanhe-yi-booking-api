@@ -38,7 +38,7 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 | AI 成功後    | `consumeEligibility` + `saveUser` |
 | 金流完成      | `saveUser`（補 credits / paid）      |
 */
-const { getUser, saveUser } = require("./accessStore");
+const { getUser, saveUser } = require("./accessStore.pg");
 const {
   redeemCoupon,
   getEligibility,
@@ -262,7 +262,7 @@ function getNextDays(count) {
 
 //檢查使用者付費/權限的入口函式
 async function gateFeature(userId, featureKey, featureLabel) {
-  const userRecord = getUser(userId);
+  const userRecord = await getUser(userId);
   const eligibility = getEligibility(userRecord, featureKey);
 
   if (!eligibility.allow) {
@@ -291,10 +291,10 @@ async function gateFeature(userId, featureKey, featureLabel) {
 }
 
 //quota扣次function
-function quotaUsage(userId, feature) {
-  const userRecord = getUser(userId);
+async function quotaUsage(userId, feature) {
+  const userRecord = await getUser(userId);
   const consumedFrom = consumeUsage(userRecord, feature);
-  saveUser(userRecord);
+  await saveUser(userRecord);
   console.log(
     `[quotaUSAGE] user=${userId} feature=${feature} consumedFrom=${consumedFrom}`
   );
@@ -340,10 +340,10 @@ async function tryRedeemCouponFromText(userId, text) {
 
   try {
     const couponRules = loadCouponRules();
-    const userRecord = getUser(userId);
+    const userRecord = await getUser(userId);
 
     const result = redeemCoupon(userRecord, code, couponRules);
-    saveUser(userRecord);
+    await saveUser(userRecord);
 
     await pushText(
       userId,
@@ -1610,7 +1610,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       );
 
       // 2.5) quota扣次
-      quotaUsage(userId, "minibazi");
+      await quotaUsage(userId, "minibazi");
 
       // 3) 整理生日描述
       let birthDesc = `西元生日：${parsed.date}`;
@@ -1760,7 +1760,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
       ////quota使用扣次
-      quotaUsage(userId, "bazimatch");
+      await quotaUsage(userId, "bazimatch");
       //////////////quota使用扣次
 
       // 👉 這裡用「人話時間」格式給 Flex header 用
@@ -1927,7 +1927,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       });
 
       // 扣次quota
-      quotaUsage(userId, "liuyao");
+      await quotaUsage(userId, "liuyao");
       //////////////////////////////////////////
 
       await pushText(userId, aiText);
