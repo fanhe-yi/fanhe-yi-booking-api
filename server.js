@@ -38,12 +38,12 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 | AI 成功後    | `consumeEligibility` + `saveUser` |
 | 金流完成      | `saveUser`（補 credits / paid）      |
 */
-const { getUser, saveUser } = require("./accessStore.pg");
 const {
-  redeemCoupon,
-  getEligibility,
-  consumeUsage,
-} = require("./accessControl");
+  consumeQuotaAtomic,
+  addQuotaAtomic,
+  markCouponRedeemedAtomic,
+} = require("./accessStore.pg");
+const { getEligibility, parseCouponRule } = require("./accessControl");
 
 // 先創造 app
 const app = express();
@@ -292,12 +292,13 @@ async function gateFeature(userId, featureKey, featureLabel) {
 
 //quota扣次function
 async function quotaUsage(userId, feature) {
-  const userRecord = await getUser(userId);
-  const consumedFrom = consumeUsage(userRecord, feature);
-  await saveUser(userRecord);
-  console.log(
-    `[quotaUSAGE] user=${userId} feature=${feature} consumedFrom=${consumedFrom}`
-  );
+  const result = await consumeQuotaAtomic(userId, feature, 1);
+  if (!result.ok) {
+    console.log(`[quotaUSAGE] NO_QUOTA user=${userId} feature=${feature}`);
+    return false;
+  }
+  console.log(`[quotaUSAGE] OK user=${userId} feature=${feature}`);
+  return true;
 }
 
 /**
@@ -340,20 +341,34 @@ async function tryRedeemCouponFromText(userId, text) {
 
   try {
     const couponRules = loadCouponRules();
-    const userRecord = await getUser(userId);
 
-    const result = redeemCoupon(userRecord, code, couponRules);
-    await saveUser(userRecord);
+    // ✅ 1) 只解析 / 驗證規則（不寫 DB）
+    const {
+      code: normalizedCode,
+      feature,
+      added,
+    } = parseCouponRule(code, couponRules);
+
+    // ✅ 2) 原子標記：同一人同一券只能成功一次（防連點/併發/重送）
+    const mark = await markCouponRedeemedAtomic(userId, normalizedCode);
+    if (!mark.ok) {
+      throw new Error(
+        `[COUPON_ERROR] coupon already redeemed: ${normalizedCode}`
+      );
+    }
+
+    // ✅ 3) 原子補次（真的加 quota）
+    await addQuotaAtomic(userId, feature, added);
 
     await pushText(
       userId,
-      `✅ 優惠碼兌換成功：${result.code}\n` +
-        `已增加「${result.feature}」可用次數：+${result.added}\n\n` +
+      `✅ 優惠碼兌換成功：${normalizedCode}\n` +
+        `已增加「${feature}」可用次數：+${added}\n\n` +
         `你可以繼續輸入你的資料，我會接著幫你解。`
     );
 
     console.log(
-      `[COUPON] user=${userId} code=${result.code} feature=${result.feature} added=${result.added}`
+      `[COUPON] user=${userId} code=${normalizedCode} feature=${feature} added=${added}`
     );
 
     return { handled: true };
