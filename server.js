@@ -975,9 +975,12 @@ async function handleLineEvent(event) {
     // - 預約流程（booking）不吃，避免體驗怪
     // - 若成功/失敗有回覆，直接結束本次事件
     // --------------------------------------------------
+    const looksLikeBirthday = /^\d{4}-\d{2}-\d{2}-\d{4}$/.test(text);
+
     const looksLikeCoupon =
-      /^(優惠碼|coupon)\s+[A-Za-z0-9_-]{4,20}$/i.test(text) ||
-      /^[A-Za-z0-9_-]{4,20}$/.test(text);
+      !looksLikeBirthday &&
+      (/^(優惠碼|coupon)\s+[A-Za-z0-9_]{4,20}$/i.test(text) ||
+        /^(?=.*[A-Za-z])[A-Za-z0-9_]{4,20}$/.test(text));
 
     const currentMode = conversationStates[userId]?.mode || null;
 
