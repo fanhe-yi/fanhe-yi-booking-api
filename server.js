@@ -566,8 +566,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
       },
     },
   };
-  console.log("[DEBUG flexMessage]", JSON.stringify(flex, null, 2));
-  await pushFlex(userId, flex);
+
+  await pushFlex(userId, flex.altText, flex.contents);
 }
 
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
