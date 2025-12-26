@@ -566,7 +566,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
       },
     },
   };
-  console.log("[DEBUG flexMessage]", JSON.stringify(flexMessage, null, 2));
+  console.log("[DEBUG flexMessage]", JSON.stringify(flex, null, 2));
   await pushFlex(userId, flex);
 }
 
