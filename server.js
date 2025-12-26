@@ -445,6 +445,131 @@ async function sendServiceSelectFlex(userId) {
   await pushFlex(userId, "請選擇預約服務", bubble);
 }
 
+//服務選擇說明卡 Flex（八字 / 紫微 / 姓名）
+async function sendServiceIntroFlex(userId, serviceKey) {
+  const map = {
+    minibazi: {
+      title: "📊 八字格局解析（LINE 線上）",
+      price: "NT$ 100",
+      desc: "使用者完成付費並提供生辰資料後，系統將進行八字格局結構與整體命理配置之文字解析，並回傳解析結果。",
+    },
+    bazimatch: {
+      title: "💑 八字合婚解析（LINE 線上）",
+      price: "NT$ 200",
+      desc: "使用者完成付費並提供雙方生辰資料後，系統將進行命盤結構比對與關係互動層面之文字解析說明，並回傳解析結果。",
+    },
+    liuyao: {
+      title: "🔮 六爻卦象解析（LINE 線上）",
+      price: "NT$ 100",
+      desc: "使用者完成付費並提供提問內容後，系統將依卦象模型進行解析，回傳過去狀態、當前情況與可能發展趨勢之文字說明。",
+    },
+  };
+
+  const meta = map[serviceKey];
+  if (!meta) return;
+
+  const flex = {
+    type: "flex",
+    altText: meta.title,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: meta.title,
+            weight: "bold",
+            size: "lg",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: "數位文字解析服務",
+            size: "sm",
+            color: "#666666",
+            wrap: true,
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: meta.desc,
+            size: "sm",
+            color: "#333333",
+            wrap: true,
+          },
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              {
+                type: "text",
+                text: "費用",
+                size: "sm",
+                color: "#666666",
+                flex: 1,
+              },
+              {
+                type: "text",
+                text: meta.price,
+                size: "xl",
+                weight: "bold",
+                color: "#111111",
+                flex: 2,
+              },
+            ],
+          },
+          { type: "separator" },
+          {
+            type: "text",
+            text:
+              "⚠️ 僅供娛樂與參考，非結果保證\n" +
+              "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款",
+            size: "xs",
+            color: "#777777",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            action: {
+              type: "postback",
+              label: "開始",
+              data: `action=start&service=${serviceKey}`,
+            },
+          },
+          {
+            type: "button",
+            style: "link",
+            action: {
+              type: "uri",
+              label: "查看服務說明頁",
+              uri: "https://YOUR_DOMAIN/about#line-services",
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  await pushFlex(userId, flex);
+}
+
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
 async function sendDateCarouselFlex(userId, serviceId) {
   //
@@ -1054,7 +1179,7 @@ async function handleLineEvent(event) {
 //預約：丟服務/日期/時段 Flex（你的 booking flow）
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
-  // 1) 預約
+  // 1) 預約（維持原樣）
   if (text === "預約") {
     conversationStates[userId] = {
       mode: "booking",
@@ -1065,78 +1190,28 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
-  // 2) 八字測算（minibazi）
-  if (text === "八字測算" || text === "小占卜") {
-    const gate = await gateFeature(userId, "minibazi", "八字測算");
-    if (!gate.allow) return;
-
-    conversationStates[userId] = {
-      mode: "mini_bazi",
-      stage: "wait_mode",
-      data: {},
-    };
-
-    await sendBaziMenuFlex(userId);
+  // 2) 八字格局解析（原本「八字測算 / 小占卜」）
+  // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
+  if (text === "八字測算" || text === "小占卜" || text === "八字格局解析") {
+    await sendServiceIntroFlex(userId, "minibazi");
     return;
   }
 
-  // 3) 八字合婚（bazimatch）
-  if (text === "八字合婚") {
-    const gate = await gateFeature(userId, "bazimatch", "八字合婚");
-    if (!gate.allow) return;
-
-    conversationStates[userId] = {
-      mode: "bazi_match",
-      stage: "wait_male_birth_input",
-      data: {},
-    };
-
-    await pushText(
-      userId,
-      "八字合婚模式啟動 💍\n\n" +
-        "請先輸入「男方」的西元生日與時間（時間可省略）：\n\n" +
-        "1) 1992-12-05-0830\n" +
-        "2) 1992-12-05-辰時\n" +
-        "3) 1992-12-05-辰\n" +
-        "如果不想提供時辰，可以輸入：1992-12-05-未知"
-    );
+  // 3) 八字合婚解析
+  // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
+  if (text === "八字合婚" || text === "八字合婚解析") {
+    await sendServiceIntroFlex(userId, "bazimatch");
     return;
   }
 
-  // 4) 六爻占卜（liuyao）
-  if (text === "六爻占卜") {
-    const gate = await gateFeature(userId, "liuyao", "六爻占卜");
-    if (!gate.allow) return;
-
-    conversationStates[userId] = {
-      mode: "liuyao",
-      stage: "wait_topic",
-      data: {},
-    };
-
-    await sendLiuYaoMenuFlex(userId);
+  // 4) 六爻卦象解析（原本「六爻占卜」）
+  // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
+  if (text === "六爻占卜" || text === "六爻卦象解析") {
+    await sendServiceIntroFlex(userId, "liuyao");
     return;
   }
 
-  // 5) 關於我
-  if (text === "關於我") {
-    await pushText(
-      userId,
-      "關於我功能還在施工中 🛠️\n\n你可以先輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
-    );
-    return;
-  }
-
-  // 6) 官網 / LIFF
-  if (text === "我的主官網" || text === "官網") {
-    await pushText(
-      userId,
-      "官網連結功能還在施工中 🛠️\n\n你可以先輸入：預約 / 八字測算 / 八字合婚 / 六爻占卜"
-    );
-    return;
-  }
-
-  // 7) 其他
+  // 5) 其他
   await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
@@ -1180,6 +1255,70 @@ async function routeByConversationState(userId, text, state, event) {
 async function routePostback(userId, data, state) {
   const params = new URLSearchParams(data);
   const action = params.get("action");
+  const service = params.get("service");
+
+  // ✅ 使用者按下「開始」：先 gate，再進流程
+  if (action === "start" && service) {
+    const labelMap = {
+      minibazi: "八字格局解析",
+      bazimatch: "八字合婚解析",
+      liuyao: "六爻卦象解析",
+    };
+
+    //（可選）先給一個儀式感提示
+    await pushText(userId, "✅ 已收到開始指令，正在確認使用權限…");
+
+    const gate = await gateFeature(
+      userId,
+      service,
+      labelMap[service] || service
+    );
+    if (!gate.allow) return;
+
+    // 通過才真正進入你原本的對話流程
+    if (service === "minibazi") {
+      conversationStates[userId] = {
+        mode: "mini_bazi",
+        stage: "wait_mode",
+        data: {},
+      };
+      await sendBaziMenuFlex(userId);
+      return;
+    }
+
+    if (service === "bazimatch") {
+      conversationStates[userId] = {
+        mode: "bazi_match",
+        stage: "wait_male_birth_input",
+        data: {},
+      };
+
+      await pushText(
+        userId,
+        "八字合婚模式啟動 💍\n\n" +
+          "請先輸入「男方」的西元生日與時間（時間可省略）：\n\n" +
+          "1) 1992-12-05-0830\n" +
+          "2) 1992-12-05-辰時\n" +
+          "3) 1992-12-05-辰\n" +
+          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+      );
+      return;
+    }
+
+    if (service === "liuyao") {
+      conversationStates[userId] = {
+        mode: "liuyao",
+        stage: "wait_topic",
+        data: {},
+      };
+      await sendLiuYaoMenuFlex(userId);
+      return;
+    }
+
+    // 未知 service 保底
+    await pushText(userId, "這個服務代碼我不認識欸，請從選單再點一次 🙏");
+    return;
+  }
 
   // 預約流程的選服務 / 選日期 / 選時段
   if (
