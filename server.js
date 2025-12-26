@@ -470,7 +470,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
 
   const flex = {
     type: "flex",
-    altText: meta.title,
+    altText: "LINE 線上服務說明",
     contents: {
       type: "bubble",
       size: "mega",
@@ -566,7 +566,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
       },
     },
   };
-
+  console.log("[DEBUG flexMessage]", JSON.stringify(flexMessage, null, 2));
   await pushFlex(userId, flex);
 }
 
