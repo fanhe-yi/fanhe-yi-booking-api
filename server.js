@@ -449,17 +449,17 @@ async function sendServiceSelectFlex(userId) {
 async function sendServiceIntroFlex(userId, serviceKey) {
   const map = {
     minibazi: {
-      title: "📊 八字格局解析（LINE 線上）",
+      title: "📊 八字格局解析(LINE線上)",
       price: "NT$ 100",
       desc: "使用者完成付費並提供生辰資料後，系統將進行八字格局結構與整體命理配置之文字解析，並回傳解析結果。",
     },
     bazimatch: {
-      title: "💑 八字合婚解析（LINE 線上）",
+      title: "💑 八字合婚解析(LINE線上)",
       price: "NT$ 200",
       desc: "使用者完成付費並提供雙方生辰資料後，系統將進行命盤結構比對與關係互動層面之文字解析說明，並回傳解析結果。",
     },
     liuyao: {
-      title: "🔮 六爻卦象解析（LINE 線上）",
+      title: "🔮 六爻卦象解析(LINE線上)",
       price: "NT$ 100",
       desc: "使用者完成付費並提供提問內容後，系統將依卦象模型進行解析，回傳過去狀態、當前情況與可能發展趨勢之文字說明。",
     },
@@ -559,7 +559,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
             action: {
               type: "uri",
               label: "查看服務說明頁",
-              uri: "https://YOUR_DOMAIN/about#line-services",
+              uri: "https://liff.line.me/2008655591-g3ef9O6F",
             },
           },
         ],
