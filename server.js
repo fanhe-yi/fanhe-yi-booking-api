@@ -13,6 +13,9 @@ const {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  mbMenu,
+  mbPage,
+  mbAll,
   sendBaziMatchResultFlex,
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
@@ -61,6 +64,30 @@ const UNAVAILABLE_FILE = path.join(__dirname, "unavailable.json");
 
 // 簡易後台 Token（正式上線可以改成環境變數）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "dev-secret";
+
+// server.js
+
+// ===== MiniBazi UI cache (in-memory) =====
+// 先用記憶體，之後要換 Redis/DB 很容易
+const mbCache = {}; // { [userId]: { birthDesc, mode, aiText, pillarsText, fiveElementsText, ts } }
+const MB_TTL = 30 * 60 * 1000; // 30 分鐘
+
+//在你完成測算後，把 payload 存到 cache（避免使用者點主題時還要重算/重打）
+//handleLineEvent 最前面攔截 MB|...，把它導去 lineClient 的 mbMenu/mbPage/mbAll
+function mbSave(userId, payload) {
+  mbCache[userId] = { ...payload, ts: Date.now() };
+}
+
+function mbGet(userId) {
+  const c = mbCache[userId];
+  if (!c) return null;
+  if (Date.now() - c.ts > MB_TTL) {
+    delete mbCache[userId];
+    return null;
+  }
+  return c;
+}
+/////////////////MiniBazi UI cache
 
 //////載入 couponRules（一次）
 const COUPON_RULES_PATH =
@@ -1071,6 +1098,53 @@ function buildLiuYaoTimeParams(state) {
   return { y, m, d, h, mi, desc };
 }
 
+// server.js
+// 假設你是這樣引入 lineClient.js 的
+// const { sendMiniBaziResultFlex, mbMenu, mbPage, mbAll } = require("./lineClient");
+async function handleMbCmd(userId, text) {
+  if (!text || typeof text !== "string") return false;
+  if (!text.startsWith("MB|")) return false;
+
+  const cached = mbGet(userId);
+  if (!cached) {
+    await pushText(
+      userId,
+      "你剛剛那份測算結果我找不到了（可能隔太久）。你再輸入一次：八字測算"
+    );
+    return true; // 已處理：避免掉到別的流程
+  }
+
+  const parts = text.split("|");
+  const cmd = parts[1];
+
+  // MB|menu
+  if (cmd === "menu") {
+    // 你可以用 mbMenu 或 sendMiniBaziResultFlex（兩者現在等價）
+    await mbMenu(userId, cached);
+    return true;
+  }
+
+  // MB|all
+  if (cmd === "all") {
+    await mbAll(userId, cached);
+    return true;
+  }
+
+  // MB|sec|personality
+  if (cmd === "sec") {
+    const secKey = parts[2] || "personality";
+    await mbPage(userId, cached, secKey);
+    return true;
+  }
+
+  // 不認得的 MB 指令：當作已處理，避免亂導流
+  await pushText(
+    userId,
+    "我收到指令了，但格式怪怪的。你可以點「回總覽」再選一次。"
+  );
+  return true;
+}
+
 //////////////////////////////////////
 /// 在 handleLineEvent 把聊天預約接進來 ///
 //////////////////////////////////////
@@ -1082,6 +1156,11 @@ async function handleLineEvent(event) {
     console.log("沒有 userId 的事件，略過：", event.type);
     return;
   }
+
+  const text = event.message?.text?.trim();
+
+  // ✅ 先攔 MB 指令，避免掉到其它 flow
+  if (await handleMbCmd(userId, text)) return;
 
   // 取出這個使用者目前的對話狀態
   const state = conversationStates[userId] || null;
@@ -1266,7 +1345,7 @@ async function routePostback(userId, data, state) {
     };
 
     //（可選）先給一個儀式感提示
-    await pushText(userId, "✅ 已收到開始指令，正在確認使用權限…");
+    //await pushText(userId, "✅ 已收到開始指令，正在確認使用權限…");
 
     const gate = await gateFeature(
       userId,
@@ -1275,7 +1354,7 @@ async function routePostback(userId, data, state) {
     );
     if (!gate.allow) return;
 
-    // 通過才真正進入你原本的對話流程
+    // 通過才真正進入八字測算/八字合婚/六爻占卜對話流程
     if (service === "minibazi") {
       conversationStates[userId] = {
         mode: "mini_bazi",
@@ -1759,9 +1838,9 @@ async function handleMiniBaziFlow(userId, text, state, event) {
     try {
       // 2) 呼叫 AI 取得測算文本（以及四柱 + 五行）
       const { aiText, pillarsText, fiveElementsText } = await callMiniReadingAI(
-        parsed,
-        mode,
-        gender
+        parsed, //生日
+        mode, //選擇的模式 格局/流年、月、日
+        gender //姓別
       );
 
       // 2.5) quota扣次
@@ -1778,13 +1857,19 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       }
 
       // 4) 丟 Flex 卡片（如果有 JSON，就用區塊版；沒有就用純文字版）
-      await sendMiniBaziResultFlex(userId, {
+      const mbPayload = {
         birthDesc,
         mode,
         aiText,
         pillarsText,
         fiveElementsText,
-      });
+      };
+
+      // ✅ 存起來：後續用戶點主題，不用再重算
+      mbSave(userId, mbPayload);
+
+      // ✅ 現在 sendMiniBaziResultFlex 會送「總覽 + 1 張重點」
+      await sendMiniBaziResultFlex(userId, mbPayload);
 
       delete conversationStates[userId];
       return true;

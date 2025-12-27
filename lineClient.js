@@ -667,13 +667,125 @@ function extractPureJSON(aiRaw) {
 }
 
 // 🔮 八字測算結果 Flex：把 AI_Reading_Text 包成好看的卡片丟給用戶
-async function sendMiniBaziResultFlex(userId, payload) {
+// lineClient.js
+// 依你原本環境：pushFlex / pushText / extractPureJSON 應該都已存在
+
+const MB_SECS = [
+  { key: "personality", title: "人格特質" },
+  { key: "social", title: "人際關係" },
+  { key: "partner", title: "伴侶關係" },
+  { key: "family", title: "家庭互動" },
+  { key: "study_work", title: "學業 / 工作" },
+];
+
+function mbNext(key) {
+  const i = MB_SECS.findIndex((s) => s.key === key);
+  if (i < 0) return MB_SECS[0].key;
+  return MB_SECS[Math.min(i + 1, MB_SECS.length - 1)].key;
+}
+
+// 一句話總結：若 AI 未提供 one_liner，先用 personality 前 55 字頂著（可跑就好）
+function mbPick(data) {
+  if (data?.one_liner) return String(data.one_liner).trim();
+
+  const base = data?.personality || data?.social || "";
+  const s = String(base).replace(/\s+/g, " ").trim();
+  if (!s) return "我先抓一個重點：你不是沒能力，你是標準太高，對自己不太客氣。";
+  return s.slice(0, 55) + (s.length > 55 ? "…" : "");
+}
+
+function mbCard({
+  modeLabel,
+  secTitle,
+  birthDesc,
+  pillarsText,
+  fiveElementsText,
+  text,
+  footer,
+}) {
+  // 小防呆：避免空字串造成 bubble 看起來像壞掉
+  const safeText =
+    String(text || "").trim() ||
+    "（這段目前沒有內容。你可以回總覽再選一次，或點下一頁看別的主題。）";
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜八字測算",
+          weight: "bold",
+          size: "sm",
+          color: "#B89B5E",
+        },
+        {
+          type: "text",
+          text: modeLabel,
+          weight: "bold",
+          size: "md",
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: secTitle,
+          size: "sm",
+          color: "#555555",
+          margin: "sm",
+        },
+        // header 資訊建議別塞太多，但你目前想保留也 OK
+        {
+          type: "text",
+          text: birthDesc,
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: pillarsText,
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: fiveElementsText,
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "xs",
+      contents: [
+        { type: "separator", margin: "md" },
+        { type: "text", text: safeText, size: "sm", wrap: true },
+      ],
+    },
+  };
+
+  if (footer) bubble.footer = footer;
+  return bubble;
+}
+
+/**
+ * mbMenu：送「總覽 + 1 張重點」(2頁 carousel)
+ * - 第一頁：一句總結 + 主題按鈕 + 看全部 + 預約
+ * - 第二頁：人格特質（重點頁，不放下一頁，避免混焦）
+ */
+async function mbMenu(userId, payload) {
   const { birthDesc, mode, aiText, pillarsText, fiveElementsText } = payload;
 
-  // 1) 嘗試把 AI 回傳文字轉成結構化 JSON
   const data = extractPureJSON(aiText);
 
-  // 測算模式的標題（放在 header 第二行）
   const modeLabelMap = {
     pattern: "格局 / 命盤基調",
     year: "流年運勢",
@@ -682,229 +794,301 @@ async function sendMiniBaziResultFlex(userId, payload) {
   };
   const modeLabel = modeLabelMap[mode] || "整體命盤解析";
 
-  // 如果 JSON 解析失敗，就用舊版單頁 fallback
+  // 解析失敗 → fallback 單頁（你原本行為）
   if (!data) {
-    console.warn(
-      "[sendMiniBaziResultFlex] 無法解析 JSON，改用純文字單頁 bubble。"
-    );
-
-    const fallbackBubble = {
-      type: "bubble",
-      size: "mega",
-      header: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "text",
-            text: "梵和易學｜八字測算",
-            weight: "bold",
-            size: "sm",
-            color: "#B89B5E",
-          },
-          {
-            type: "text",
-            text: modeLabel,
-            weight: "bold",
-            size: "md",
-            margin: "sm",
-          },
-        ],
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "md",
-        contents: [
-          {
-            type: "text",
-            text: birthDesc,
-            size: "xs",
-            color: "#666666",
-            wrap: true,
-          },
-          {
-            type: "separator",
-            margin: "md",
-          },
-          {
-            type: "text",
-            text: aiText,
-            size: "sm",
-            wrap: true,
-          },
-        ],
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          {
-            type: "button",
-            style: "secondary",
-            height: "sm",
-            action: {
-              type: "message",
-              label: "再測一次",
-              text: "八字測算",
-            },
-          },
-          {
-            type: "button",
-            style: "link",
-            height: "sm",
-            action: {
-              type: "message",
-              label: "想預約完整論命",
-              text: "預約",
-            },
-          },
-        ],
-      },
-    };
-
-    await pushFlex(userId, "八字測算結果", fallbackBubble);
-    return;
+    console.warn("[mbMenu] JSON 解析失敗，fallback 單頁");
+    return mbFallback(userId, payload, modeLabel);
   }
 
-  // 2) 定義五個欄位：key + 中文標題
-  const sections = [
-    { key: "personality", title: "人格特質" },
-    { key: "social", title: "人際關係" },
-    { key: "partner", title: "伴侶關係" },
-    { key: "family", title: "家庭互動" },
-    { key: "study_work", title: "學業 / 工作" },
-  ];
+  const oneLiner = mbPick(data);
 
-  // 3) 把每一欄做成一個 bubble
-  const bubbles = sections
-    .filter((sec) => data[sec.key]) // 只拿有內容的欄位
-    .map((sec, index) => {
-      const text = String(data[sec.key] || "").trim();
-
-      // 先算出「這是最後一頁嗎」
-      const lastIndex = sections.length - 1;
-
-      // 先組共用的 bubble 結構
-      const bubble = {
-        type: "bubble",
-        size: "mega",
-        header: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "text",
-              text: "梵和易學｜八字測算",
-              weight: "bold",
-              size: "sm",
-              color: "#B89B5E",
-            },
-            {
-              type: "text",
-              text: modeLabel,
-              weight: "bold",
-              size: "md",
-              margin: "sm",
-            },
-            {
-              type: "text",
-              text: sec.title,
-              size: "sm",
-              color: "#555555",
-              margin: "sm",
-            },
-            {
-              type: "text",
-              text: birthDesc,
-              size: "xs",
-              color: "#777777",
-              wrap: true,
-            },
-            {
-              type: "text",
-              text: pillarsText,
-              size: "xs",
-              color: "#777777",
-              wrap: true,
-            },
-            {
-              type: "text",
-              text: fiveElementsText,
-              size: "xs",
-              color: "#777777",
-              wrap: true,
-            },
-          ],
+  // 1) 總覽頁
+  const menuBubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜八字測算",
+          weight: "bold",
+          size: "sm",
+          color: "#B89B5E",
         },
-        body: {
+        {
+          type: "text",
+          text: modeLabel,
+          weight: "bold",
+          size: "md",
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: birthDesc,
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
           type: "box",
           layout: "vertical",
           spacing: "xs",
           contents: [
             {
-              type: "separator",
-              margin: "md",
-            },
-            {
               type: "text",
-              text,
+              text: "一句話總結",
               size: "sm",
-              wrap: true,
+              weight: "bold",
+              color: "#555555",
             },
+            { type: "text", text: oneLiner, size: "sm", wrap: true },
           ],
         },
-      };
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "你最在意哪塊？先點你想看的。",
+          size: "sm",
+          weight: "bold",
+          color: "#555555",
+        },
+        ...MB_SECS.map((s) => ({
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: { type: "message", label: s.title, text: `MB|sec|${s.key}` },
+        })),
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "我想看全部（一次給）",
+            text: "MB|all",
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: { type: "message", label: "想預約完整論命", text: "預約" },
+        },
+      ],
+    },
+  };
 
-      // 只有「最後一頁」加 footer CTA
-      if (index === lastIndex) {
-        bubble.footer = {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "再測一次",
-                text: "八字測算",
-              },
-            },
-            {
-              type: "button",
-              style: "link",
-              height: "sm",
-              action: {
-                type: "message",
-                label: "想預約完整論命",
-                text: "預約",
-              },
-            },
-          ],
-        };
-      }
+  // 2) 重點頁：人格特質（不放下一頁）
+  const focusBubble = mbCard({
+    modeLabel,
+    secTitle: "人格特質",
+    birthDesc,
+    pillarsText,
+    fiveElementsText,
+    text: String(data.personality || "").trim(),
+    footer: null,
+  });
 
-      return bubble;
-    });
-
-  // 理論上會有 5 頁，但保險處理一下極端情況
-  let flexPayload;
-  if (bubbles.length === 1) {
-    flexPayload = bubbles[0];
-  } else {
-    flexPayload = {
-      type: "carousel",
-      contents: bubbles,
-    };
-  }
-
+  const flexPayload = { type: "carousel", contents: [menuBubble, focusBubble] };
   await pushFlex(userId, "八字測算結果", flexPayload);
 }
 
+// 你原本的 fallback（單頁純文字），我改名叫 mbFallback
+async function mbFallback(userId, payload, modeLabel) {
+  const { birthDesc, aiText } = payload;
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "梵和易學｜八字測算",
+          weight: "bold",
+          size: "sm",
+          color: "#B89B5E",
+        },
+        {
+          type: "text",
+          text: modeLabel,
+          weight: "bold",
+          size: "md",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: birthDesc,
+          size: "xs",
+          color: "#666666",
+          wrap: true,
+        },
+        { type: "separator", margin: "md" },
+        { type: "text", text: aiText, size: "sm", wrap: true },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: { type: "message", label: "再測一次", text: "八字測算" },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: { type: "message", label: "想預約完整論命", text: "預約" },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "八字測算結果", bubble);
+}
+
+/**
+ * mbPage：送單一主題頁（含 下一頁 / 回總覽）
+ * 注意：預約不放這裡（依你需求，只放在第一則 menu）
+ */
+async function mbPage(userId, payload, secKey) {
+  const { birthDesc, mode, aiText, pillarsText, fiveElementsText } = payload;
+
+  const data = extractPureJSON(aiText);
+
+  const modeLabelMap = {
+    pattern: "格局 / 命盤基調",
+    year: "流年運勢",
+    month: "流月節奏",
+    day: "流日 / 近期提醒",
+  };
+  const modeLabel = modeLabelMap[mode] || "整體命盤解析";
+
+  if (!data) {
+    console.warn("[mbPage] JSON 解析失敗，改回 mbMenu fallback");
+    return mbFallback(userId, payload, modeLabel);
+  }
+
+  const sec = MB_SECS.find((s) => s.key === secKey) || MB_SECS[0];
+  const nextKey = mbNext(sec.key);
+
+  const footer = {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    contents: [
+      {
+        type: "button",
+        style: "secondary",
+        height: "sm",
+        action: {
+          type: "message",
+          label: "➡ 下一頁",
+          text: `MB|sec|${nextKey}`,
+        },
+      },
+      {
+        type: "button",
+        style: "link",
+        height: "sm",
+        action: { type: "message", label: "⬅ 回總覽", text: "MB|menu" },
+      },
+    ],
+  };
+
+  const bubble = mbCard({
+    modeLabel,
+    secTitle: sec.title,
+    birthDesc,
+    pillarsText,
+    fiveElementsText,
+    text: String(data[sec.key] || "").trim(),
+    footer,
+  });
+
+  await pushFlex(userId, `八字測算｜${sec.title}`, bubble);
+}
+
+/**
+ * mbAll：一次送 5 頁 carousel（你原本的行為）
+ * 我把你的原 sendMiniBaziResultFlex 的「5頁 carousel」搬到這裡（改名 mbAll）
+ */
+async function mbAll(userId, payload) {
+  const { birthDesc, mode, aiText, pillarsText, fiveElementsText } = payload;
+
+  const data = extractPureJSON(aiText);
+
+  const modeLabelMap = {
+    pattern: "格局 / 命盤基調",
+    year: "流年運勢",
+    month: "流月節奏",
+    day: "流日 / 近期提醒",
+  };
+  const modeLabel = modeLabelMap[mode] || "整體命盤解析";
+
+  if (!data) {
+    console.warn("[mbAll] JSON 解析失敗，fallback 單頁");
+    return mbFallback(userId, payload, modeLabel);
+  }
+
+  // 產 5 頁 bubble（不放 footer CTA，避免每頁都在叫人按）
+  const bubbles = MB_SECS.filter((s) => data[s.key]).map((s) =>
+    mbCard({
+      modeLabel,
+      secTitle: s.title,
+      birthDesc,
+      pillarsText,
+      fiveElementsText,
+      text: String(data[s.key] || "").trim(),
+      footer: null,
+    })
+  );
+
+  const flexPayload =
+    bubbles.length <= 1 ? bubbles[0] : { type: "carousel", contents: bubbles };
+
+  await pushFlex(userId, "八字測算結果（全部）", flexPayload);
+}
+
+/**
+ * ✅ 兼容：你的 server.js 目前呼叫的是 sendMiniBaziResultFlex
+ * 我保留這個名字，但它現在做的是 mbMenu（總覽 + 1 張重點）
+ */
+async function sendMiniBaziResultFlex(userId, payload) {
+  return mbMenu(userId, payload);
+}
+
+//    八字合婚測算結果
 async function sendBaziMatchResultFlex(userId, payload) {
   const {
     aiText,
@@ -1121,6 +1305,9 @@ module.exports = {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  mbMenu,
+  mbPage,
+  mbAll,
   sendBaziMatchResultFlex,
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
