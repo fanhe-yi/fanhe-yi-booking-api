@@ -16,6 +16,7 @@ const {
   mbMenu,
   mbPage,
   mbAll,
+  mbInfo,
   sendBaziMatchResultFlex,
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
@@ -1098,12 +1099,26 @@ function buildLiuYaoTimeParams(state) {
   return { y, m, d, h, mi, desc };
 }
 
-// server.js
-// 假設你是這樣引入 lineClient.js 的
-// const { sendMiniBaziResultFlex, mbMenu, mbPage, mbAll } = require("./lineClient");
-async function handleMbCmd(userId, text) {
+// 中文指令 → section key 對照表
+const MB_CMD_TO_KEY = {
+  看人格特質: "personality",
+  看人際關係: "social",
+  看伴侶關係: "partner",
+  看家庭互動: "family",
+  看學業工作: "study_work",
+};
+
+async function handleMbText(userId, text) {
   if (!text || typeof text !== "string") return false;
-  if (!text.startsWith("MB|")) return false;
+
+  // 只攔我們定義的這些指令，避免誤傷別的對話
+  const isMbCmd =
+    text === "看總覽" ||
+    text === "看全部" ||
+    text === "看四柱五行" ||
+    Object.prototype.hasOwnProperty.call(MB_CMD_TO_KEY, text);
+
+  if (!isMbCmd) return false;
 
   const cached = mbGet(userId);
   if (!cached) {
@@ -1111,38 +1126,32 @@ async function handleMbCmd(userId, text) {
       userId,
       "你剛剛那份測算結果我找不到了（可能隔太久）。你再輸入一次：八字測算"
     );
-    return true; // 已處理：避免掉到別的流程
+    return true;
   }
 
-  const parts = text.split("|");
-  const cmd = parts[1];
-
-  // MB|menu
-  if (cmd === "menu") {
-    // 你可以用 mbMenu 或 sendMiniBaziResultFlex（兩者現在等價）
+  if (text === "看總覽") {
     await mbMenu(userId, cached);
     return true;
   }
 
-  // MB|all
-  if (cmd === "all") {
+  if (text === "看全部") {
     await mbAll(userId, cached);
     return true;
   }
 
-  // MB|sec|personality
-  if (cmd === "sec") {
-    const secKey = parts[2] || "personality";
+  if (text === "看四柱五行") {
+    await mbInfo(userId, cached);
+    return true;
+  }
+
+  // 主題頁
+  const secKey = MB_CMD_TO_KEY[text];
+  if (secKey) {
     await mbPage(userId, cached, secKey);
     return true;
   }
 
-  // 不認得的 MB 指令：當作已處理，避免亂導流
-  await pushText(
-    userId,
-    "我收到指令了，但格式怪怪的。你可以點「回總覽」再選一次。"
-  );
-  return true;
+  return false;
 }
 
 //////////////////////////////////////
@@ -1160,7 +1169,7 @@ async function handleLineEvent(event) {
   const text = event.message?.text?.trim();
 
   // ✅ 先攔 MB 指令，避免掉到其它 flow
-  if (await handleMbCmd(userId, text)) return;
+  if (await handleMbText(userId, text)) return;
 
   // 取出這個使用者目前的對話狀態
   const state = conversationStates[userId] || null;
