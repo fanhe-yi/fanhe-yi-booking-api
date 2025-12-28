@@ -629,7 +629,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
           margin: "md",
           contents: group.map((day) => ({
             type: "button",
-            style: "primary",
+            style: "link",
             height: "sm",
             action: {
               type: "postback",
