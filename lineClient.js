@@ -950,6 +950,13 @@ async function mbMenu(userId, payload) {
           height: "sm",
           action: { type: "message", label: s.title, text: s.cmd }, // ✅ 改中文指令
         })),
+        // ✅ 小字 link：四柱五行（只放總覽頁）
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: { type: "message", label: "看四柱五行", text: "看四柱五行" },
+        },
       ],
     },
     footer: {
@@ -1012,12 +1019,6 @@ async function mbPage(userId, payload, secKey) {
     layout: "vertical",
     spacing: "sm",
     contents: [
-      {
-        type: "button",
-        style: "secondary",
-        height: "sm",
-        action: { type: "message", label: "看四柱五行", text: "看四柱五行" },
-      },
       {
         type: "button",
         style: "secondary",
