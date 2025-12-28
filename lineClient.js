@@ -921,6 +921,7 @@ async function mbMenu(userId, payload) {
       layout: "vertical",
       spacing: "md",
       contents: [
+        // ===== 一句話總結 =====
         {
           type: "box",
           layout: "vertical",
@@ -933,10 +934,17 @@ async function mbMenu(userId, payload) {
               weight: "bold",
               color: "#555555",
             },
-            { type: "text", text: oneLiner, size: "md", wrap: true },
+            {
+              type: "text",
+              text: oneLiner,
+              size: "md",
+              wrap: true,
+            },
           ],
         },
+
         { type: "separator", margin: "md" },
+
         {
           type: "text",
           text: "你想先看哪個主題？",
@@ -944,18 +952,46 @@ async function mbMenu(userId, payload) {
           weight: "bold",
           color: "#555555",
         },
-        ...MB_SECS.map((s) => ({
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          action: { type: "message", label: s.title, text: s.cmd }, // ✅ 改中文指令
-        })),
-        // ✅ 小字 link：四柱五行（只放總覽頁）
+
+        // ===== 2×3 選單（box 當按鈕）=====
         {
-          type: "button",
-          style: "link",
-          height: "sm",
-          action: { type: "message", label: "看四柱五行", text: "看四柱五行" },
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            // Row 1
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                menuBox("人格特質", "看人格特質", "#F5EFE6"),
+                menuBox("人際關係", "看人際關係", "#F0F4F8"),
+              ],
+            },
+
+            // Row 2
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                menuBox("伴侶關係", "看伴侶關係", "#F7ECEC"),
+                menuBox("家庭互動", "看家庭互動", "#EEF6F0"),
+              ],
+            },
+
+            // Row 3
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                menuBox("學業／工作", "看學業工作", "#EEF1F8"),
+                menuBox("四柱五行", "看四柱五行", "#EFEAF6"),
+              ],
+            },
+          ],
         },
       ],
     },
@@ -985,6 +1021,36 @@ async function mbMenu(userId, payload) {
   };
 
   await pushFlex(userId, "八字測算結果（總覽）", menuBubble);
+}
+
+///總覧2x3 button用
+function menuBox(label, text, bgColor) {
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 1,
+    paddingAll: "md",
+    cornerRadius: "12px",
+    backgroundColor: bgColor,
+    justifyContent: "center",
+    alignItems: "center",
+    action: {
+      type: "message",
+      label,
+      text,
+    },
+    contents: [
+      {
+        type: "text",
+        text: label,
+        size: "md",
+        weight: "bold",
+        align: "center",
+        wrap: true,
+        color: "#333333",
+      },
+    ],
+  };
 }
 
 /**
