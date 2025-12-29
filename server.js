@@ -1527,25 +1527,52 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // 進請神文（此處只在使用者按下靜心後才送，節奏更像儀式）
-    const spellText =
-      "如果你不排斥，也可以在心裡或小聲唸一段簡單請神文：\n\n" +
-      "「弟子某某，誠心起卦，祈請諸位神明、祖先護祐，\n" +
-      "指點關於此事的因果與趨勢，使我得以趨吉避凶、安穩前行。」\n\n" +
-      "不用逐字照唸，抓大意就好。";
+    // 防呆：避免不在該節點亂按
+    if (
+      currState.stage !== "wait_calm" &&
+      currState.stage !== "collect_yao_notice"
+    ) {
+      // collect_yao_notice 是你既有的 stage 名稱，保留兼容
+    }
 
-    await pushText(userId, spellText);
+    const topicLabel =
+      currState.data.topic === "love"
+        ? "感情"
+        : currState.data.topic === "career"
+        ? "事業"
+        : currState.data.topic === "wealth"
+        ? "財運"
+        : "健康";
 
-    currState.stage = "wait_start_roll";
+    currState.stage = "wait_spelled";
     conversationStates[userId] = currState;
 
-    await sendLiuYaoStartRollFlex(userId);
+    await sendLiuYaoSpellFlex(userId, topicLabel);
     return;
   }
 
   // ============================
-  // ✅ 儀式關卡 2：請神後開始搖爻 → 送第 1 爻
+  // ✅ 儀式關卡 2：請神完成 → 出「開始搖爻」Flex（你已經有 sendLiuYaoStartRollFlex）
   // ============================
+  if (action === "liuyao_spelled") {
+    const currState = state || conversationStates[userId];
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(
+        userId,
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+      );
+      return;
+    }
+
+    currState.stage = "wait_start_roll";
+    conversationStates[userId] = currState;
+
+    // 你原本的 helper：出一個 primary button「開始搖爻」
+    await sendLiuYaoStartRollFlex(userId);
+    return;
+  }
+
+  // ✅ 儀式關卡 3：開始搖爻 → 進 collect_yao 丟第 1 爻
   if (action === "liuyao_start_roll") {
     const currState = state || conversationStates[userId];
     if (!currState || currState.mode !== "liuyao") {
@@ -1567,7 +1594,7 @@ async function routePostback(userId, data, state) {
   }
 
   // ============================
-  // ✅ 儀式關卡 3：退神完成 → 丟出 pending AI 結果
+  // ✅ 儀式關卡 4：退神完成 → 丟出 pending AI 結果
   // ============================
   if (action === "liuyao_sendoff") {
     const currState = state || conversationStates[userId];
@@ -1598,7 +1625,7 @@ async function routePostback(userId, data, state) {
   }
 
   // ============================
-  // ✅ 儀式關卡：過中爻後「默念完畢」→ 進入第四爻
+  // ✅ 儀式關卡 5：過中爻後「默念完畢」→ 進入第四爻
   // ============================
   if (action === "liuyao_mid_continue") {
     const currState = state || conversationStates[userId];
@@ -2500,10 +2527,195 @@ async function handleLiuYaoFlow(userId, text, state, event) {
   return false;
 }
 
-// 六爻占卜：說明占卦須知 + 進入「靜心確認」（不直接開始搖爻）
+// ============================
+// ✅ Helper: 占卜前使用說明 Bubble
+// ============================
+async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "卜卦前 · 使用說明",
+          weight: "bold",
+          size: "xl",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "先把心放穩，這一卦才會清楚。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+        { type: "separator", margin: "md" },
+
+        bullet("一卦一問", "這一卦只看一個主題，不要混好幾個問題。"),
+        bullet("問眼前真實", "盡量針對正在發生、或即將發生的具體情境。"),
+        bullet("心念要穩", "起卦前先靜一下，問題想清楚再開始。"),
+
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: `接下來，請你在心裡專注在「${topicLabel}」這個主題上，默念你心中的問題。`,
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "準備好後，按下方按鈕進入下一步。",
+          size: "xs",
+          color: "#999999",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "我已準備好（靜心）",
+            data: "action=liuyao_calm",
+            displayText: "我已準備好",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻占卜須知", contents);
+
+  function bullet(title, desc) {
+    return {
+      type: "box",
+      layout: "vertical",
+      spacing: "xs",
+      contents: [
+        {
+          type: "text",
+          text: `・${title}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        { type: "text", text: desc, size: "sm", color: "#666666", wrap: true },
+      ],
+    };
+  }
+}
+
+// ============================
+// ✅ Helper: 請神文 Bubble（默念版，不收個資，只帶 topicLabel）
+// ============================
+async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
+  const verse =
+    "陰陽日月最長生，可惜天理難分明，\n" + "今有真聖鬼谷子，一出天下定太平。";
+
+  const invocation =
+    "拜請八卦祖師、伏羲、文王、周公、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
+    "諸葛孔明真人、陳摶真人、劉伯溫真人、野鶴真人、九天玄女、觀世音菩薩、混元禪師、" +
+    "十方世界諸天神聖佛菩薩器眾、飛天過往神聖、本地主司福德正神、排卦童子、成卦童郎，" +
+    "駕臨指示聖卦。";
+
+  const disciple =
+    `今有弟子某某，性別男/女，出生某年次，住在某地，今為「${topicLabel}」憂疑難決，` +
+    "先求內卦三爻再求外卦三爻，請諸神佛依實指示聖卦。";
+
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "請神文",
+          weight: "bold",
+          size: "xl",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "請在心中默念即可，不必逐字照唸。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+        { type: "separator", margin: "md" },
+
+        sectionTitle("起首"),
+        bodyText(verse),
+
+        sectionTitle("拜請"),
+        ...chunkToTexts(invocation, 140),
+
+        sectionTitle("稟告"),
+        bodyText(disciple),
+
+        {
+          type: "text",
+          text: "默念完畢後，按下方按鈕。",
+          size: "xs",
+          color: "#999999",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "我已請神",
+            data: "action=liuyao_spelled",
+            displayText: "我已請神",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻請神文", contents);
+
+  function sectionTitle(t) {
+    return { type: "text", text: t, weight: "bold", size: "md", wrap: true };
+  }
+  function bodyText(t) {
+    return { type: "text", text: t, size: "sm", color: "#333333", wrap: true };
+  }
+  function chunkToTexts(str, size) {
+    const arr = [];
+    let i = 0;
+    while (i < str.length) {
+      arr.push(bodyText(str.slice(i, i + size)));
+      i += size;
+    }
+    return arr;
+  }
+}
+
+// ============================
+// ✅ 改：六爻占卜 入口（原 sendLiuYaoNoticeAndAskFirstYao）
+// 目的：不再 pushText 長篇，改成送「使用說明 Bubble」
+// ============================
 async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
   const topic = state?.data?.topic || "general";
-
   const topicLabel =
     topic === "love"
       ? "感情"
@@ -2515,23 +2727,14 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
       ? "健康"
       : "這件事情";
 
-  const noticeText =
-    "在起卦之前，先跟你說明一下六爻占卜的小提醒：\n\n" +
-    "1️⃣ 一卦一問：這一卦專心只看一個主題，不要混太多問題。\n" +
-    "2️⃣ 問眼前真實狀況：盡量針對正在發生、或即將發生的具體情境。\n" +
-    "3️⃣ 心念要穩：起卦前讓自己的心情稍微平靜一下，問題想清楚再開始。\n\n" +
-    "接下來，請你在心裡專注在「" +
-    topicLabel +
-    "」這個主題上，默念你心中的問題。";
-
-  await pushText(userId, noticeText);
-
-  // ✅ 進入「靜心」關卡：等使用者按下 primary button
+  // ✅ 設定流程節點：等待靜心按鈕
   state.stage = "wait_calm";
   conversationStates[userId] = state;
 
-  await sendLiuYaoCalmFlex(userId);
+  // ✅ 送出使用說明 Bubble（底下有「我已準備好（靜心）」按鈕）
+  await sendLiuYaoNoticeFlex(userId, topicLabel);
 }
+
 // 六爻 靜心畫面（primary button）
 async function sendLiuYaoCalmFlex(userId) {
   const contents = {
@@ -2947,9 +3150,9 @@ async function sendLiuYaoSendoffFlex(userId) {
           margin: "md",
           action: {
             type: "postback",
-            label: "退神完成",
+            label: "收卦 · 退神",
             data: "action=liuyao_sendoff",
-            displayText: "收卦 · 退神",
+            displayText: "退神完成",
           },
         },
       ],
