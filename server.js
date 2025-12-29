@@ -2540,34 +2540,51 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
       contents: [
         {
           type: "text",
-          text: "卜卦前 · 使用說明",
+          text: "卜卦前",
           weight: "bold",
           size: "xl",
           wrap: true,
         },
         {
           type: "text",
-          text: "先把心放穩，這一卦才會清楚。",
-          size: "sm",
-          color: "#666666",
+          text: "在開始之前，請先把心放穩。",
+          size: "md",
           wrap: true,
         },
-        { type: "separator", margin: "md" },
-
-        bullet("一卦一問", "這一卦只看一個主題，不要混好幾個問題。"),
-        bullet("問眼前真實", "盡量針對正在發生、或即將發生的具體情境。"),
-        bullet("心念要穩", "起卦前先靜一下，問題想清楚再開始。"),
 
         { type: "separator", margin: "md" },
+
         {
           type: "text",
-          text: `接下來，請你在心裡專注在「${topicLabel}」這個主題上，默念你心中的問題。`,
+          text:
+            "這一卦，只問一件事。\n\n" +
+            "請你想清楚正在發生、或即將發生的情況，\n" +
+            "不要同時放進太多問題。",
+          size: "sm",
+          color: "#555555",
+          wrap: true,
+        },
+
+        {
+          type: "text",
+          text:
+            "起卦之前，讓自己靜一下。\n" + "問題越清楚，卦象才會回應得越清楚。",
+          size: "sm",
+          color: "#555555",
+          wrap: true,
+        },
+
+        { type: "separator", margin: "md" },
+
+        {
+          type: "text",
+          text: `現在，請你在心中專注於「${topicLabel}」。`,
           size: "md",
           wrap: true,
         },
         {
           type: "text",
-          text: "準備好後，按下方按鈕進入下一步。",
+          text: "準備好後，再進入下一步。",
           size: "xs",
           color: "#999999",
           wrap: true,
@@ -2584,7 +2601,7 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
           style: "primary",
           action: {
             type: "postback",
-            label: "我已準備好（靜心）",
+            label: "我已準備好",
             data: "action=liuyao_calm",
             displayText: "我已準備好",
           },
@@ -2619,7 +2636,10 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
 // ============================
 async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
   const verse =
-    "陰陽日月最長生，可惜天理難分明，\n" + "今有真聖鬼谷子，一出天下定太平。";
+    "陰陽日月最長生，\n" +
+    "可惜天理難分明，\n" +
+    "今有真聖鬼谷子，\n" +
+    "一出天下定太平。";
 
   const invocation =
     "拜請八卦祖師、伏羲、文王、周公、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
@@ -2628,15 +2648,17 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
     "駕臨指示聖卦。";
 
   const disciple =
-    `今有弟子某某，性別男/女，出生某年次，住在某地，今為「${topicLabel}」憂疑難決，` +
-    "先求內卦三爻再求外卦三爻，請諸神佛依實指示聖卦。";
+    `今有弟子某某，性別男/女，出生某年次，住在某地，\n` +
+    `今為「${topicLabel}」憂疑難決，\n` +
+    "先求內卦三爻，再求外卦三爻，\n" +
+    "請諸神佛依實指示聖卦。";
 
   const contents = {
     type: "bubble",
     body: {
       type: "box",
       layout: "vertical",
-      spacing: "md",
+      spacing: "lg",
       contents: [
         {
           type: "text",
@@ -2648,20 +2670,24 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
         {
           type: "text",
           text: "請在心中默念即可，不必逐字照唸。",
-          size: "sm",
-          color: "#666666",
+          size: "xs",
+          color: "#777777",
           wrap: true,
         },
+
         { type: "separator", margin: "md" },
 
-        sectionTitle("起首"),
-        bodyText(verse),
+        // 起首
+        hint("起首"),
+        bodyBig(verse),
 
-        sectionTitle("拜請"),
-        ...chunkToTexts(invocation, 140),
+        // 拜請
+        hint("拜請"),
+        ...chunkToBigTexts(invocation, 80),
 
-        sectionTitle("稟告"),
-        bodyText(disciple),
+        // 稟告
+        hint("稟告"),
+        bodyBig(disciple),
 
         {
           type: "text",
@@ -2693,20 +2719,37 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
 
   await pushFlex(userId, "六爻請神文", contents);
 
-  function sectionTitle(t) {
-    return { type: "text", text: t, weight: "bold", size: "md", wrap: true };
+  // 小標題（淡）
+  function hint(t) {
+    return {
+      type: "text",
+      text: t,
+      size: "xs",
+      color: "#999999",
+      wrap: true,
+    };
   }
-  function bodyText(t) {
-    return { type: "text", text: t, size: "sm", color: "#333333", wrap: true };
+
+  // 正文（放大）
+  function bodyBig(t) {
+    return {
+      type: "text",
+      text: t,
+      size: "md",
+      color: "#222222",
+      wrap: true,
+    };
   }
-  function chunkToTexts(str, size) {
-    const arr = [];
+
+  // 長段落切段（避免 Flex 爆）
+  function chunkToBigTexts(str, size) {
+    const out = [];
     let i = 0;
     while (i < str.length) {
-      arr.push(bodyText(str.slice(i, i + size)));
+      out.push(bodyBig(str.slice(i, i + size)));
       i += size;
     }
-    return arr;
+    return out;
   }
 }
 
