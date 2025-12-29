@@ -2599,6 +2599,8 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "我已準備好",
@@ -2636,11 +2638,11 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
 // ============================
 async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
   const verse =
-    "陰陽日月最長生，可惜天理難分明\n" + "今有真聖鬼谷子，一出天下定太平。\n";
+    "陰陽日月最長生，可惜天理難分明\n" + "今有真聖鬼谷子，一出天下定太平\n";
 
   const invocation =
     "拜請八卦祖師、伏羲、文王、周公、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
-    "諸葛孔明真人、陳摶真人、劉伯溫真人、野鶴真人、九天玄女、觀世音菩薩、混元禪師、" +
+    "諸葛孔明真人、陳摶真人、劉伯溫真人、野鶴真人、九天玄女、觀世音菩薩、混元禪師\n、" +
     "十方世界諸天神聖佛菩薩器眾、飛天過往神聖、本地主司福德正神、排卦童子、成卦童郎，" +
     "駕臨指示聖卦。";
 
@@ -2656,6 +2658,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
       type: "box",
       layout: "vertical",
       spacing: "lg",
+      backgroundColor: "#FAF9F6", // ← 宣紙感
       contents: [
         {
           type: "text",
@@ -2680,7 +2683,8 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
 
         // 拜請
         hint("拜請"),
-        ...chunkToBigTexts(invocation, 80),
+        //...chunkToBigTexts(invocation, 80),
+        bodyBig(invocation),
 
         // 稟告
         hint("稟告"),
@@ -2703,6 +2707,8 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "我已請神",
