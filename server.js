@@ -2205,12 +2205,15 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       state.data.yaoIndex = 1;
     }
 
-    // 這裡先用「單一數字」當作每一爻的代碼（你之後可以改成擲銅錢的 6 / 7 / 8 / 9 等）
-    if (!/^[0-9]$/.test(trimmed)) {
+    // ✅ A方案 只允許 0~3（避免 7 也被吃進去）
+    if (!/^[0-3]$/.test(trimmed)) {
       await pushText(
         userId,
-        "繼續輸入數字代碼（0~3），代表這一爻的起卦結果。\n\n記得：3代表三個正面(沒數字那面)，2代表二個正面，以此類推。"
+        "請選擇「人頭數」（推薦用按鈕），或直接輸入 0～3。\n\n" +
+          "0=零個人頭、1=一個人頭、2=兩個人頭、3=三個人頭。"
       );
+      // ✅ B 方案：手打錯了也拉回按鈕
+      await sendLiuYaoRollFlex(userId, state.data.yaoIndex, state.data.yy);
       return true;
     }
 
@@ -2220,13 +2223,18 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     const nextIndex = nowIndex + 1;
     state.data.yaoIndex = nextIndex;
 
-    // 還沒滿六爻 → 繼續下一爻
+    // ✅ 儀式確認（短）
+    await pushText(
+      userId,
+      `第 ${nowIndex} 爻已記錄：${
+        ["零", "一", "兩", "三"][Number(trimmed)]
+      } 個人頭。`
+    );
+
+    // 還沒滿六爻 → ✅ B 方案：不要叫他繼續輸入，直接送下一爻按鈕
     if (state.data.yy.length < 6) {
       conversationStates[userId] = state;
-      await pushText(
-        userId,
-        `已記錄第 ${nowIndex} 爻，目前累積碼：${state.data.yy}\n\n請輸入第 ${nextIndex} 爻的代碼（單一數字）。`
-      );
+      await sendLiuYaoRollFlex(userId, nextIndex, state.data.yy);
       return true;
     }
 
