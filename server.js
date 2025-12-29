@@ -2764,7 +2764,7 @@ async function sendLiuYaoMidGateFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "已過中爻，卦象逐漸成形。",
+          text: "已過中爻\n卦象逐漸成形",
           weight: "bold",
           size: "xl",
           wrap: true,
@@ -2824,8 +2824,6 @@ async function sendLiuYaoMidGateFlex(userId) {
         {
           type: "text",
           text: "默念完畢後，按下方按鈕，進入第四爻。",
-          color: "#8E6CEF",
-          margin: "md",
           size: "xs",
           color: "#999999",
           wrap: true,
@@ -2840,6 +2838,8 @@ async function sendLiuYaoMidGateFlex(userId) {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "默念完畢，進入第四爻",
