@@ -1339,8 +1339,6 @@ async function routeByConversationState(userId, text, state, event) {
   return false;
 }
 
-//routePostback：按 Flex 按鈕時怎麼分派
-// routePostback：按 Flex 按鈕時怎麼分派
 // routePostback：按 Flex 按鈕時怎麼分派
 async function routePostback(userId, data, state) {
   const params = new URLSearchParams(data);
@@ -1362,7 +1360,6 @@ async function routePostback(userId, data, state) {
     );
     if (!gate.allow) return;
 
-    // 通過才真正進入八字測算/八字合婚/六爻占卜對話流程
     if (service === "minibazi") {
       conversationStates[userId] = {
         mode: "mini_bazi",
@@ -1402,7 +1399,6 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // 未知 service 保底
     await pushText(userId, "這個服務代碼我不認識欸，請從選單再點一次 🙏");
     return;
   }
@@ -1413,14 +1409,12 @@ async function routePostback(userId, data, state) {
     action === "choose_date" ||
     action === "choose_slot"
   ) {
-    // 這個本來就是預約相關 → 交給 booking flow
     return await handleBookingPostback(userId, action, params, state);
   }
 
   // 🔮 八字測算：使用者從主選單選了「格局 / 流年 / 流月 / 流日」
   if (action === "bazi_mode") {
     const mode = params.get("mode"); // pattern / year / month / day
-
     const ALLOWED = ["pattern", "year", "month", "day"];
     if (!ALLOWED.includes(mode)) {
       await pushText(userId, "這個八字測算按鈕目前沒有對應的解析方式。");
@@ -1430,9 +1424,7 @@ async function routePostback(userId, data, state) {
     conversationStates[userId] = {
       mode: "mini_bazi",
       stage: "wait_gender",
-      data: {
-        baziMode: mode,
-      },
+      data: { baziMode: mode },
     };
 
     await pushText(
@@ -1456,9 +1448,7 @@ async function routePostback(userId, data, state) {
     conversationStates[userId] = {
       mode: "liuyao",
       stage: "wait_gender",
-      data: {
-        topic,
-      },
+      data: { topic },
     };
 
     await pushText(
@@ -1519,12 +1509,89 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  // ✅✅✅ 新增：六爻擲幣選「人頭數」（0~3）
+  // ============================
+  // ✅ 儀式關卡 1：靜心完成 → 進請神文 → 出「開始搖爻」
+  // ============================
+  if (action === "liuyao_calm") {
+    const currState = state || conversationStates[userId];
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(
+        userId,
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+      );
+      return;
+    }
+
+    // 進請神文（此處只在使用者按下靜心後才送，節奏更像儀式）
+    const spellText =
+      "如果你不排斥，也可以在心裡或小聲唸一段簡單請神文：\n\n" +
+      "「弟子某某，誠心起卦，祈請諸位神明、祖先護祐，\n" +
+      "指點關於此事的因果與趨勢，使我得以趨吉避凶、安穩前行。」\n\n" +
+      "不用逐字照唸，抓大意就好。";
+
+    await pushText(userId, spellText);
+
+    currState.stage = "wait_start_roll";
+    conversationStates[userId] = currState;
+
+    await sendLiuYaoStartRollFlex(userId);
+    return;
+  }
+
+  // ============================
+  // ✅ 儀式關卡 2：請神後開始搖爻 → 送第 1 爻
+  // ============================
+  if (action === "liuyao_start_roll") {
+    const currState = state || conversationStates[userId];
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(
+        userId,
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+      );
+      return;
+    }
+
+    currState.stage = "collect_yao";
+    currState.data.yaoIndex = 1;
+    currState.data.yy = "";
+    conversationStates[userId] = currState;
+
+    await pushText(userId, "第一爻。請默念問題，然後擲幣。");
+    await sendLiuYaoRollFlex(userId, 1, "");
+    return;
+  }
+
+  // ============================
+  // ✅ 儀式關卡 3：退神完成 → 丟出 pending AI 結果
+  // ============================
+  if (action === "liuyao_sendoff") {
+    const currState = state || conversationStates[userId];
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(userId, "目前沒有正在進行的六爻流程。");
+      return;
+    }
+
+    const aiText = currState.data?.pendingAiText;
+    if (!aiText) {
+      await pushText(
+        userId,
+        "我這邊還在整理內容，稍等一下再按一次「退神完成」也可以～"
+      );
+      return;
+    }
+
+    await pushText(userId, aiText);
+    delete conversationStates[userId];
+    return;
+  }
+
+  // ============================
+  // ✅ 六爻：擲幣選「人頭數」（0~3）
+  // ============================
   if (action === "liuyao_roll") {
     const v = params.get("v"); // "0"~"3"
     const currState = state || conversationStates[userId];
 
-    // 基本防呆：值不對就重送按鈕（若在流程內）
     if (!/^[0-3]$/.test(v)) {
       await pushText(userId, "這次選擇怪怪的，請再選一次～");
       if (currState?.mode === "liuyao" && currState.stage === "collect_yao") {
@@ -1537,7 +1604,6 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // 必須在六爻流程且 collect_yao 才吃
     if (
       !currState ||
       currState.mode !== "liuyao" ||
@@ -1547,7 +1613,6 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // 初始化
     if (!currState.data.yy) currState.data.yy = "";
     if (!currState.data.yaoIndex) currState.data.yaoIndex = 1;
 
@@ -1558,14 +1623,17 @@ async function routePostback(userId, data, state) {
     currState.data.yaoIndex = nowIndex + 1;
     conversationStates[userId] = currState;
 
-    // 儀式感：先回覆確認
-    await pushText(
-      userId,
-      `第 ${nowIndex} 爻已記錄：${["零", "一", "兩", "三"][Number(v)]} 個人頭。`
-    );
+    // 「此爻已定」的語氣（比客服更像儀式）
+    await pushText(userId, "此爻已定。天地有應。");
 
-    // 還沒滿六爻 → 直接送下一爻選單
+    // ✅ 過中爻（只插在第 3 爻）
+    if (nowIndex === 3) {
+      await pushText(userId, "已過中爻。氣機正在累積。");
+    }
+
+    // 還沒滿六爻 → 下一爻宣告 + 送選擇
     if (currState.data.yy.length < 6) {
+      await pushText(userId, `第 ${currState.data.yaoIndex} 爻。請擲幣。`);
       await sendLiuYaoRollFlex(
         userId,
         currState.data.yaoIndex,
@@ -1574,32 +1642,44 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // ✅ 滿六爻：沿用你原本後段（finalCode → youhualao → AI）
+    // ✅ 六爻俱全：封卦（完成版 Flex）
     const finalCode = currState.data.yy.slice(0, 6);
     currState.stage = "wait_ai_result";
     conversationStates[userId] = currState;
 
-    await pushFlex(userId, "六爻完成 6/6", {
-      type: "bubble",
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "md",
-        contents: [
-          { type: "text", text: "六爻已完成", weight: "bold", size: "lg" },
-          { type: "text", text: "進度 6/6", size: "sm", color: "#666666" },
-          { type: "text", text: "■■■■■■", size: "xl", weight: "bold" },
-          {
-            type: "text",
-            text: "正在整理卦象，準備解卦…",
-            size: "sm",
-            color: "#666666",
-            wrap: true,
-          },
-        ],
-      },
-    });
+    // 若你有 sendLiuYaoCompleteFlex 就用它
+    if (typeof sendLiuYaoCompleteFlex === "function") {
+      await sendLiuYaoCompleteFlex(userId, finalCode);
+    } else {
+      // fallback：你原本的完成 Flex
+      await pushFlex(userId, "六爻完成 6/6", {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            { type: "text", text: "六爻俱全", weight: "bold", size: "lg" },
+            {
+              type: "text",
+              text: "此卦卦已立，正在封卦。",
+              size: "sm",
+              color: "#666666",
+            },
+            { type: "text", text: "■■■■■■", size: "xl", weight: "bold" },
+            {
+              type: "text",
+              text: `起卦碼：${finalCode}`,
+              size: "xs",
+              color: "#999999",
+              wrap: true,
+            },
+          ],
+        },
+      });
+    }
 
+    // ✅ 先算 AI，但先不要丟（等退神完成）
     try {
       const timeParams = buildLiuYaoTimeParams(currState);
       const { y, m, d, h, mi } = timeParams;
@@ -1621,10 +1701,17 @@ async function routePostback(userId, data, state) {
         hexData: currState.data.hexData,
       });
 
-      await quotaUsage(userId, "liuyao");
-      await pushText(userId, aiText);
+      // ✅ 結果先存起來，等退神才送
+      currState.data.pendingAiText = aiText;
 
-      delete conversationStates[userId];
+      // ✅ quota 在這裡扣（代表解卦已完成）
+      await quotaUsage(userId, "liuyao");
+
+      currState.stage = "wait_sendoff";
+      conversationStates[userId] = currState;
+
+      // 退神儀式（primary button）
+      await sendLiuYaoSendoffFlex(userId);
       return;
     } catch (err) {
       console.error("[liuyao] AI error:", err);
@@ -2360,7 +2447,48 @@ async function handleLiuYaoFlow(userId, text, state, event) {
   return false;
 }
 
+// 六爻起卦前：加「靜心確認 Flex」(一顆按鈕)
+/*
+async function sendLiuYaoReadyFlex(userId) {
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "起卦前 · 靜心",
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "把問題留在心裡。\n當你準備好了，我們再開始第一爻。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "我準備好了",
+            data: "action=liuyao_ready",
+            displayText: "我準備好了",
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "起卦前確認", contents);
+}*/
+
 // 六爻占卜：說明占卦須知 + 請神咒 + 問第 1 爻
+// 六爻占卜：說明占卦須知 + 進入「靜心確認」（不直接開始搖爻）
 async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
   const topic = state?.data?.topic || "general";
 
@@ -2384,41 +2512,16 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
     topicLabel +
     "」這個主題上，默念你心中的問題。";
 
-  const spellText =
-    "如果你不排斥，也可以在心裡或小聲唸一段簡單請神文，加一點儀式感：\n\n" +
-    "「弟子某某，誠心焚香起卦，祈請諸位神明、祖先護祐，\n" +
-    "指點關於此事的因果與趨勢，使我得以趨吉避凶、安穩前行。」\n\n" +
-    "不用一定照字逐字唸，抓大意就好，重點是專心。";
-
   await pushText(userId, noticeText);
-  await pushText(userId, spellText);
 
-  // 把 stage 切成 collect_yao，等使用者輸入第一爻
-  state.stage = "collect_yao";
-  state.data.yaoIndex = 1;
-  state.data.yy = "";
+  // ✅ 進入「靜心」關卡：等使用者按下 primary button
+  state.stage = "wait_calm";
   conversationStates[userId] = state;
 
-  // 原本：叫他輸入 0~3
-  // await pushText(userId, "這邊請直接輸入一個數字代碼（0~3）...");
-
-  // 改成：送第一爻的按鈕
-  await pushText(
-    userId,
-    "好，現在開始起卦。請擲幣一次，然後選擇你看到的「人頭數」。"
-  );
-  await sendLiuYaoRollFlex(userId, 1, "");
+  await sendLiuYaoCalmFlex(userId);
 }
-
-//六爻占卜圖片流程
-// 六爻：送出「選人頭數」的 Flex（每一爻共用）
-/*
-async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
-  const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
-  const IMG_2 = "https://YOUR_DOMAIN/liuyao/heads_2.png";
-  const IMG_1 = "https://YOUR_DOMAIN/liuyao/heads_1.png";
-  const IMG_0 = "https://YOUR_DOMAIN/liuyao/heads_0.png";
-
+// 六爻 靜心畫面（primary button）
+async function sendLiuYaoCalmFlex(userId) {
   const contents = {
     type: "bubble",
     body: {
@@ -2428,100 +2531,73 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
       contents: [
         {
           type: "text",
-          text: `第 ${yaoIndex} 爻 · 擲幣結果`,
+          text: "起卦前 · 靜心",
           weight: "bold",
           size: "lg",
           wrap: true,
         },
         {
           type: "text",
-          text: "請依照你實際擲出的結果選擇\n（只看人頭數即可）。",
+          text: "把問題留在心裡。\n深呼吸三次。\n準備好再開始。",
           size: "sm",
           color: "#666666",
           wrap: true,
         },
-
-        ...(yySoFar
-          ? [
-              {
-                type: "text",
-                text: `進度：${yySoFar.length} / 6`,
-                size: "xs",
-                color: "#999999",
-              },
-            ]
-          : []),
-
         {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            {
-              type: "box",
-              layout: "horizontal",
-              spacing: "sm",
-              contents: [
-                imagePick(IMG_3, "三個人頭", "3"),
-                imagePick(IMG_2, "兩個人頭", "2"),
-              ],
-            },
-            {
-              type: "box",
-              layout: "horizontal",
-              spacing: "sm",
-              contents: [
-                imagePick(IMG_1, "一個人頭", "1"),
-                imagePick(IMG_0, "零個人頭", "0"),
-              ],
-            },
-          ],
-        },
-
-        {
-          type: "text",
-          text: "（也可以直接輸入 0～3 作為備援）",
-          size: "xs",
-          color: "#999999",
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "我準備好了",
+            data: "action=liuyao_calm",
+            displayText: "我準備好了",
+          },
         },
       ],
     },
   };
+  await pushFlex(userId, "起卦前靜心", contents);
+}
 
-  await pushFlex(userId, `第 ${yaoIndex} 爻起卦`, contents);
-
-  function imagePick(imgUrl, label, value) {
-    return {
+// 六爻 請神後「開始搖爻」（primary button）
+async function sendLiuYaoStartRollFlex(userId) {
+  const contents = {
+    type: "bubble",
+    body: {
       type: "box",
       layout: "vertical",
+      spacing: "md",
       contents: [
         {
-          type: "image",
-          url: imgUrl,
-          size: "full",
-          aspectMode: "cover",
-          aspectRatio: "1:1",
-          action: {
-            type: "postback",
-            data: `action=liuyao_roll&v=${value}`,
-            displayText: label, // 使用者點了聊天室會顯示這行字
-          },
+          type: "text",
+          text: "請神儀式",
+          weight: "bold",
+          size: "lg",
+          wrap: true,
         },
         {
           type: "text",
-          text: label,
+          text: "請你在心裡（或小聲）唸完請神文。\n唸完後，按下開始搖爻。",
           size: "sm",
-          align: "center",
+          color: "#666666",
+          wrap: true,
+        },
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "開始搖爻",
+            data: "action=liuyao_start_roll",
+            displayText: "開始搖爻",
+          },
         },
       ],
-      cornerRadius: "12px",
-      borderWidth: "1px",
-      borderColor: "#EEEEEE",
-      paddingAll: "6px",
-    };
-  }
+    },
+  };
+  await pushFlex(userId, "請神儀式", contents);
 }
-*/
+
 // 六爻：送出「選人頭數」的 Flex（每一爻共用）
 async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
   const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
@@ -2659,6 +2735,106 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
       paddingAll: "6px",
     };
   }
+}
+
+// 六爻 完成版六爻
+async function sendLiuYaoCompleteFlex(userId, finalCode) {
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "六爻俱全",
+          weight: "bold",
+          size: "xl",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "此卦卦已立，正在封卦。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+
+        // ✅ 6/6 綠色條
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "xs",
+          contents: Array.from({ length: 6 }).map(() => ({
+            type: "text",
+            text: "■",
+            size: "sm",
+            weight: "bold",
+            color: "#16a34a",
+            flex: 0,
+          })),
+        },
+
+        {
+          type: "text",
+          text: `起卦碼：${finalCode}`,
+          size: "xs",
+          color: "#9ca3af",
+          wrap: true,
+        },
+        { type: "separator" },
+        {
+          type: "text",
+          text: "請稍候，我將整理卦象並開始解讀。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻完成", contents);
+}
+
+// 六爻 退神儀式
+async function sendLiuYaoSendoffFlex(userId) {
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "退神 · 收卦",
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "卦已立，謝神明指引。\n若你願意，心中說一句：\n「謝神明、謝祖先，弟子收卦退神。」",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "postback",
+            label: "退神完成",
+            data: "action=liuyao_sendoff",
+            displayText: "退神完成",
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "退神儀式", contents);
 }
 
 // --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
