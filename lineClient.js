@@ -453,7 +453,7 @@ async function sendGenderSelectFlex(
             {
               type: "button",
               style: "secondary",
-              color: "#F0F4F8",
+              color: "#d7e8f9ff",
               height: "md",
               flex: 1,
               action: {
@@ -466,7 +466,7 @@ async function sendGenderSelectFlex(
             {
               type: "button",
               style: "secondary",
-              color: "#F7ECEC",
+              color: "#facbcbff",
               height: "md",
               flex: 1,
               action: {
