@@ -1579,10 +1579,26 @@ async function routePostback(userId, data, state) {
     currState.stage = "wait_ai_result";
     conversationStates[userId] = currState;
 
-    await pushText(
-      userId,
-      `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n我這邊會先整理卦象資料，接著幫你做 AI 解卦。`
-    );
+    await pushFlex(userId, "六爻完成 6/6", {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: "六爻已完成", weight: "bold", size: "lg" },
+          { type: "text", text: "進度 6/6", size: "sm", color: "#666666" },
+          { type: "text", text: "■■■■■■", size: "xl", weight: "bold" },
+          {
+            type: "text",
+            text: "正在整理卦象，準備解卦…",
+            size: "sm",
+            color: "#666666",
+            wrap: true,
+          },
+        ],
+      },
+    });
 
     try {
       const timeParams = buildLiuYaoTimeParams(currState);
@@ -2396,6 +2412,7 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
 
 //六爻占卜圖片流程
 // 六爻：送出「選人頭數」的 Flex（每一爻共用）
+/*
 async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
   const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
   const IMG_2 = "https://YOUR_DOMAIN/liuyao/heads_2.png";
@@ -2418,7 +2435,7 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
         },
         {
           type: "text",
-          text: "請依照你實際擲出的結果選擇（只看人頭數即可）。",
+          text: "請依照你實際擲出的結果選擇\n（只看人頭數即可）。",
           size: "sm",
           color: "#666666",
           wrap: true,
@@ -2488,6 +2505,134 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
             type: "postback",
             data: `action=liuyao_roll&v=${value}`,
             displayText: label, // 使用者點了聊天室會顯示這行字
+          },
+        },
+        {
+          type: "text",
+          text: label,
+          size: "sm",
+          align: "center",
+        },
+      ],
+      cornerRadius: "12px",
+      borderWidth: "1px",
+      borderColor: "#EEEEEE",
+      paddingAll: "6px",
+    };
+  }
+}
+*/
+// 六爻：送出「選人頭數」的 Flex（每一爻共用）
+async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
+  const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
+  const IMG_2 = "https://YOUR_DOMAIN/liuyao/heads_2.png";
+  const IMG_1 = "https://YOUR_DOMAIN/liuyao/heads_1.png";
+  const IMG_0 = "https://YOUR_DOMAIN/liuyao/heads_0.png";
+
+  // ✅ 小條形圖：6 格
+  const done = yySoFar ? yySoFar.length : 0;
+  function buildProgressBar(n) {
+    const total = 6;
+    return "■".repeat(n) + "□".repeat(total - n);
+  }
+
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `第 ${yaoIndex} 爻 · 擲幣結果`,
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "請依照你實際擲出的結果選擇\n（只看人頭數即可）。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+
+        // ✅ 進度：數字 + 小條形圖（永遠顯示，0/6 也顯示）
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "text",
+              text: `進度：${done} / 6`,
+              size: "xs",
+              color: "#999999",
+            },
+            {
+              type: "text",
+              text: buildProgressBar(done),
+              size: "sm",
+              weight: "bold",
+              wrap: false,
+            },
+          ],
+        },
+
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                imagePick(IMG_3, "三個人頭", "3"),
+                imagePick(IMG_2, "兩個人頭", "2"),
+              ],
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                imagePick(IMG_1, "一個人頭", "1"),
+                imagePick(IMG_0, "零個人頭", "0"),
+              ],
+            },
+          ],
+        },
+
+        {
+          type: "text",
+          text: "（也可以直接輸入 0～3 作為備援）",
+          size: "xs",
+          color: "#999999",
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, `第 ${yaoIndex} 爻起卦`, contents);
+
+  function imagePick(imgUrl, label, value) {
+    return {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "image",
+          url: imgUrl,
+          size: "full",
+          aspectMode: "cover",
+          aspectRatio: "1:1",
+          action: {
+            type: "postback",
+            data: `action=liuyao_roll&v=${value}`,
+            displayText: label,
           },
         },
         {
