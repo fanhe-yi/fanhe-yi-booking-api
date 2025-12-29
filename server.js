@@ -1671,7 +1671,7 @@ async function routePostback(userId, data, state) {
 
     // ✅ 過中爻：停頓 + 默念過門（第 3 爻結束後才出現）
     if (nowIndex === 3) {
-      await pushText(userId, "已過中爻。卦象逐漸成形。");
+      //await pushText(userId, "已過中爻。卦象逐漸成形。");
 
       // 卡住流程：要求使用者完成「默念完畢」才進第 4 爻
       currState.stage = "wait_mid_gate";
@@ -2764,16 +2764,9 @@ async function sendLiuYaoMidGateFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "已過中爻",
+          text: "已過中爻，卦象逐漸成形。",
           weight: "bold",
           size: "xl",
-          wrap: true,
-        },
-        {
-          type: "text",
-          text: "卦象逐漸成形。",
-          size: "sm",
-          color: "#666666",
           wrap: true,
         },
 
@@ -2824,13 +2817,15 @@ async function sendLiuYaoMidGateFlex(userId) {
           type: "text",
           text:
             "請你默念：\n\n" +
-            "「內卦三爻吉凶未判，\n再求外卦三爻，以成全卦。」",
+            "「內卦三爻吉凶未判」\n「再求外卦三爻，以成全卦。」",
           size: "md",
           wrap: true,
         },
         {
           type: "text",
           text: "默念完畢後，按下方按鈕，進入第四爻。",
+          color: "#8E6CEF",
+          margin: "md",
           size: "xs",
           color: "#999999",
           wrap: true,
