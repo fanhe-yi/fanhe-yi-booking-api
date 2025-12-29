@@ -1340,6 +1340,8 @@ async function routeByConversationState(userId, text, state, event) {
 }
 
 //routePostback：按 Flex 按鈕時怎麼分派
+// routePostback：按 Flex 按鈕時怎麼分派
+// routePostback：按 Flex 按鈕時怎麼分派
 async function routePostback(userId, data, state) {
   const params = new URLSearchParams(data);
   const action = params.get("action");
@@ -1352,9 +1354,6 @@ async function routePostback(userId, data, state) {
       bazimatch: "八字合婚解析",
       liuyao: "六爻卦象解析",
     };
-
-    //（可選）先給一個儀式感提示
-    //await pushText(userId, "✅ 已收到開始指令，正在確認使用權限…");
 
     const gate = await gateFeature(
       userId,
@@ -1422,14 +1421,12 @@ async function routePostback(userId, data, state) {
   if (action === "bazi_mode") {
     const mode = params.get("mode"); // pattern / year / month / day
 
-    // 只接受這四種，避免亂按奇怪的 data
     const ALLOWED = ["pattern", "year", "month", "day"];
     if (!ALLOWED.includes(mode)) {
       await pushText(userId, "這個八字測算按鈕目前沒有對應的解析方式。");
       return;
     }
 
-    // ✅ 先記住 mode，下一步改成問「男命 / 女命」
     conversationStates[userId] = {
       mode: "mini_bazi",
       stage: "wait_gender",
@@ -1483,7 +1480,6 @@ async function routePostback(userId, data, state) {
   if (action === "liuyao_time_mode") {
     const mode = params.get("mode"); // now / custom
 
-    // 理論上 state 一定存在，但多一道保護
     const currState = state || conversationStates[userId];
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
@@ -1495,8 +1491,8 @@ async function routePostback(userId, data, state) {
 
     if (mode === "now") {
       currState.data.timeMode = "now";
-      currState.data.questionTime = new Date().toISOString(); // 之後呼叫六爻 API 會用到
-      currState.stage = "collect_yao_notice"; // 下一步：占卦須知 + 請神咒 + 開始記錄一爻一爻
+      currState.data.questionTime = new Date().toISOString();
+      currState.stage = "collect_yao_notice";
       conversationStates[userId] = currState;
 
       await sendLiuYaoNoticeAndAskFirstYao(userId, currState);
@@ -1521,6 +1517,105 @@ async function routePostback(userId, data, state) {
 
     await pushText(userId, "起卦時間的選項怪怪的，請再點一次按鈕看看。");
     return;
+  }
+
+  // ✅✅✅ 新增：六爻擲幣選「人頭數」（0~3）
+  if (action === "liuyao_roll") {
+    const v = params.get("v"); // "0"~"3"
+    const currState = state || conversationStates[userId];
+
+    // 基本防呆：值不對就重送按鈕（若在流程內）
+    if (!/^[0-3]$/.test(v)) {
+      await pushText(userId, "這次選擇怪怪的，請再選一次～");
+      if (currState?.mode === "liuyao" && currState.stage === "collect_yao") {
+        await sendLiuYaoRollFlex(
+          userId,
+          currState.data?.yaoIndex || 1,
+          currState.data?.yy || ""
+        );
+      }
+      return;
+    }
+
+    // 必須在六爻流程且 collect_yao 才吃
+    if (
+      !currState ||
+      currState.mode !== "liuyao" ||
+      currState.stage !== "collect_yao"
+    ) {
+      await pushText(userId, "目前沒有在起卦流程中。想占卜請輸入：六爻占卜");
+      return;
+    }
+
+    // 初始化
+    if (!currState.data.yy) currState.data.yy = "";
+    if (!currState.data.yaoIndex) currState.data.yaoIndex = 1;
+
+    const nowIndex = currState.data.yaoIndex;
+
+    // 記錄本爻
+    currState.data.yy += v;
+    currState.data.yaoIndex = nowIndex + 1;
+    conversationStates[userId] = currState;
+
+    // 儀式感：先回覆確認
+    await pushText(
+      userId,
+      `第 ${nowIndex} 爻已記錄：${["零", "一", "兩", "三"][Number(v)]} 個人頭。`
+    );
+
+    // 還沒滿六爻 → 直接送下一爻選單
+    if (currState.data.yy.length < 6) {
+      await sendLiuYaoRollFlex(
+        userId,
+        currState.data.yaoIndex,
+        currState.data.yy
+      );
+      return;
+    }
+
+    // ✅ 滿六爻：沿用你原本後段（finalCode → youhualao → AI）
+    const finalCode = currState.data.yy.slice(0, 6);
+    currState.stage = "wait_ai_result";
+    conversationStates[userId] = currState;
+
+    await pushText(
+      userId,
+      `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n我這邊會先整理卦象資料，接著幫你做 AI 解卦。`
+    );
+
+    try {
+      const timeParams = buildLiuYaoTimeParams(currState);
+      const { y, m, d, h, mi } = timeParams;
+
+      const hexData = await getLiuYaoHexagram({
+        y,
+        m,
+        d,
+        h,
+        mi,
+        yy: finalCode,
+      });
+
+      currState.data.hexData = hexData;
+
+      const { aiText } = await callLiuYaoAI({
+        genderText: currState.data.gender === "female" ? "女命" : "男命",
+        topicText: LIU_YAO_TOPIC_LABEL[currState.data.topic] || "感情",
+        hexData: currState.data.hexData,
+      });
+
+      await quotaUsage(userId, "liuyao");
+      await pushText(userId, aiText);
+
+      delete conversationStates[userId];
+      return;
+    } catch (err) {
+      console.error("[liuyao] AI error:", err);
+      await pushText(userId, "六爻解卦 AI 剛剛小卡住 😅 你可以稍後再試一次。");
+      delete conversationStates[userId];
+      return;
+    }
   }
 
   // 預設：其他 action（暫時沒實作）
@@ -2280,10 +2375,126 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
   state.data.yy = "";
   conversationStates[userId] = state;
 
+  // 原本：叫他輸入 0~3
+  // await pushText(userId, "這邊請直接輸入一個數字代碼（0~3）...");
+
+  // 改成：送第一爻的按鈕
   await pushText(
     userId,
-    "這邊請直接輸入一個數字代碼（0~3），代表這一爻的起卦結果。\n\n例如：\n3代表三個正面(沒數字那面)，\n2代表二個正面。"
+    "好，現在開始起卦。請擲幣一次，然後選擇你看到的「人頭數」。"
   );
+  await sendLiuYaoRollFlex(userId, 1, "");
+}
+
+//六爻占卜圖片流程
+// 六爻：送出「選人頭數」的 Flex（每一爻共用）
+async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
+  const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
+  const IMG_2 = "https://YOUR_DOMAIN/liuyao/heads_2.png";
+  const IMG_1 = "https://YOUR_DOMAIN/liuyao/heads_1.png";
+  const IMG_0 = "https://YOUR_DOMAIN/liuyao/heads_0.png";
+
+  const contents = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `第 ${yaoIndex} 爻 · 擲幣結果`,
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "請依照你實際擲出的結果選擇（只看人頭數即可）。",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+
+        ...(yySoFar
+          ? [
+              {
+                type: "text",
+                text: `進度：${yySoFar.length} / 6`,
+                size: "xs",
+                color: "#999999",
+              },
+            ]
+          : []),
+
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                imagePick(IMG_3, "三個人頭", "3"),
+                imagePick(IMG_2, "兩個人頭", "2"),
+              ],
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                imagePick(IMG_1, "一個人頭", "1"),
+                imagePick(IMG_0, "零個人頭", "0"),
+              ],
+            },
+          ],
+        },
+
+        {
+          type: "text",
+          text: "（也可以直接輸入 0～3 作為備援）",
+          size: "xs",
+          color: "#999999",
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, `第 ${yaoIndex} 爻起卦`, contents);
+
+  function imagePick(imgUrl, label, value) {
+    return {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "image",
+          url: imgUrl,
+          size: "full",
+          aspectMode: "cover",
+          aspectRatio: "1:1",
+          action: {
+            type: "postback",
+            data: `action=liuyao_roll&v=${value}`,
+            displayText: label, // 使用者點了聊天室會顯示這行字
+          },
+        },
+        {
+          type: "text",
+          text: label,
+          size: "sm",
+          align: "center",
+        },
+      ],
+      cornerRadius: "12px",
+      borderWidth: "1px",
+      borderColor: "#EEEEEE",
+      paddingAll: "6px",
+    };
+  }
 }
 
 // --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
