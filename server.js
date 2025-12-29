@@ -2531,9 +2531,26 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
 
   // ✅ 小條形圖：6 格
   const done = yySoFar ? yySoFar.length : 0;
-  function buildProgressBar(n) {
+  // ✅ 綠色 6 格進度條（完成=綠，未完成=灰）
+  function progressRow(doneCount) {
     const total = 6;
-    return "■".repeat(n) + "□".repeat(total - n);
+    const boxes = [];
+    for (let i = 1; i <= total; i++) {
+      boxes.push({
+        type: "text",
+        text: "■",
+        size: "sm",
+        weight: "bold",
+        color: i <= doneCount ? "#16a34a" : "#d1d5db", // 綠 / 灰
+        flex: 0,
+      });
+    }
+    return {
+      type: "box",
+      layout: "horizontal",
+      spacing: "xs",
+      contents: boxes,
+    };
   }
 
   const contents = {
@@ -2570,13 +2587,7 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
               size: "xs",
               color: "#999999",
             },
-            {
-              type: "text",
-              text: buildProgressBar(done),
-              size: "sm",
-              weight: "bold",
-              wrap: false,
-            },
+            progressRow(done),
           ],
         },
 
@@ -2608,7 +2619,7 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
 
         {
           type: "text",
-          text: "（也可以直接輸入 0～3 作為備援）",
+          text: "（也可以直接輸入 0～3 ）",
           size: "xs",
           color: "#999999",
         },
