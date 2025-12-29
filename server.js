@@ -1624,16 +1624,16 @@ async function routePostback(userId, data, state) {
     conversationStates[userId] = currState;
 
     // 「此爻已定」的語氣（比客服更像儀式）
-    await pushText(userId, "此爻已定。天地有應。");
+    await pushText(userId, `第 ${currState.data.yaoIndex} 爻已定。天地有應。`);
 
     // ✅ 過中爻（只插在第 3 爻）
     if (nowIndex === 3) {
-      await pushText(userId, "已過中爻。氣機正在累積。");
+      await pushText(userId, "已過中爻。卦象逐漸成形。");
     }
 
     // 還沒滿六爻 → 下一爻宣告 + 送選擇
     if (currState.data.yy.length < 6) {
-      await pushText(userId, `第 ${currState.data.yaoIndex} 爻。請擲幣。`);
+      //await pushText(userId, `第 ${currState.data.yaoIndex} 爻。請擲幣。`);
       await sendLiuYaoRollFlex(
         userId,
         currState.data.yaoIndex,
@@ -1662,7 +1662,7 @@ async function routePostback(userId, data, state) {
             { type: "text", text: "六爻俱全", weight: "bold", size: "lg" },
             {
               type: "text",
-              text: "此卦卦已立，正在封卦。",
+              text: "卦已立，正在封卦。",
               size: "sm",
               color: "#666666",
             },
@@ -2474,6 +2474,8 @@ async function sendLiuYaoReadyFlex(userId) {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "我準備好了",
@@ -2585,6 +2587,8 @@ async function sendLiuYaoStartRollFlex(userId) {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "開始搖爻",
@@ -2600,10 +2604,10 @@ async function sendLiuYaoStartRollFlex(userId) {
 
 // 六爻：送出「選人頭數」的 Flex（每一爻共用）
 async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
-  const IMG_3 = "https://YOUR_DOMAIN/liuyao/heads_3.png";
-  const IMG_2 = "https://YOUR_DOMAIN/liuyao/heads_2.png";
-  const IMG_1 = "https://YOUR_DOMAIN/liuyao/heads_1.png";
-  const IMG_0 = "https://YOUR_DOMAIN/liuyao/heads_0.png";
+  const IMG_3 = "https://chen-yi.tw/liuyao/heads_3.jpg";
+  const IMG_2 = "https://chen-yi.tw/liuyao/heads_2.jpg";
+  const IMG_1 = "https://chen-yi.tw/liuyao/heads_1.jpg";
+  const IMG_0 = "https://chen-yi.tw/liuyao/heads_0.jpg";
 
   // ✅ 小條形圖：6 格
   const done = yySoFar ? yySoFar.length : 0;
@@ -2786,7 +2790,7 @@ async function sendLiuYaoCompleteFlex(userId, finalCode) {
         { type: "separator" },
         {
           type: "text",
-          text: "請稍候，我將整理卦象並開始解讀。",
+          text: "請稍候，封卦後將解讀神明旨意。",
           size: "sm",
           color: "#666666",
           wrap: true,
@@ -2824,6 +2828,8 @@ async function sendLiuYaoSendoffFlex(userId) {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "退神完成",
