@@ -2557,8 +2557,8 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
         {
           type: "text",
           text:
-            "這一卦，只問一件事。\n\n" +
-            "請你想清楚正在發生、或即將發生的情況，\n" +
+            "這一卦，只問一件事。\n" +
+            "請你想清楚正在發生、或即將發生的情況，" +
             "不要同時放進太多問題。",
           size: "sm",
           color: "#555555",
@@ -2578,7 +2578,7 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
 
         {
           type: "text",
-          text: `現在，請你在心中專注於「${topicLabel}」。`,
+          text: `現在，請你在心中專注於\n「${topicLabel}」`,
           size: "md",
           wrap: true,
         },
@@ -2636,10 +2636,7 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
 // ============================
 async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
   const verse =
-    "陰陽日月最長生，\n" +
-    "可惜天理難分明，\n" +
-    "今有真聖鬼谷子，\n" +
-    "一出天下定太平。";
+    "陰陽日月最長生，可惜天理難分明\n" + "今有真聖鬼谷子，一出天下定太平。\n";
 
   const invocation =
     "拜請八卦祖師、伏羲、文王、周公、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
@@ -2648,10 +2645,10 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
     "駕臨指示聖卦。";
 
   const disciple =
-    `今有弟子某某，性別男/女，出生某年次，住在某地，\n` +
+    `今有弟子(姓名)，性別(男/女)，出生某年次，住在(地址)。\n` +
     `今為「${topicLabel}」憂疑難決，\n` +
-    "先求內卦三爻，再求外卦三爻，\n" +
-    "請諸神佛依實指示聖卦。";
+    "請諸神佛依實指示聖卦。\n" +
+    "先求內卦三爻，再求外卦三爻。\n";
 
   const contents = {
     type: "bubble",
@@ -2669,7 +2666,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
         },
         {
           type: "text",
-          text: "請在心中默念即可，不必逐字照唸。",
+          text: "請默念，並逐字照念。",
           size: "xs",
           color: "#777777",
           wrap: true,
