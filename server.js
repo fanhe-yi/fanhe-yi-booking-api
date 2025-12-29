@@ -13,6 +13,7 @@ const {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  sendGenderSelectFlex,
   mbMenu,
   mbPage,
   mbAll,
@@ -1432,10 +1433,48 @@ async function routePostback(userId, data, state) {
       data: { baziMode: mode },
     };
 
+    // ✅ 改成按鈕
+    await sendGenderSelectFlex(userId, {
+      title: "八字測算 · 性別選擇",
+      actionName: "minibazi_gender",
+    });
+    return;
+  }
+
+  // ✅ 八字測算：選擇男命 / 女命（按鈕）
+  if (action === "minibazi_gender") {
+    const gender = params.get("gender"); // male / female
+    const currState = state || conversationStates[userId];
+
+    if (!currState || currState.mode !== "mini_bazi") {
+      await pushText(userId, "目前沒有八字測算流程，請從選單重新開始。");
+      return;
+    }
+
+    if (!["male", "female"].includes(gender)) {
+      await pushText(userId, "性別選擇怪怪的，請再選一次～");
+      await sendGenderSelectFlex(userId, {
+        title: "八字測算 · 性別選擇",
+        actionName: "minibazi_gender",
+      });
+      return;
+    }
+
+    currState.data = currState.data || {};
+    currState.data.gender = gender;
+    currState.stage = "wait_birth_input";
+    conversationStates[userId] = currState;
+
+    const genderLabel = gender === "male" ? "男命" : "女命";
+
     await pushText(
       userId,
-      "這次要以「男命」還是「女命」來看呢？\n\n" +
-        "請輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+      `好的，這次就先以「${genderLabel}」來看。\n\n` +
+        "接下來請輸入你的西元生日與時間（時間可省略）：\n\n" +
+        "1) 1992-12-05-未知\n" +
+        "2) 1992-12-05-0830\n" +
+        "3) 1992-12-05-辰時 或 1992-12-05-辰\n\n" +
+        "如果不想提供時辰，可以在最後寫「未知」。"
     );
     return;
   }
@@ -1456,18 +1495,42 @@ async function routePostback(userId, data, state) {
       data: { topic },
     };
 
-    await pushText(
-      userId,
-      "好的～這一卦要問「" +
-        (topic === "love"
-          ? "感情"
-          : topic === "career"
-          ? "事業"
-          : topic === "wealth"
-          ? "財運"
-          : "健康") +
-        "」。\n\n先跟我說，這是「男占」還是「女占」？\n\n可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
-    );
+    // ✅ 改成按鈕
+    await sendGenderSelectFlex(userId, {
+      title: "六爻占卜 · 性別選擇",
+      actionName: "liuyao_gender",
+    });
+    return;
+  }
+
+  // ✅ 六爻占卜：選擇男占 / 女占（按鈕）
+  if (action === "liuyao_gender") {
+    const gender = params.get("gender"); // male / female
+    const currState = state || conversationStates[userId];
+
+    if (!currState || currState.mode !== "liuyao") {
+      await pushText(
+        userId,
+        "目前沒有正在進行的六爻占卜流程，想開始請輸入「六爻占卜」。"
+      );
+      return;
+    }
+
+    if (!["male", "female"].includes(gender)) {
+      await pushText(userId, "性別選擇怪怪的，請再選一次～");
+      await sendGenderSelectFlex(userId, {
+        title: "六爻占卜 · 性別選擇",
+        actionName: "liuyao_gender",
+      });
+      return;
+    }
+
+    currState.data = currState.data || {};
+    currState.data.gender = gender;
+    currState.stage = "wait_time_mode";
+    conversationStates[userId] = currState;
+
+    await sendLiuYaoTimeModeFlex(userId);
     return;
   }
 
@@ -2703,6 +2766,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
       type: "box",
       layout: "vertical",
       spacing: "sm",
+      backgroundColor: "#FFFFFF",
       contents: [
         {
           type: "button",

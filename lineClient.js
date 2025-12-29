@@ -414,6 +414,67 @@ async function sendBookingSuccessHero(userId, booking) {
   await pushFlex(userId, "預約成功", bubble);
 }
 
+// 通用：性別選擇 Flex（給六爻、八字測算共用）
+// actionName 例： "liuyao_gender" 或 "minibazi_gender"
+async function sendGenderSelectFlex(
+  userId,
+  { title = "性別選擇", actionName }
+) {
+  if (!actionName) throw new Error("sendGenderSelectFlex 缺少 actionName");
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: title,
+          weight: "bold",
+          size: "md",
+          color: "#6A4C93",
+        },
+        {
+          type: "text",
+          text: "請選擇：",
+          size: "sm",
+          color: "#555555",
+          margin: "sm",
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
+          action: {
+            type: "postback",
+            label: "男命",
+            displayText: "男命",
+            data: `action=${actionName}&gender=male`,
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#F08FB3",
+          margin: "sm",
+          action: {
+            type: "postback",
+            label: "女命",
+            displayText: "女命",
+            data: `action=${actionName}&gender=female`,
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, title, bubble);
+}
+
 //八字測算主選單Flex Message
 async function sendBaziMenuFlex(userId) {
   const bubble = {
@@ -1383,6 +1444,7 @@ module.exports = {
   sendBookingSuccessHero,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
+  sendGenderSelectFlex,
   mbMenu,
   mbPage,
   mbAll,
