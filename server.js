@@ -2641,13 +2641,13 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
     "陰陽日月最長生，可惜天理難分明\n" + "今有真聖鬼谷子，一出天下定太平\n";
 
   const invocation =
-    "拜請八卦祖師、伏羲、文王、周公、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
+    "拜請八卦祖師、伏羲、文王、周公\n、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
     "諸葛孔明真人、陳摶真人、劉伯溫真人、野鶴真人、九天玄女、觀世音菩薩、混元禪師\n、" +
     "十方世界諸天神聖佛菩薩器眾、飛天過往神聖、本地主司福德正神、排卦童子、成卦童郎，" +
     "駕臨指示聖卦。";
 
   const disciple =
-    `今有弟子(姓名)，性別(男/女)，出生某年次，住在(地址)。\n` +
+    `今有弟子(姓名)，性別(男/女)，\n出生某年次，住在(地址)。\n` +
     `今為「${topicLabel}」憂疑難決，\n` +
     "請諸神佛依實指示聖卦。\n" +
     "先求內卦三爻，再求外卦三爻。\n";
@@ -2658,7 +2658,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
       type: "box",
       layout: "vertical",
       spacing: "lg",
-      backgroundColor: "#FAF9F6", // ← 宣紙感
+      backgroundColor: "#F7F3ED", // ← 宣紙感
       contents: [
         {
           type: "text",
