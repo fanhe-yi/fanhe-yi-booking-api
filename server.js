@@ -1581,6 +1581,13 @@ async function routePostback(userId, data, state) {
     }
 
     await pushText(userId, aiText);
+
+    // ✅ 收束落款（退神後）
+    await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
+
+    delete conversationStates[userId];
+    return;
+
     delete conversationStates[userId];
     return;
   }
@@ -1588,10 +1595,14 @@ async function routePostback(userId, data, state) {
   // ============================
   // ✅ 六爻：擲幣選「人頭數」（0~3）
   // ============================
+  // ============================
+  // ✅ 六爻：擲幣選「人頭數」（0~3）
+  // ============================
   if (action === "liuyao_roll") {
     const v = params.get("v"); // "0"~"3"
     const currState = state || conversationStates[userId];
 
+    // 值不對就重送按鈕
     if (!/^[0-3]$/.test(v)) {
       await pushText(userId, "這次選擇怪怪的，請再選一次～");
       if (currState?.mode === "liuyao" && currState.stage === "collect_yao") {
@@ -1604,6 +1615,7 @@ async function routePostback(userId, data, state) {
       return;
     }
 
+    // 必須在六爻流程且 collect_yao 才吃
     if (
       !currState ||
       currState.mode !== "liuyao" ||
@@ -1613,27 +1625,27 @@ async function routePostback(userId, data, state) {
       return;
     }
 
+    // 初始化
     if (!currState.data.yy) currState.data.yy = "";
     if (!currState.data.yaoIndex) currState.data.yaoIndex = 1;
 
-    const nowIndex = currState.data.yaoIndex;
+    const nowIndex = currState.data.yaoIndex; // ✅ 這一爻的序號（1~6）
 
     // 記錄本爻
     currState.data.yy += v;
-    currState.data.yaoIndex = nowIndex + 1;
+    currState.data.yaoIndex = nowIndex + 1; // 下一爻
     conversationStates[userId] = currState;
 
-    // 「此爻已定」的語氣（比客服更像儀式）
-    await pushText(userId, `第 ${currState.data.yaoIndex} 爻已定。天地有應。`);
+    // 儀式確認（先定此爻）
+    await pushText(userId, `第 ${nowIndex} 爻已定。天地有應。`);
 
     // ✅ 過中爻（只插在第 3 爻）
     if (nowIndex === 3) {
       await pushText(userId, "已過中爻。卦象逐漸成形。");
     }
 
-    // 還沒滿六爻 → 下一爻宣告 + 送選擇
+    // 還沒滿六爻 → 直接送下一爻選單
     if (currState.data.yy.length < 6) {
-      //await pushText(userId, `第 ${currState.data.yaoIndex} 爻。請擲幣。`);
       await sendLiuYaoRollFlex(
         userId,
         currState.data.yaoIndex,
@@ -1642,17 +1654,16 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    // ✅ 六爻俱全：封卦（完成版 Flex）
+    // ✅ 六爻俱全：先封卦（完成版 Flex）
     const finalCode = currState.data.yy.slice(0, 6);
-    currState.stage = "wait_ai_result";
+    currState.stage = "wait_sendoff"; // ✅ 先進入退神關卡（重點：先退神再解卦）
     conversationStates[userId] = currState;
 
-    // 若你有 sendLiuYaoCompleteFlex 就用它
+    // 封卦畫面：文案建議你改成「下一步要收卦退神」，避免“準備解讀”造成插隊感
     if (typeof sendLiuYaoCompleteFlex === "function") {
       await sendLiuYaoCompleteFlex(userId, finalCode);
     } else {
-      // fallback：你原本的完成 Flex
-      await pushFlex(userId, "六爻完成 6/6", {
+      await pushFlex(userId, "六爻俱全", {
         type: "bubble",
         body: {
           type: "box",
@@ -1662,9 +1673,10 @@ async function routePostback(userId, data, state) {
             { type: "text", text: "六爻俱全", weight: "bold", size: "lg" },
             {
               type: "text",
-              text: "卦已立，正在封卦。",
+              text: "此卦卦已立。\n下一步請收卦退神，完成後我將開始解讀。",
               size: "sm",
               color: "#666666",
+              wrap: true,
             },
             { type: "text", text: "■■■■■■", size: "xl", weight: "bold" },
             {
@@ -1679,7 +1691,10 @@ async function routePostback(userId, data, state) {
       });
     }
 
-    // ✅ 先算 AI，但先不要丟（等退神完成）
+    // ✅ 立刻送「退神」按鈕（重點：不要等 AI 回來才送）
+    await sendLiuYaoSendoffFlex(userId);
+
+    // ✅ 然後才去算 AI（算完先存起來，等使用者按「退神完成」再送）
     try {
       const timeParams = buildLiuYaoTimeParams(currState);
       const { y, m, d, h, mi } = timeParams;
@@ -1701,17 +1716,16 @@ async function routePostback(userId, data, state) {
         hexData: currState.data.hexData,
       });
 
-      // ✅ 結果先存起來，等退神才送
+      // ✅ 結果先存起來，等退神完成再送
       currState.data.pendingAiText = aiText;
 
       // ✅ quota 在這裡扣（代表解卦已完成）
       await quotaUsage(userId, "liuyao");
 
+      // 保持 wait_sendoff（使用者按了才會送）
       currState.stage = "wait_sendoff";
       conversationStates[userId] = currState;
 
-      // 退神儀式（primary button）
-      await sendLiuYaoSendoffFlex(userId);
       return;
     } catch (err) {
       console.error("[liuyao] AI error:", err);
@@ -2548,6 +2562,8 @@ async function sendLiuYaoCalmFlex(userId) {
         {
           type: "button",
           style: "primary",
+          color: "#8E6CEF",
+          margin: "md",
           action: {
             type: "postback",
             label: "我準備好了",
@@ -2649,7 +2665,7 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
         },
         {
           type: "text",
-          text: "請依照你實際擲出的結果選擇\n（只看人頭數即可）。",
+          text: "請依照你實際擲出的結果選擇\n（只看人頭數即可）",
           size: "sm",
           color: "#666666",
           wrap: true,
