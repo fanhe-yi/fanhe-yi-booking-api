@@ -2929,10 +2929,10 @@ async function sendLiuYaoStartRollFlex(userId) {
 
 // 六爻 送出「選人頭數」的 Flex（每一爻共用）
 async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
-  const IMG_3 = "https://chen-yi.tw/liuyao/heads_3.jpg";
-  const IMG_2 = "https://chen-yi.tw/liuyao/heads_2.jpg";
-  const IMG_1 = "https://chen-yi.tw/liuyao/heads_1.jpg";
-  const IMG_0 = "https://chen-yi.tw/liuyao/heads_0.jpg";
+  const IMG_3 = "https://chen-yi.tw/liuyao/heads_3-1.jpg";
+  const IMG_2 = "https://chen-yi.tw/liuyao/heads_2-1.jpg";
+  const IMG_1 = "https://chen-yi.tw/liuyao/heads_1-1.jpg";
+  const IMG_0 = "https://chen-yi.tw/liuyao/heads_0-1.jpg";
 
   // ✅ 小條形圖：6 格
   const done = yySoFar ? yySoFar.length : 0;
