@@ -123,6 +123,7 @@ const {
   getUser,
   consumeQuotaAtomic,
   addQuotaAtomic,
+  consumeFirstFreeAtomic,
   markCouponRedeemedAtomic,
 } = require("./accessStore.pg");
 const { getEligibility, parseCouponRule } = require("./accessControl");
