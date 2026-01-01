@@ -1099,7 +1099,7 @@ app.get("/pay", async (req, res) => {
       ReturnURL: `${BASE_URL}/ecpay/return`,
 
       // ✅ 付款完成後，使用者回到你頁面（可改）
-      ClientBackURL: `${BASE_URL}/about#line-services`,
+      ClientBackURL: `${BASE_URL}/pay/success`,
 
       // ✅ 自訂欄位：查單方便
       CustomField1: userId,
@@ -1204,10 +1204,15 @@ app.post(
         return;
       }
 
-      // ⑤ 讀訂單內容 → 補 quota
+      // ⑤ 讀訂單內容 → 補 quota + 推播通知
       const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
       if (order) {
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
+
+        await pushText(
+          order.user_id,
+          "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。"
+        );
       }
 
       res.send("1|OK");
@@ -1218,6 +1223,49 @@ app.post(
     }
   }
 );
+
+// ==========================
+// ✅ 付款完成導引頁（給使用者看的）
+// 用途：綠界付款完成後，ClientBackURL 會把使用者導回這頁
+// ==========================
+app.get("/pay/success", (req, res) => {
+  const officialLineUrl =
+    process.env.OFFICIAL_LINE_URL || "line://ti/p/@YOUR_LINE_ID";
+
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.send(`
+    <!doctype html>
+    <html lang="zh-Hant">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>付款完成</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", Arial, "PingFang TC", sans-serif;
+                 background:#f6f7fb; margin:0; padding:24px; }
+          .card { max-width:520px; margin:0 auto; background:#fff; border-radius:16px; padding:20px 18px;
+                  box-shadow:0 6px 20px rgba(0,0,0,.08); }
+          h2 { margin:0 0 10px; font-size:20px; }
+          p { margin:8px 0; color:#333; line-height:1.6; }
+          .btn { display:block; text-align:center; padding:12px 14px; margin-top:14px;
+                 background:#06c755; color:#fff; text-decoration:none; border-radius:12px; font-weight:700; }
+          .hint { font-size:12px; color:#666; margin-top:10px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>✅ 付款完成</h2>
+          <p>你可以關閉此視窗，回到 LINE 繼續使用服務。</p>
+          <p>或點擊下方按鈕返回 LINE。</p>
+
+          <a class="btn" href="${officialLineUrl}">回到 LINE</a>
+
+          <p class="hint">若未自動跳回，請手動關閉此頁並回到 LINE 對話。</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
 
 // LINE Webhook 入口
 app.post("/line/webhook", async (req, res) => {
