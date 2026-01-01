@@ -67,29 +67,47 @@ function formatEcpayDate(date = new Date()) {
   return `${yyyy}/${MM}/${dd} ${HH}:${mm}:${ss}`;
 }
 
+// ==========================
+// ✅ 綠界 CheckMacValue 計算（SHA256）
+// 重點：URL Encode 必須符合綠界 .NET encoding(ecpay) 規則
+// - %2d -> -
+// - %5f -> _
+// - %2e -> .
+// - space -> +
+// - ! * ( ) 保留
+// ==========================
 function generateCheckMacValue(params, hashKey, hashIV) {
-  const sorted = Object.keys(params)
-    .sort((a, b) => a.localeCompare(b))
-    .reduce((acc, k) => {
-      acc[k] = params[k];
-      return acc;
-    }, {});
+  // 0) 全部轉字串（避免 number/undefined 造成結果不同）
+  const data = {};
+  for (const k of Object.keys(params)) {
+    if (k === "CheckMacValue") continue;
+    const v = params[k];
+    data[k] = v === undefined || v === null ? "" : String(v);
+  }
 
-  const raw = Object.entries(sorted)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("&");
+  // 1) 依 Key 排序（A-Z）
+  const sortedKeys = Object.keys(data).sort((a, b) => a.localeCompare(b));
+  const raw = sortedKeys.map((k) => `${k}=${data[k]}`).join("&");
 
+  // 2) 前後加 HashKey / HashIV
   const toEncode = `HashKey=${hashKey}&${raw}&HashIV=${hashIV}`;
 
-  const encoded = encodeURIComponent(toEncode)
-    .toLowerCase()
-    .replace(/%20/g, "+")
-    .replace(/%21/g, "!")
-    .replace(/%28/g, "(")
-    .replace(/%29/g, ")")
-    .replace(/%2a/g, "*");
+  // 3) URL Encode + 轉小寫（注意：這裡要再做綠界規則替換）
+  let encoded = encodeURIComponent(toEncode).toLowerCase();
 
-  return crypto
+  // 4) 綠界 .NET encoding(ecpay) 替換表（關鍵！）
+  encoded = encoded
+    .replace(/%20/g, "+")
+    .replace(/%2d/g, "-")
+    .replace(/%5f/g, "_")
+    .replace(/%2e/g, ".")
+    .replace(/%21/g, "!")
+    .replace(/%2a/g, "*")
+    .replace(/%28/g, "(")
+    .replace(/%29/g, ")");
+
+  // 5) SHA256 → 大寫
+  return require("crypto")
     .createHash("sha256")
     .update(encoded)
     .digest("hex")
@@ -1106,6 +1124,14 @@ app.post(
       delete data.CheckMacValue;
 
       const computedMac = generateCheckMacValue(data, HashKey, HashIV);
+
+      // ==========================
+      // 🔍 Debug：驗簽用（確認哪裡不一樣）
+      // ==========================
+      console.log("[ECPAY RETURN] received CheckMacValue =", receivedMac);
+      console.log("[ECPAY RETURN] computed CheckMacValue =", computedMac);
+      console.log("[ECPAY RETURN] data keys =", Object.keys(data));
+
       if (computedMac !== receivedMac) {
         console.warn("[ecpay return] CheckMacValue mismatch");
         res.send("0|FAIL");
