@@ -91,7 +91,7 @@ async function expireOldInitOrders({ userId, feature }) {
 }
 
 // ==========================
-// ✅ 找最近一筆 INIT 訂單（防止重複建單）
+// ✅ 找最近一筆 INIT 訂單（防止重複建單）////綠界不接受所以沒用這個
 // ==========================
 async function findRecentInitOrder({ userId, feature, minutes = 30 }) {
   const r = await pool.query(
@@ -118,5 +118,4 @@ module.exports = {
   markOrderPaidIfNotYet,
   markOrderFailed,
   expireOldInitOrders,
-  findRecentInitOrder,
 };

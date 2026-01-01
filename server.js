@@ -401,14 +401,23 @@ async function gateFeature(userId, featureKey, featureLabel) {
   return { allow: true, source: eligibility.source };
 }
 
-//quota扣次function
+//扣quota原子扣
 async function quotaUsage(userId, feature) {
-  const result = await consumeQuotaAtomic(userId, feature, 1);
-  if (!result.ok) {
+  // ① 先吃首免（原子）
+  const ff = await consumeFirstFreeAtomic(userId, feature, 1);
+  if (ff.ok) {
+    console.log(`[quotaUSAGE] OK firstFree user=${userId} feature=${feature}`);
+    return true;
+  }
+
+  // ② 再扣 quota（原子）
+  const q = await consumeQuotaAtomic(userId, feature, 1);
+  if (!q.ok) {
     console.log(`[quotaUSAGE] NO_QUOTA user=${userId} feature=${feature}`);
     return false;
   }
-  console.log(`[quotaUSAGE] OK user=${userId} feature=${feature}`);
+
+  console.log(`[quotaUSAGE] OK quota user=${userId} feature=${feature}`);
   return true;
 }
 
@@ -1050,9 +1059,9 @@ app.get("/pay", async (req, res) => {
       amount,
     });
 
-    console.log(
-      `[pay] create NEW INIT order: ${merchantTradeNo} (${userId}, ${feature})`
-    );
+    //console.log(
+    //  `[pay] create NEW INIT order: ${merchantTradeNo} (${userId}, ${feature})`
+    //);
 
     // ==========================
     // ③ 組綠界導轉參數

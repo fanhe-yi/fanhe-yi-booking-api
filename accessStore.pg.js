@@ -154,6 +154,44 @@ async function consumeQuotaAtomic(userId, feature, qty = 1) {
   return { ok: true, quota: r.rows[0].quota };
 }
 
+// ==========================
+// ✅ 原子扣 first_free（首免）
+// - 只有在 first_free[feature] >= 1 時才會成功
+// - 防併發：同時兩個請求只會有一個成功
+// ==========================
+async function consumeFirstFreeAtomic(userId, feature, qty = 1) {
+  if (!feature) throw new Error("consumeFirstFreeAtomic: feature is required");
+  if (!Number.isInteger(qty) || qty <= 0) {
+    throw new Error("consumeFirstFreeAtomic: qty must be a positive integer");
+  }
+
+  await getUser(userId);
+
+  const r = await pool.query(
+    `
+    UPDATE user_access
+    SET first_free = jsonb_set(
+      first_free,
+      ARRAY[$2],
+      to_jsonb(
+        COALESCE((first_free->>$2)::int, 0) - $3
+      ),
+      true
+    ),
+    updated_at = NOW()
+    WHERE user_id = $1
+      AND COALESCE((first_free->>$2)::int, 0) >= $3
+    RETURNING first_free
+    `,
+    [userId, feature, qty]
+  );
+
+  if (r.rowCount === 0) {
+    return { ok: false, reason: "NO_FIRST_FREE" };
+  }
+  return { ok: true, firstFree: r.rows[0].first_free };
+}
+
 /**
  * 原子標記 coupon 已兌換（JSONB 方式）
  * - 防併發：只有在「還沒標記過」時才會成功更新
@@ -196,6 +234,7 @@ module.exports = {
 
   // ✅ 原子操作（你接金流會靠這三個保命）
   addQuotaAtomic,
+  consumeFirstFreeAtomic,
   consumeQuotaAtomic,
   markCouponRedeemedAtomic,
 };
