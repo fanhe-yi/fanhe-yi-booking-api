@@ -76,8 +76,8 @@ function formatEcpayDate(date = new Date()) {
 // - space -> +
 // - ! * ( ) 保留
 // ==========================
-function generateCheckMacValue(params, hashKey, hashIV) {
-  // 0) 全部轉字串（避免 number/undefined 造成結果不同）
+// ✅ 支援 SHA256 / MD5
+function generateCheckMacValue(params, hashKey, hashIV, algo = "sha256") {
   const data = {};
   for (const k of Object.keys(params)) {
     if (k === "CheckMacValue") continue;
@@ -85,17 +85,11 @@ function generateCheckMacValue(params, hashKey, hashIV) {
     data[k] = v === undefined || v === null ? "" : String(v);
   }
 
-  // 1) 依 Key 排序（A-Z）
   const sortedKeys = Object.keys(data).sort((a, b) => a.localeCompare(b));
   const raw = sortedKeys.map((k) => `${k}=${data[k]}`).join("&");
-
-  // 2) 前後加 HashKey / HashIV
   const toEncode = `HashKey=${hashKey}&${raw}&HashIV=${hashIV}`;
 
-  // 3) URL Encode + 轉小寫（注意：這裡要再做綠界規則替換）
   let encoded = encodeURIComponent(toEncode).toLowerCase();
-
-  // 4) 綠界 .NET encoding(ecpay) 替換表（關鍵！）
   encoded = encoded
     .replace(/%20/g, "+")
     .replace(/%2d/g, "-")
@@ -106,12 +100,7 @@ function generateCheckMacValue(params, hashKey, hashIV) {
     .replace(/%28/g, "(")
     .replace(/%29/g, ")");
 
-  // 5) SHA256 → 大寫
-  return require("crypto")
-    .createHash("sha256")
-    .update(encoded)
-    .digest("hex")
-    .toUpperCase();
+  return crypto.createHash(algo).update(encoded).digest("hex").toUpperCase();
 }
 
 // ==========================
@@ -1076,6 +1065,10 @@ app.get("/pay", async (req, res) => {
       CustomField1: userId,
       CustomField2: feature,
       CustomField3: String(qty),
+
+      // ✅ 驗簽關鍵
+      // 綠界回呼是用 MD5 產生的 CheckMacValue（32 碼）
+      EncryptType: 1,
     };
 
     params.CheckMacValue = generateCheckMacValue(params, HashKey, HashIV);
@@ -1123,7 +1116,8 @@ app.post(
       const receivedMac = data.CheckMacValue;
       delete data.CheckMacValue;
 
-      const computedMac = generateCheckMacValue(data, HashKey, HashIV);
+      const algo = String(receivedMac || "").length === 32 ? "md5" : "sha256";
+      const computedMac = generateCheckMacValue(data, HashKey, HashIV, algo);
 
       // ==========================
       // 🔍 Debug：驗簽用（確認哪裡不一樣）
@@ -1131,6 +1125,7 @@ app.post(
       console.log("[ECPAY RETURN] received CheckMacValue =", receivedMac);
       console.log("[ECPAY RETURN] computed CheckMacValue =", computedMac);
       console.log("[ECPAY RETURN] data keys =", Object.keys(data));
+      console.log("[ECPAY RETURN] algo =", algo);
 
       if (computedMac !== receivedMac) {
         console.warn("[ecpay return] CheckMacValue mismatch");
