@@ -37,7 +37,6 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 // ==========================
 const crypto = require("crypto");
 const paymentOrders = require("./paymentOrdersStore.pg");
-const { addQuotaAtomic } = require("./accessStore.pg"); // 依你實際檔名調整
 // ⚠️ getEligibility 是你原本就有的那個 function（在哪裡就從哪裡 require/使用）
 
 const PRICE_MAP = {
