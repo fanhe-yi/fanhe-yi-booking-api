@@ -1014,9 +1014,8 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
 
 // ==========================
 // ✅ 金流：建單 + 導轉付款頁
-// 用途：
-// - 防止重複建單
-// - 防止舊付款頁被翻出來刷
+// 用途：使用者點「前往付款」→ 先把舊 INIT 全部 EXPIRED → 建新 INIT 訂單 → auto-submit 到綠界
+// 重點：MerchantTradeNo 必須唯一，不可重複使用（所以不能 reuse）
 // ==========================
 app.get("/pay", async (req, res) => {
   try {
@@ -1032,51 +1031,47 @@ app.get("/pay", async (req, res) => {
     const amount = PRICE_MAP[feature] * qty;
 
     // ==========================
-    // ① 嘗試找 30 分鐘內的 INIT 訂單
+    // ① 先把舊 INIT 全部標成 EXPIRED
+    // 用途：避免同一人狂點付款產生多張「都還能補 quota」的單
     // ==========================
-    let merchantTradeNo;
+    await paymentOrders.expireOldInitOrders({ userId, feature });
 
-    const recent = await paymentOrders.findRecentInitOrder({
+    // ==========================
+    // ② 建新的 INIT 訂單（每次都必須用新的 MerchantTradeNo）
+    // 因為 MerchantTradeNo 綠界要求唯一，不可重複使用
+    // ==========================
+    const merchantTradeNo = genMerchantTradeNo();
+
+    await paymentOrders.createPaymentOrder({
+      merchantTradeNo,
       userId,
       feature,
-      minutes: 30,
+      qty,
+      amount,
     });
 
-    if (recent) {
-      merchantTradeNo = recent.merchant_trade_no;
-      console.log(
-        `[pay] reuse INIT order: ${merchantTradeNo} (${userId}, ${feature})`
-      );
-    } else {
-      // ==========================
-      // ② 沒有可用 INIT → 先把舊 INIT 全部 EXPIRED
-      // ==========================
-      await paymentOrders.expireOldInitOrders({ userId, feature });
-
-      // ==========================
-      // ③ 建新 INIT 訂單
-      // ==========================
-      merchantTradeNo = genMerchantTradeNo();
-      await paymentOrders.createPaymentOrder({
-        merchantTradeNo,
-        userId,
-        feature,
-        qty,
-        amount,
-      });
-
-      console.log(
-        `[pay] create NEW INIT order: ${merchantTradeNo} (${userId}, ${feature})`
-      );
-    }
+    console.log(
+      `[pay] create NEW INIT order: ${merchantTradeNo} (${userId}, ${feature})`
+    );
 
     // ==========================
-    // ④ 組綠界導轉參數
+    // ③ 組綠界導轉參數
     // ==========================
     const MerchantID = process.env.ECPAY_MERCHANT_ID;
     const HashKey = process.env.ECPAY_HASH_KEY;
     const HashIV = process.env.ECPAY_HASH_IV;
     const BASE_URL = process.env.BASE_URL;
+
+    if (!MerchantID || !HashKey || !HashIV || !BASE_URL) {
+      console.error("[pay] missing env:", {
+        MerchantID: !!MerchantID,
+        HashKey: !!HashKey,
+        HashIV: !!HashIV,
+        BASE_URL: !!BASE_URL,
+      });
+      res.status(500).send("Server Misconfig");
+      return;
+    }
 
     const params = {
       MerchantID,
@@ -1088,14 +1083,19 @@ app.get("/pay", async (req, res) => {
       ItemName: `${feature} x ${qty}`,
       ChoosePayment: "Credit",
 
+      // ✅ 付款完成後綠界 Server 會 POST 回來（補 quota 走這支）
       ReturnURL: `${BASE_URL}/ecpay/return`,
+
+      // ✅ 付款完成後，使用者回到你頁面（可改）
       ClientBackURL: `${BASE_URL}/about#line-services`,
 
+      // ✅ 自訂欄位：查單方便
       CustomField1: userId,
       CustomField2: feature,
       CustomField3: String(qty),
 
-      EncryptType: 1, // SHA256
+      // ✅ 建單時用 SHA256
+      EncryptType: 1,
     };
 
     params.CheckMacValue = generateCheckMacValue(
@@ -1106,18 +1106,14 @@ app.get("/pay", async (req, res) => {
     );
 
     // ==========================
-    // ⑤ 導轉到綠界
+    // ④ 回傳 auto-submit form（導轉到綠界）
     // ==========================
     const ecpayUrl = "https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5";
-
     const inputs = Object.entries(params)
-      .map(
-        ([k, v]) =>
-          `<input type="hidden" name="${k}" value="${String(v).replace(
-            /"/g,
-            "&quot;"
-          )}" />`
-      )
+      .map(([k, v]) => {
+        const safeVal = String(v).replace(/"/g, "&quot;");
+        return `<input type="hidden" name="${k}" value="${safeVal}" />`;
+      })
       .join("\n");
 
     res.set("Content-Type", "text/html; charset=utf-8");
