@@ -31,6 +31,58 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 
+// ==========================
+// ✅ 綠界：工具（單號 + CheckMacValue）
+// 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
+// ==========================
+const crypto = require("crypto");
+const paymentOrders = require("./paymentOrdersStore.pg");
+const { addQuotaAtomic, getUser } = require("./accessStore.pg"); // 依你實際檔名調整
+// ⚠️ getEligibility 是你原本就有的那個 function（在哪裡就從哪裡 require/使用）
+
+const PRICE_MAP = {
+  liuyao: 100,
+  minibazi: 100,
+  bazimatch: 200,
+};
+
+function genMerchantTradeNo() {
+  return `FH${Date.now()}${Math.floor(Math.random() * 1000)}`;
+}
+
+function generateCheckMacValue(params, hashKey, hashIV) {
+  const sorted = Object.keys(params)
+    .sort((a, b) => a.localeCompare(b))
+    .reduce((acc, k) => {
+      acc[k] = params[k];
+      return acc;
+    }, {});
+
+  const raw = Object.entries(sorted)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+
+  const toEncode = `HashKey=${hashKey}&${raw}&HashIV=${hashIV}`;
+
+  const encoded = encodeURIComponent(toEncode)
+    .toLowerCase()
+    .replace(/%20/g, "+")
+    .replace(/%21/g, "!")
+    .replace(/%28/g, "(")
+    .replace(/%29/g, ")")
+    .replace(/%2a/g, "*");
+
+  return crypto
+    .createHash("sha256")
+    .update(encoded)
+    .digest("hex")
+    .toUpperCase();
+}
+
+// ==========================
+// ✅ 綠界：工具code結尾處
+// ==========================
+
 // 付費權限用法：
 // - featureKey 用 "liuyao" / "bazimatch"（之後擴充就加字串）
 // - guest 目前先擋掉（不解）
@@ -502,6 +554,37 @@ async function sendServiceIntroFlex(userId, serviceKey) {
   const meta = map[serviceKey];
   if (!meta) return;
 
+  // ==========================
+  // ✅ 只檢查資格，不扣 quota（決定主按鈕要顯示什麼）
+  // ==========================
+  const userRecord = await getUser(userId);
+  const eligibility = getEligibility(userRecord, serviceKey);
+
+  // ==========================
+  // ✅ 主按鈕：有權限→開始解析；沒權限→前往付款
+  // ==========================
+  const primaryButton = eligibility.allow
+    ? {
+        type: "button",
+        style: "primary",
+        action: {
+          type: "postback",
+          label: "開始解析",
+          data: `action=start&service=${serviceKey}`,
+        },
+      }
+    : {
+        type: "button",
+        style: "primary",
+        action: {
+          type: "uri",
+          label: "前往付款",
+          uri: `${process.env.BASE_URL}/pay?userId=${encodeURIComponent(
+            userId
+          )}&feature=${encodeURIComponent(serviceKey)}`,
+        },
+      };
+
   const flex = {
     type: "flex",
     altText: "LINE 線上服務說明",
@@ -578,6 +661,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         layout: "vertical",
         spacing: "sm",
         contents: [
+          //把 footer.contents 的第一顆按鈕換成 primaryButton
+          primaryButton,
           {
             type: "button",
             style: "primary",
@@ -890,7 +975,7 @@ app.get("/api/admin/unavailable", requireAdmin, (req, res) => {
   const unavailable = loadUnavailable();
   res.json(unavailable);
 });
-
+// admin API：讀 / 寫不開放設定
 app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
   const body = req.body;
 
@@ -902,6 +987,155 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
   saveUnavailable(unavailable);
   res.json({ success: true });
 });
+
+// ==========================
+// ✅ 金流：建單 + 導轉付款頁
+// 用途：使用者點「前往付款」→ 建 INIT 訂單 → 回傳 auto-submit form 導向綠界
+// ==========================
+app.get("/pay", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || "").trim();
+    const feature = String(req.query.feature || "").trim();
+
+    if (!userId || !feature || !PRICE_MAP[feature]) {
+      res.status(400).send("Bad Request");
+      return;
+    }
+
+    const qty = 1;
+    const amount = PRICE_MAP[feature] * qty;
+
+    // ① 建 INIT 訂單
+    const merchantTradeNo = genMerchantTradeNo();
+    await paymentOrders.createPaymentOrder({
+      merchantTradeNo,
+      userId,
+      feature,
+      qty,
+      amount,
+    });
+
+    // ② 組綠界導轉參數
+    const MerchantID = process.env.ECPAY_MERCHANT_ID;
+    const HashKey = process.env.ECPAY_HASH_KEY;
+    const HashIV = process.env.ECPAY_HASH_IV;
+    const BASE_URL = process.env.BASE_URL;
+
+    const params = {
+      MerchantID,
+      MerchantTradeNo: merchantTradeNo,
+      MerchantTradeDate: new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " "),
+      PaymentType: "aio",
+      TotalAmount: amount,
+      TradeDesc: "LINE 線上服務",
+      ItemName: `${feature} x ${qty}`,
+      ChoosePayment: "Credit",
+
+      // ✅ 付款完成後綠界 Server 會 POST 回來
+      ReturnURL: `${BASE_URL}/ecpay/return`,
+
+      // ✅ 付款完成後，使用者瀏覽器回到你這頁（可改你想要的頁）
+      ClientBackURL: `${BASE_URL}/about#line-services`,
+
+      // ✅ 自訂欄位：帶 userId/feature 回來（查單更方便）
+      CustomField1: userId,
+      CustomField2: feature,
+      CustomField3: String(qty),
+    };
+
+    params.CheckMacValue = generateCheckMacValue(params, HashKey, HashIV);
+
+    // ③ 回傳 auto-submit form（導轉到綠界）
+    const ecpayUrl = "https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5";
+    const inputs = Object.entries(params)
+      .map(
+        ([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}" />`
+      )
+      .join("\n");
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(`
+      <html>
+        <body>
+          <p>正在前往付款頁...</p>
+          <form id="f" method="post" action="${ecpayUrl}">
+            ${inputs}
+          </form>
+          <script>document.getElementById('f').submit();</script>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error("[pay] error:", err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// ==========================
+// ✅ 金流：綠界付款結果回呼（ReturnURL）
+// 用途：綠界付款完成後 POST 回來 → 驗證 CheckMacValue → INIT→PAID → 補 quota
+// ==========================
+app.post(
+  "/ecpay/return",
+  express.urlencoded({ extended: true }),
+  async (req, res) => {
+    try {
+      const HashKey = process.env.ECPAY_HASH_KEY;
+      const HashIV = process.env.ECPAY_HASH_IV;
+
+      // ① 驗證簽章（防偽造）
+      const data = { ...req.body };
+      const receivedMac = data.CheckMacValue;
+      delete data.CheckMacValue;
+
+      const computedMac = generateCheckMacValue(data, HashKey, HashIV);
+      if (computedMac !== receivedMac) {
+        console.warn("[ecpay return] CheckMacValue mismatch");
+        res.send("0|FAIL");
+        return;
+      }
+
+      const rtnCode = String(data.RtnCode || "");
+      const merchantTradeNo = String(data.MerchantTradeNo || "");
+      const ecpayTradeNo = String(data.TradeNo || "");
+
+      // ② 原始回傳先存起來（追查用）
+      await paymentOrders.updateOrderRawReturn(merchantTradeNo, req.body);
+
+      // ③ 付款失敗：記錄 FAILED（不補 quota）
+      if (rtnCode !== "1") {
+        await paymentOrders.markOrderFailed({ merchantTradeNo, ecpayTradeNo });
+        res.send("1|OK");
+        return;
+      }
+
+      // ④ 防重複：只有第一次 INIT→PAID 成功才補 quota
+      const paid = await paymentOrders.markOrderPaidIfNotYet({
+        merchantTradeNo,
+        ecpayTradeNo,
+      });
+      if (!paid.didUpdate) {
+        res.send("1|OK");
+        return;
+      }
+
+      // ⑤ 讀訂單內容 → 補 quota
+      const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
+      if (order) {
+        await addQuotaAtomic(order.user_id, order.feature, order.qty);
+      }
+
+      res.send("1|OK");
+    } catch (err) {
+      console.error("[ecpay return] error:", err);
+      // 讓綠界不要一直重送把你打爆（先回 OK，錯誤看 log）
+      res.send("1|OK");
+    }
+  }
+);
 
 // LINE Webhook 入口
 app.post("/line/webhook", async (req, res) => {
@@ -2706,7 +2940,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
   const invocation =
     "拜請八卦祖師、伏羲、文王、周公\n、孔子、五大聖賢、智聖王禪老祖及孫臏真人、" +
     "諸葛孔明真人、陳摶真人、劉伯溫真人、野鶴真人、九天玄女、觀世音菩薩、混元禪師、\n" +
-    "十方世界諸天神聖佛菩薩器眾、飛天過往神聖、本地主司福德正神\n、排卦童子、成卦童郎，" +
+    "十方世界諸天神聖佛菩薩器眾、飛天過往神聖、本地主司福德正神、\n排卦童子、成卦童郎--\n" +
     "駕臨指示聖卦。";
 
   const disciple =
@@ -3077,7 +3311,7 @@ async function sendLiuYaoMidGateFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "已過中爻\n卦象逐漸成形",
+          text: "下卦已成\n卦象逐漸成形",
           weight: "bold",
           size: "xl",
           wrap: true,
