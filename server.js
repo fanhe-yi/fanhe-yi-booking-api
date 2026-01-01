@@ -1014,7 +1014,9 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
 
 // ==========================
 // ✅ 金流：建單 + 導轉付款頁
-// 用途：使用者點「前往付款」→ 建 INIT 訂單 → 回傳 auto-submit form 導向綠界
+// 用途：
+// - 防止重複建單
+// - 防止舊付款頁被翻出來刷
 // ==========================
 app.get("/pay", async (req, res) => {
   try {
@@ -1029,17 +1031,48 @@ app.get("/pay", async (req, res) => {
     const qty = 1;
     const amount = PRICE_MAP[feature] * qty;
 
-    // ① 建 INIT 訂單
-    const merchantTradeNo = genMerchantTradeNo();
-    await paymentOrders.createPaymentOrder({
-      merchantTradeNo,
+    // ==========================
+    // ① 嘗試找 30 分鐘內的 INIT 訂單
+    // ==========================
+    let merchantTradeNo;
+
+    const recent = await paymentOrders.findRecentInitOrder({
       userId,
       feature,
-      qty,
-      amount,
+      minutes: 30,
     });
 
-    // ② 組綠界導轉參數
+    if (recent) {
+      merchantTradeNo = recent.merchant_trade_no;
+      console.log(
+        `[pay] reuse INIT order: ${merchantTradeNo} (${userId}, ${feature})`
+      );
+    } else {
+      // ==========================
+      // ② 沒有可用 INIT → 先把舊 INIT 全部 EXPIRED
+      // ==========================
+      await paymentOrders.expireOldInitOrders({ userId, feature });
+
+      // ==========================
+      // ③ 建新 INIT 訂單
+      // ==========================
+      merchantTradeNo = genMerchantTradeNo();
+      await paymentOrders.createPaymentOrder({
+        merchantTradeNo,
+        userId,
+        feature,
+        qty,
+        amount,
+      });
+
+      console.log(
+        `[pay] create NEW INIT order: ${merchantTradeNo} (${userId}, ${feature})`
+      );
+    }
+
+    // ==========================
+    // ④ 組綠界導轉參數
+    // ==========================
     const MerchantID = process.env.ECPAY_MERCHANT_ID;
     const HashKey = process.env.ECPAY_HASH_KEY;
     const HashIV = process.env.ECPAY_HASH_IV;
@@ -1055,29 +1088,35 @@ app.get("/pay", async (req, res) => {
       ItemName: `${feature} x ${qty}`,
       ChoosePayment: "Credit",
 
-      // ✅ 付款完成後綠界 Server 會 POST 回來
       ReturnURL: `${BASE_URL}/ecpay/return`,
-
-      // ✅ 付款完成後，使用者瀏覽器回到你這頁（可改你想要的頁）
       ClientBackURL: `${BASE_URL}/about#line-services`,
 
-      // ✅ 自訂欄位：帶 userId/feature 回來（查單更方便）
       CustomField1: userId,
       CustomField2: feature,
       CustomField3: String(qty),
 
-      // ✅ 驗簽關鍵
-      // 綠界回呼是用 MD5 產生的 CheckMacValue（32 碼）
-      EncryptType: 1,
+      EncryptType: 1, // SHA256
     };
 
-    params.CheckMacValue = generateCheckMacValue(params, HashKey, HashIV);
+    params.CheckMacValue = generateCheckMacValue(
+      params,
+      HashKey,
+      HashIV,
+      "sha256"
+    );
 
-    // ③ 回傳 auto-submit form（導轉到綠界）
+    // ==========================
+    // ⑤ 導轉到綠界
+    // ==========================
     const ecpayUrl = "https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5";
+
     const inputs = Object.entries(params)
       .map(
-        ([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}" />`
+        ([k, v]) =>
+          `<input type="hidden" name="${k}" value="${String(v).replace(
+            /"/g,
+            "&quot;"
+          )}" />`
       )
       .join("\n");
 
@@ -1122,10 +1161,10 @@ app.post(
       // ==========================
       // 🔍 Debug：驗簽用（確認哪裡不一樣）
       // ==========================
-      console.log("[ECPAY RETURN] received CheckMacValue =", receivedMac);
-      console.log("[ECPAY RETURN] computed CheckMacValue =", computedMac);
-      console.log("[ECPAY RETURN] data keys =", Object.keys(data));
-      console.log("[ECPAY RETURN] algo =", algo);
+      //console.log("[ECPAY RETURN] received CheckMacValue =", receivedMac);
+      //console.log("[ECPAY RETURN] computed CheckMacValue =", computedMac);
+      //console.log("[ECPAY RETURN] data keys =", Object.keys(data));
+      //console.log("[ECPAY RETURN] algo =", algo);
 
       if (computedMac !== receivedMac) {
         console.warn("[ecpay return] CheckMacValue mismatch");

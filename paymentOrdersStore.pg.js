@@ -72,10 +72,51 @@ async function markOrderFailed({ merchantTradeNo, ecpayTradeNo }) {
   );
 }
 
+// ==========================
+// ✅ 將舊的 INIT 訂單全部標成 EXPIRED
+// 用途：避免使用者翻舊付款頁又刷到
+// 規則：同 user + feature，只允許 1 張 INIT 存活
+// ==========================
+async function expireOldInitOrders({ userId, feature }) {
+  await pool.query(
+    `
+    UPDATE payment_orders
+    SET status = 'EXPIRED'
+    WHERE user_id = $1
+      AND feature = $2
+      AND status = 'INIT'
+    `,
+    [userId, feature]
+  );
+}
+
+// ==========================
+// ✅ 找最近一筆 INIT 訂單（防止重複建單）
+// ==========================
+async function findRecentInitOrder({ userId, feature, minutes = 30 }) {
+  const r = await pool.query(
+    `
+    SELECT merchant_trade_no, created_at
+    FROM payment_orders
+    WHERE user_id = $1
+      AND feature = $2
+      AND status = 'INIT'
+      AND created_at >= NOW() - ($3::int * INTERVAL '1 minute')
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [userId, feature, minutes]
+  );
+
+  return r.rows[0] || null;
+}
+
 module.exports = {
   createPaymentOrder,
   getPaymentOrder,
   updateOrderRawReturn,
   markOrderPaidIfNotYet,
   markOrderFailed,
+  expireOldInitOrders,
+  findRecentInitOrder,
 };
