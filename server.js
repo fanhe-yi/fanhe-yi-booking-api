@@ -696,6 +696,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         contents: [
           //把 footer.contents 的第一顆按鈕換成 primaryButton
           primaryButton,
+          /*
           {
             type: "button",
             style: "primary",
@@ -703,8 +704,9 @@ async function sendServiceIntroFlex(userId, serviceKey) {
               type: "postback",
               label: "開始",
               data: `action=start&service=${serviceKey}`,
-            },
+            },          
           },
+          */
           {
             type: "button",
             style: "link",
