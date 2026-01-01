@@ -49,6 +49,24 @@ function genMerchantTradeNo() {
   return `FH${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
+// ==========================
+// ✅ 綠界需要的時間格式：yyyy/MM/dd HH:mm:ss（台灣時間）
+// ==========================
+function formatEcpayDate(date = new Date()) {
+  // 轉成台灣時間（UTC+8）
+  const d = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  const MM = pad(d.getUTCMonth() + 1);
+  const dd = pad(d.getUTCDate());
+  const HH = pad(d.getUTCHours());
+  const mm = pad(d.getUTCMinutes());
+  const ss = pad(d.getUTCSeconds());
+
+  return `${yyyy}/${MM}/${dd} ${HH}:${mm}:${ss}`;
+}
+
 function generateCheckMacValue(params, hashKey, hashIV) {
   const sorted = Object.keys(params)
     .sort((a, b) => a.localeCompare(b))
@@ -1023,10 +1041,7 @@ app.get("/pay", async (req, res) => {
     const params = {
       MerchantID,
       MerchantTradeNo: merchantTradeNo,
-      MerchantTradeDate: new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace("T", " "),
+      MerchantTradeDate: formatEcpayDate(),
       PaymentType: "aio",
       TotalAmount: amount,
       TradeDesc: "LINE 線上服務",
