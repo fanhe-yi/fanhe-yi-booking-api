@@ -144,6 +144,17 @@ const UNAVAILABLE_FILE = path.join(__dirname, "unavailable.json");
 // 簡易後台 Token（正式上線可以改成環境變數）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "dev-secret";
 
+/***************************************
+ * [簡轉繁]：用 OpenCC（s2t）
+ ***************************************/
+const OpenCC = require("opencc-js");
+
+let _s2t;
+function toTW(str = "") {
+  if (!_s2t) _s2t = OpenCC.Converter({ from: "cn", to: "tw" });
+  return _s2t(String(str || ""));
+}
+
 //時間helper 目前只有在送「退神」按鈕有用到
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -4273,9 +4284,8 @@ async function lyMenuFlex(userId, meta, parsed) {
         {
           type: "text",
           text: [
-            genderLabel,
-            bengua ? `本卦：${bengua}` : "",
-            biangua ? `變卦：${biangua}` : "",
+            bengua ? `本卦 - ${toTW(bengua)}` : "\n",
+            biangua ? `變卦 - ${toTW(biangua)}` : "",
           ]
             .filter(Boolean)
             .join("　"),
@@ -4348,7 +4358,7 @@ async function lyMenuFlex(userId, meta, parsed) {
           style: "primary",
           height: "sm",
           color: "#8E6CEF",
-          action: { type: "message", label: "請老師解卦", text: "請老師解卦" },
+          action: { type: "message", label: "請老師解卦", text: "預約" },
         },
       ],
     },
