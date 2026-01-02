@@ -4281,28 +4281,49 @@ async function lyMenuFlex(userId, meta, parsed) {
           size: "lg",
           wrap: true,
         },
+
+        // ✅ 本卦一行、變卦一行（不用 \n / join）
         {
-          type: "text",
-          text: [
-            bengua ? `本卦 - ${toTW(bengua)}` : "\n",
-            biangua ? `變卦 - ${toTW(biangua)}` : "",
-          ]
-            .filter(Boolean)
-            .join("　"),
-          size: "xs",
-          color: "#777777",
-          wrap: true,
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            ...(bengua
+              ? [
+                  {
+                    type: "text",
+                    text: `本卦 - ${toTW(bengua)}`,
+                    size: "xs",
+                    color: "#777777",
+                    wrap: true,
+                  },
+                ]
+              : []),
+            ...(biangua
+              ? [
+                  {
+                    type: "text",
+                    text: `變卦 - ${toTW(biangua)}`,
+                    size: "xs",
+                    color: "#777777",
+                    wrap: true,
+                  },
+                ]
+              : []),
+          ],
         },
 
         { type: "separator", margin: "md" },
 
-        {
-          type: "text",
-          text: "一句話總結",
-          size: "sm",
-          weight: "bold",
-          color: "#555555",
-        },
+        /*
+  {
+    type: "text",
+    text: "一句話總結",
+    size: "sm",
+    weight: "bold",
+    color: "#555555",
+  },
+  */
         {
           type: "text",
           text: oneLiner,
@@ -4320,7 +4341,7 @@ async function lyMenuFlex(userId, meta, parsed) {
           color: "#555555",
         },
 
-        /* 2×2 選單（box 當按鈕） */
+        /* 1×3 選單（box 當按鈕） */
         {
           type: "box",
           layout: "vertical",
@@ -4454,7 +4475,7 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
       action: {
         type: "message",
         label: "請老師解卦",
-        text: "請老師解卦",
+        text: "預約",
       },
     });
   }
