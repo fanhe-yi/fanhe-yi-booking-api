@@ -1612,48 +1612,7 @@ async function handleLineEvent(event) {
      * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
      * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
      ***************************************/
-    async function handleLyNav(userId, text) {
-      const t = (text || "").trim();
-      if (!t) return false;
-
-      // 只攔這幾個關鍵字，避免誤傷其他流程
-      const allow = ["看總覽", "看過去", "看現在", "看未來", "看全文"];
-      if (!allow.includes(t)) return false;
-
-      const cached = lyGet(userId);
-      if (!cached) {
-        await pushText(
-          userId,
-          "你這一卦的內容我這邊找不到了（可能已過期）。要不要重新起一卦？"
-        );
-        return true;
-      }
-
-      const { meta, parsed } = cached;
-
-      if (t === "看總覽") {
-        await lyMenuFlex(userId, meta, parsed);
-        return true;
-      }
-      if (t === "看過去") {
-        await lyPartFlex(userId, meta, parsed, "past");
-        return true;
-      }
-      if (t === "看現在") {
-        await lyPartFlex(userId, meta, parsed, "now");
-        return true;
-      }
-      if (t === "看未來") {
-        await lyPartFlex(userId, meta, parsed, "future");
-        return true;
-      }
-      if (t === "看全文") {
-        await lyAllCarousel(userId, meta, parsed);
-        return true;
-      }
-
-      return false;
-    }
+    if (await handleLyNav(userId, text)) return;
 
     // --------------------------------------------------
     // 3) 若目前在某個對話流程中，優先交給該流程處理（例如預約 / 六爻 / 合婚）
