@@ -2230,7 +2230,7 @@ async function routePostback(userId, data, state) {
 
       // ✅ 結果先存起來，等退神完成再送
       currState.data.pendingAiText = aiText;
-      console.log("2274routePostback:", userId);
+      console.log("2274已進到routePostback:", userId);
       // ✅ quota 在這裡扣（代表解卦已完成）
       await quotaUsage(userId, "liuyao");
 
@@ -3333,6 +3333,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     // 我們可以在下一輪一起把這三步補上。
 
     try {
+      console.log("3336已進到handleLiuTaoFlow:try", userId);
       const timeParams = buildLiuYaoTimeParams(state);
       const { y, m, d, h, mi } = timeParams;
 
@@ -4320,17 +4321,9 @@ async function lyMenuFlex(userId, meta, parsed) {
               layout: "horizontal",
               spacing: "sm",
               contents: [
-                lyBox("看過去", "看過去", "#F5EFE6"),
-                lyBox("看現在", "看現在", "#F0F4F8"),
-              ],
-            },
-            {
-              type: "box",
-              layout: "horizontal",
-              spacing: "sm",
-              contents: [
-                lyBox("看未來", "看未來", "#EEF6F0"),
-                lyBox("看全文", "看全文", "#EFEAF6"), // 全文：用 carousel 3 頁
+                lyBox("看過去", "六爻過去", "#F5EFE6"),
+                lyBox("看現在", "六爻現在", "#F0F4F8"),
+                lyBox("看未來", "六爻未來", "#EEF6F0"),
               ],
             },
           ],
@@ -4394,18 +4387,78 @@ async function lyMenuFlex(userId, meta, parsed) {
  * Footer：下一頁 / 回總覽
  ***************************************/
 async function lyPartFlex(userId, meta, parsed, partKey) {
+  /***************************************
+   * [章節設定]：標題 + 順序 + 下一頁
+   ***************************************/
   const titleMap = { past: "① 過去", now: "② 現在", future: "③ 未來" };
   const order = ["past", "now", "future"];
   const idx = order.indexOf(partKey);
   const nextKey = idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null;
 
+  /***************************************
+   * [章節內容]：依 partKey 取對應段落文字
+   ***************************************/
   const text =
     partKey === "past"
-      ? parsed.past
+      ? parsed?.past
       : partKey === "now"
-      ? parsed.now
-      : parsed.future;
+      ? parsed?.now
+      : parsed?.future;
 
+  /***************************************
+   * [按鈕指令]：避免跟八字「看總覽」撞名
+   * - 六爻全部用「六爻xxx」指令
+   ***************************************/
+  const keyToCmd = {
+    past: "六爻過去",
+    now: "六爻現在",
+    future: "六爻未來",
+  };
+  const nextCmd = nextKey ? keyToCmd[nextKey] : "六爻總覽";
+
+  /***************************************
+   * [Footer CTA]：
+   * - 非最後一頁：主按鈕 = 下一頁
+   * - 最後一頁：主按鈕 = 請老師解卦（避免跟回總覽重複）
+   * - 永遠保留：link = 回六爻總覽
+   ***************************************/
+  const footerContents = [];
+
+  if (nextKey) {
+    footerContents.push({
+      type: "button",
+      style: "secondary",
+      height: "sm",
+      action: {
+        type: "message",
+        label: `下一頁（${titleMap[nextKey]}）`,
+        text: nextCmd,
+      },
+    });
+  } else {
+    footerContents.push({
+      type: "button",
+      style: "primary",
+      height: "sm",
+      color: "#8E6CEF",
+      action: {
+        type: "message",
+        label: "請老師解卦",
+        text: "請老師解卦",
+      },
+    });
+  }
+
+  footerContents.push({
+    type: "button",
+    style: "link",
+    height: "sm",
+    action: { type: "message", label: "回六爻總覽", text: "六爻總覽" },
+  });
+
+  /***************************************
+   * [Flex Bubble]：單頁章節卡
+   ***************************************/
   const bubble = {
     type: "bubble",
     size: "mega",
@@ -4431,7 +4484,9 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
         { type: "separator", margin: "md" },
         {
           type: "text",
-          text: text || "（這段內容解析不到，我建議你按「看全文」確認原文）",
+          text:
+            text ||
+            "（這段內容解析不到。你可以回六爻總覽再點一次，或重新起卦。）",
           size: "md",
           wrap: true,
         },
@@ -4441,30 +4496,7 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: [
-        {
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          action: {
-            type: "message",
-            label: nextKey ? `下一頁（${titleMap[nextKey]}）` : "回總覽",
-            text: nextKey
-              ? nextKey === "past"
-                ? "看過去"
-                : nextKey === "now"
-                ? "看現在"
-                : "看未來"
-              : "看總覽",
-          },
-        },
-        {
-          type: "button",
-          style: "link",
-          height: "sm",
-          action: { type: "message", label: "回總覽", text: "看總覽" },
-        },
-      ],
+      contents: footerContents,
     },
   };
 
@@ -4520,44 +4552,43 @@ async function lyAllCarousel(userId, meta, parsed) {
 /***************************************
  * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
  * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
+ * - 指令統一加「六爻」前綴
+ * - 移除「看全文」
  ***************************************/
 async function handleLyNav(userId, text) {
-  const t = (text || "").trim();
+  const t = String(text || "")
+    .trim()
+    .replace(/\s+/g, "");
   if (!t) return false;
 
-  // 只攔這幾個關鍵字，避免誤傷其他流程
-  const allow = ["看總覽", "看過去", "看現在", "看未來", "看全文"];
+  const allow = ["六爻總覽", "六爻過去", "六爻現在", "六爻未來"];
   if (!allow.includes(t)) return false;
 
   const cached = lyGet(userId);
   if (!cached) {
     await pushText(
       userId,
-      "你這一卦的內容我這邊找不到了（可能已過期）。要不要重新起一卦？"
+      "你這一卦的內容我這邊找不到了（可能已過期或你已重新起卦）。要不要重新起一卦？"
     );
     return true;
   }
 
   const { meta, parsed } = cached;
 
-  if (t === "看總覽") {
+  if (t === "六爻總覽") {
     await lyMenuFlex(userId, meta, parsed);
     return true;
   }
-  if (t === "看過去") {
+  if (t === "六爻過去") {
     await lyPartFlex(userId, meta, parsed, "past");
     return true;
   }
-  if (t === "看現在") {
+  if (t === "六爻現在") {
     await lyPartFlex(userId, meta, parsed, "now");
     return true;
   }
-  if (t === "看未來") {
+  if (t === "六爻未來") {
     await lyPartFlex(userId, meta, parsed, "future");
-    return true;
-  }
-  if (t === "看全文") {
-    await lyAllCarousel(userId, meta, parsed);
     return true;
   }
 
