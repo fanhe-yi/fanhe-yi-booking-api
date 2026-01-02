@@ -1230,7 +1230,7 @@ app.post(
 // ==========================
 app.get("/pay/success", (req, res) => {
   const officialLineUrl =
-    process.env.OFFICIAL_LINE_URL || "line://ti/p/@YOUR_LINE_ID";
+    process.env.OFFICIAL_LINE_URL || "line://ti/p/@415kfyus";
 
   res.set("Content-Type", "text/html; charset=utf-8");
   res.send(`
@@ -1606,6 +1606,53 @@ async function handleLineEvent(event) {
     // --------------------------------------------------
     if (isEntryCommand(text)) {
       delete conversationStates[userId];
+    }
+
+    /***************************************
+     * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
+     * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
+     ***************************************/
+    async function handleLyNav(userId, text) {
+      const t = (text || "").trim();
+      if (!t) return false;
+
+      // 只攔這幾個關鍵字，避免誤傷其他流程
+      const allow = ["看總覽", "看過去", "看現在", "看未來", "看全文"];
+      if (!allow.includes(t)) return false;
+
+      const cached = lyGet(userId);
+      if (!cached) {
+        await pushText(
+          userId,
+          "你這一卦的內容我這邊找不到了（可能已過期）。要不要重新起一卦？"
+        );
+        return true;
+      }
+
+      const { meta, parsed } = cached;
+
+      if (t === "看總覽") {
+        await lyMenuFlex(userId, meta, parsed);
+        return true;
+      }
+      if (t === "看過去") {
+        await lyPartFlex(userId, meta, parsed, "past");
+        return true;
+      }
+      if (t === "看現在") {
+        await lyPartFlex(userId, meta, parsed, "now");
+        return true;
+      }
+      if (t === "看未來") {
+        await lyPartFlex(userId, meta, parsed, "future");
+        return true;
+      }
+      if (t === "看全文") {
+        await lyAllCarousel(userId, meta, parsed);
+        return true;
+      }
+
+      return false;
     }
 
     // --------------------------------------------------
@@ -2023,6 +2070,9 @@ async function routePostback(userId, data, state) {
   // ============================
   // ✅ 儀式關卡 4：退神完成 → 丟出 pending AI 結果
   // ============================
+  /***************************************
+   * [退神完成]：不再丟長文，改丟「總覽頁」
+   ***************************************/
   if (action === "liuyao_sendoff") {
     const currState = state || conversationStates[userId];
     if (!currState || currState.mode !== "liuyao") {
@@ -2039,13 +2089,23 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    await pushText(userId, aiText);
+    /* 1) 解析 AI 文本 -> past/now/future/summary */
+    const parsed = lyParse(aiText);
 
-    // ✅ 收束落款（退神後）
+    /* 2) 存 cache：讓使用者可以點章節 */
+    const meta = {
+      topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
+      genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
+      bengua: currState.data?.hexData?.bengua || "",
+      biangua: currState.data?.hexData?.biangua || "",
+    };
+    lySave(userId, { meta, parsed });
+
+    /* 3) 丟總覽頁 */
+    await lyMenuFlex(userId, meta, parsed);
+
+    /* 4) 收束落款 */
     await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
-
-    delete conversationStates[userId];
-    return;
 
     delete conversationStates[userId];
     return;
@@ -2745,6 +2805,455 @@ async function handleBaziMatchFlow(userId, text, state, event) {
   return false;
 }
 
+// --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
+function extractPillars(baziSummaryText) {
+  const lines = baziSummaryText.split(/\r?\n/);
+
+  let year = "",
+    month = "",
+    day = "",
+    hour = "";
+
+  for (const line of lines) {
+    if (line.includes("年柱："))
+      year = line.replace(/.*?年柱[:：]\s*/, "").trim();
+    if (line.includes("月柱："))
+      month = line.replace(/.*?月柱[:：]\s*/, "").trim();
+    if (line.includes("日柱："))
+      day = line.replace(/.*?日柱[:：]\s*/, "").trim();
+    if (line.includes("時柱："))
+      hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
+  }
+
+  return { year, month, day, hour };
+}
+
+// --- 天干五行對照表 ---
+const stemElement = {
+  甲: "木",
+  乙: "木",
+  丙: "火",
+  丁: "火",
+  戊: "土",
+  己: "土",
+  庚: "金",
+  辛: "金",
+  壬: "水",
+  癸: "水",
+};
+// --- 地支五行對照表 ---
+const branchElement = {
+  子: "水",
+  丑: "土",
+  寅: "木",
+  卯: "木",
+  辰: "土",
+  巳: "火",
+  午: "火",
+  未: "土",
+  申: "金",
+  酉: "金",
+  戌: "土",
+  亥: "水",
+};
+
+// --- 計算五行數量 ---
+function calcFiveElements({ year, month, day, hour }) {
+  const all = [year, month, day, hour];
+
+  const count = { 金: 0, 木: 0, 水: 0, 火: 0, 土: 0 };
+
+  for (const pillar of all) {
+    if (!pillar) continue;
+    const [stem, branch] = pillar.split("");
+
+    const e1 = stemElement[stem];
+    const e2 = branchElement[branch];
+
+    if (e1) count[e1] += 1;
+    if (e2) count[e2] += 1;
+  }
+
+  return count;
+}
+
+////把八字結果組合成文字呼叫AI
+async function callMiniReadingAI(
+  birthObj,
+  mode = "pattern",
+  gender = "unknown"
+) {
+  const { raw, date, timeType, time, branch } = birthObj;
+
+  // --- 組合生日文字描述 ---
+  let birthDesc = `-西元生日：${date}`;
+  if (timeType === "hm") {
+    birthDesc += ` ${time}`;
+  } else if (timeType === "branch") {
+    birthDesc += ` ${branch}時（地支時辰，未提供分鐘）`;
+  } else if (timeType === "unknown") {
+    birthDesc += `（未提供時辰）`;
+  }
+
+  // --- focus 語氣設定 ----
+  let focusText = "";
+  let timePhraseHint = "";
+
+  if (mode === "pattern") {
+    focusText =
+      "本次以「格局 / 命盤基礎性格與人生主調」為主，不特別細拆流年流月。";
+    timePhraseHint =
+      "在描述時可以多用「整體來說」「長期來看」這類字眼，少用「今年」「這個月」「今天」。";
+  } else if (mode === "year") {
+    focusText =
+      "本次以「今年的流年變化與提醒」為主，重點放在流年年柱與命主八字之間的五行生剋制化、刑沖合害。格局只簡單帶過。";
+    timePhraseHint =
+      "請在內容中多用「今年」「這一年」「這一年當中」等字眼，讓讀者明顯感覺到是年度層級。";
+  } else if (mode === "month") {
+    focusText =
+      "本次以「這個月的運勢節奏與起伏」為主，重點放在本月月柱與命主八字之間的五行互動與刑沖合害。格局只簡單帶過。";
+    timePhraseHint =
+      "請多用「這幾個月」「本月」「近期一兩個月」等字眼，讓讀者感覺是 1～3 個月的節奏。";
+  } else if (mode === "day") {
+    focusText =
+      "本次以「今日 / 最近幾日的狀態提醒」為主，重點放在今日日柱對命主八字的觸發與起伏。格局只簡單帶過。";
+    timePhraseHint =
+      "請多用「今天」「這幾天」「這陣子」等字眼，讓讀者感覺是當下幾天的提醒。";
+  } else {
+    focusText = "本次以整體命格與最近一年提醒為主。";
+    timePhraseHint = "";
+  }
+
+  // --- 性別補充說明 ---
+  let genderHintForSystem = "";
+  let genderHintForUser = "";
+
+  if (gender === "male") {
+    genderHintForSystem =
+      "本次解讀對象為「男命」，請以男性命主的角度來描述，用詞自然即可。";
+    genderHintForUser =
+      "這次請以男命的角度說明命盤特質與建議，不用一直重複「男命」二字。";
+  } else if (gender === "female") {
+    genderHintForSystem =
+      "本次解讀對象為「女命」，請以女性命主的角度來描述，用詞自然即可。";
+    genderHintForUser =
+      "這次請以女命的角度說明命盤特質與建議，不用一直重複「女命」二字。";
+  } else {
+    genderHintForSystem =
+      "本次解讀對象未特別標註性別，請使用中性的稱呼，不要自行猜測性別。";
+    genderHintForUser = "";
+  }
+
+  // --- 先向 youhualao 取得八字摘要（已組成給 AI 用的文字） ---
+  let baziSummaryText = "";
+  try {
+    const { summaryText } = await getBaziSummaryForAI(birthObj);
+    baziSummaryText = summaryText;
+  } catch (err) {
+    console.error("[youhualao API error]", err);
+
+    // API 掛掉時的簡易 fallback：直接請 AI 自己算、直接回文字（不用 JSON）
+    const fallbackSystemPrompt =
+      "你是一位懂八字與紫微斗數的東方命理老師，講話溫和、實際，不宿命論，不嚇人。";
+    const fallbackUserPrompt =
+      `${birthDesc}\n` +
+      `原始輸入格式：${raw}\n\n` +
+      `${focusText}\n\n` +
+      (genderHintForUser ? genderHintForUser + "\n\n" : "") +
+      "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
+      "並依據上述重點，給予 150～200 字的簡短提醒與建議，語氣像朋友聊天。";
+
+    console.log(
+      "[callMiniReadingAI][fallback] systemPrompt:\n",
+      fallbackSystemPrompt
+    );
+    console.log(
+      "[callMiniReadingAI][fallback] userPrompt:\n",
+      fallbackUserPrompt
+    );
+
+    // ❗ 這支在 fallback 就回「純文字」，上層記得視為 aiText 直接展示
+    return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
+  }
+
+  ///////放到header用//
+  // 解析四柱//////////
+  const { year, month, day, hour } = extractPillars(baziSummaryText);
+  // 計算五行
+  const fiveCount = calcFiveElements({ year, month, day, hour });
+  const pillarsText = `-年柱：${year}\n-月柱：${month}\n-日柱：${day}\n-時柱：${hour}`;
+  const fiveElementsText = `-五行：木 ${fiveCount.木}、火 ${fiveCount.火}、土 ${fiveCount.土}、金 ${fiveCount.金}、水 ${fiveCount.水}`;
+
+  // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
+  let flowingGzText = "";
+  console.log("[callMiniReadingAI] mode:", mode);
+
+  if (mode === "year" || mode === "month" || mode === "day") {
+    try {
+      const now = new Date();
+      const { yearGZ, monthGZ, dayGZ, hourGZ } = await getLiuYaoGanzhiForDate(
+        now
+      );
+
+      if (mode === "year") {
+        flowingGzText =
+          "【當下流年干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `今日月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「流年年柱」與命主原本命盤之間的五行生剋制化與刑沖合害對應。";
+      } else if (mode === "month") {
+        flowingGzText =
+          "【當下流月干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `本月月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「本月月柱」對命主原本命盤的五行起伏與刑沖合害。";
+      } else if (mode === "day") {
+        flowingGzText =
+          "【當下流日干支資訊】\n" +
+          `今年流年年柱：${yearGZ}\n` +
+          `本月月柱：${monthGZ}\n` +
+          `今日日柱：${dayGZ}\n` +
+          `目前時柱：${hourGZ}\n` +
+          "請特別留意「今日日柱」對命主原本命盤的五行觸發與情緒、事件起落。";
+      }
+    } catch (err) {
+      console.error("[youhualao ly] 取得當日干支失敗：", err);
+      flowingGzText = "";
+    }
+  }
+
+  // --- 系統提示 ---
+  const systemPrompt =
+    "你是一位懂八字與紫微斗數的東方命理老師，" +
+    "講話溫和、實際，不宿命論，不嚇人。" +
+    genderHintForSystem + //systemPrompt / fallback 補上「男命 / 女命」語氣
+    "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
+    "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
+    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。" +
+    "### 請務必遵守輸出格式：" +
+    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ``` 等 Markdown。" +
+    "格式如下：" +
+    "{ " +
+    '"personality": "人格特質的說明150-170 個中文字", ' +
+    '"social": "人際關係的說明，150-170 個中文字", ' +
+    '"partner": "伴侶 / 親密關係的說明，150-170 個中文字", ' +
+    '"family": "家庭互動 /原生家庭或家人互動的說明，150-170 個中文字", ' +
+    '"study_work": "學業 / 工作方向與節奏的說明，150-170 個中文字"' +
+    " }" +
+    "每一段都要濃縮具體，只寫可行建議，不要廢話、不重覆、不講專業術語堆疊。" +
+    "五段合計大約 750～850 個中文字（含標點）。" +
+    "務必符合 JSON 格式，所有 key 都要用雙引號包起來。";
+
+  // --- userPrompt ---
+  const userPrompt =
+    `【基本資料】\n` +
+    `${birthDesc}\n` +
+    `原始輸入格式：${raw}\n\n` +
+    `【本次解讀重點】\n${focusText}\n` +
+    (timePhraseHint ? `\n${timePhraseHint}\n\n` : "\n") +
+    "【命盤結構摘要（請以此為準）】\n" +
+    `${baziSummaryText}\n\n` +
+    (flowingGzText ? `${flowingGzText}\n\n` : "") +
+    "【請你這樣做】\n" +
+    "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
+    "2. 先簡短總結這個命盤的調性（例如：偏行動 / 思考 / 感受、偏穩定或變動等），但這段不要另外獨立輸出，只要自然融入五個欄位之中。\n" +
+    "3. 在內容中自然寫出年柱、月柱、日柱、時柱與日主，以及五行數量（不用算藏干），但不要做成條列，只要融入文字。\n" +
+    "4. 依照五個面向：人格特質、人際關係、伴侶關係、家庭互動、學業/工作，分別寫 150-170 個中文字的建議與提醒。\n" +
+    "5. 若時辰未知或僅為約略時段，請在適當欄位自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
+    "6. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
+    "7. 最後在某一欄位的結尾，用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
+    "8. 非常重要：最終輸出只能是 JSON 物件本身，不要出現任何解釋文字、不要多一句話、不要加 ```json。";
+
+  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+  //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
+
+  const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
+
+  // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
+  return {
+    aiText: AI_Reading_Text,
+    pillarsText,
+    fiveElementsText,
+  };
+}
+
+/**
+ * 八字合婚主流程（Bazi Match Pipeline）
+ * ------------------------------------------------------------
+ * 此函式負責整合「男方」與「女方」的八字資料，並透過 AI
+ * 產生完整的合婚評估 JSON（含分數 / 優點 / 磨合點 / 建議）。
+ *
+ * 【主要流程】
+ * 1) 取得男、女雙方的八字摘要（getBaziSummaryForAI）
+ *    - 此步驟與單人八字測算相同，沿用同一份 API 摘要格式。
+ *    - 回傳值中的 summaryText 即為 baziSummaryText。
+ *
+ * 2) 解析四柱（extractPillars）
+ *    - 從八字摘要文字中抓取：年柱、月柱、日柱、時柱。
+ *    - 合婚僅需「月支」＋「日支」作為核心判斷基礎：
+ *        malePillars.month  → 男方月柱（取地支）
+ *        malePillars.day    → 男方日柱（取地支）
+ *        femalePillars.month → 女方月柱（取地支）
+ *        femalePillars.day   → 女方日柱（取地支）
+ *
+ * 3) 組合合婚提示語句（matchText）
+ *    - 依你指定格式組成：
+ *        例：「男命 月支申 日支寅 女命 月支亥 日支丑 幫我合婚」
+ *    - 此文字會直接丟給 GPT 當作合婚語境的提示。
+ *
+ * 4) 呼叫 AI_Reading（GPT / fallback）
+ *    - systemPrompt：
+ *        定義合婚邏輯、輸出風格、強制 JSON 格式。
+ *    - userPrompt：
+ *        包含男命摘要、女命摘要、matchText。
+ *    - AI 僅被允許回傳 JSON，格式包含：
+ *        {
+ *          score: 0-100,          // 合婚分數
+ *          summary: "...",        // 整體總評
+ *          strengths: [...],      // 互補亮點
+ *          challenges: [...],     // 潛在磨合點
+ *          advice: "..."          // 經營方向建議
+ *        }
+ *
+ * 5) 回傳給上層（handleBaziMatchFlow）
+ *    - 不在此階段解析 JSON，由 lineClient.js 的
+ *      sendBaziMatchResultFlex 負責解析與生成 Flex Message。
+ *    - 回傳結構：
+ *        {
+ *          aiText,                // AI 原始回應（string）
+ *          matchText,             // 合婚提示語句
+ *          malePillars,           // 男方四柱
+ *          femalePillars,         // 女方四柱
+ *          maleSummary,           // 男方八字摘要文字
+ *          femaleSummary          // 女方八字摘要文字
+ *        }
+ *
+ * 【使用到的元件 / 工具】
+ * - getBaziSummaryForAI     ：取得 youhualao 的八字摘要文字
+ * - extractPillars           ：從摘要中解析出四柱干支
+ * - AI_Reading               ：包裝 GPT（優先）＋ Gemini（fallback）
+ * - parseMiniBirthInput      ：解析生日輸入格式（於上層流程使用）
+ *
+ * ------------------------------------------------------------
+ * 注意：
+ * - 完全不改動單人測算流程的 baziSummaryText 結構。
+ * - 合婚的 maleSummary / femaleSummary 皆為新變數，不會影響現有流程。
+ * - Flex 呈現邏輯獨立於 lineClient.js 中處理。
+ */
+async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
+  // 1) 先拿兩邊的八字摘要（沿用你原本那顆 getBaziSummaryForAI）
+  const { summaryText: maleBaziSummaryText } = await getBaziSummaryForAI(
+    maleBirthObj
+  );
+  const { summaryText: femaleBaziSummaryText } = await getBaziSummaryForAI(
+    femaleBirthObj
+  );
+
+  // 2) 拆出四柱，再取月支 + 日支
+  const malePillars = extractPillars(maleBaziSummaryText); // { year, month, day, hour }
+  const femalePillars = extractPillars(femaleBaziSummaryText);
+
+  const maleMonthBranch = (malePillars.month || "").slice(1); // 取第 2 個字當地支
+  const maleDayBranch = (malePillars.day || "").slice(1);
+  const femaleMonthBranch = (femalePillars.month || "").slice(1);
+  const femaleDayBranch = (femalePillars.day || "").slice(1);
+
+  // 3) 組給 AI 的「內部合婚提示」
+  //    👉 含 月支 / 日支 + 「幫我合婚」，只給 AI 用
+  const matchPromptText =
+    `男命 月支${maleMonthBranch} 日支${maleDayBranch} ` +
+    `女命 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
+
+  // 4) 組給使用者看的說明文字（看你要不要更 detail）
+  //    👉 不出現地支、也不出現「幫我合婚」
+  const matchDisplayText =
+    "本次合婚是依照雙方的出生年月日，" +
+    "以八字命盤的整體結構來評估緣分走向與相處模式計分。";
+
+  // 4) 系統提示：要求 JSON + 分數
+  const systemPrompt =
+    "你是一位專門看八字合婚的東方命理老師，講話是現代嘴炮風。" +
+    "你會收到兩位當事人的八字摘要（包含四柱與部分五行資訊），請根據兩人的命盤，" +
+    "重點參考「月支與日支之間的關係」以及「雙方五行生剋是否互補或失衡」，" +
+    "綜合給出合婚評估。" +
+    "在你的內部判斷邏輯中（不要寫進輸出的文字裡），請遵守以下原則：" +
+    "1.如果雙方月支、日支之間形成明顯的和諧關係（例如傳統所說的六合、相生、互補），" +
+    "合婚分數要有明顯加分，可以落在 80～95 分區間，並在文字裡用「很合」、「默契自然」" +
+    "「互補性高」、「相處很順」這類描述來呈現整體感受。" +
+    "2.如果雙方之間存在強烈對立關係（例如傳統所說的六沖、嚴重相剋），" +
+    "合婚分數應有明顯扣分，可以落在 40～65 分區間，在文字裡用「衝突感較強」、" +
+    "「磨合較多」、「步調差異大」、「需要更多溝通」這類語氣呈現。" +
+    "3.如果主要是相刑、內耗、反覆拉扯的關係，分數可落在 50～75 分之間，" +
+    "在文字裡可以使用「相處較虐心」、「情緒容易互相牽動」、「在意彼此但也容易磨耗」等描述。" +
+    "4.若同時有和諧與衝突並存，你要自行權衡，拉出明顯差異，不要所有情況都停在 70～80 分，" +
+    "而是根據整體相性，合理分配在 40～95 分之間。" +
+    "五行方面，請在心裡參考雙方命盤中日主以及整體五行的生剋關係，" +
+    "例如互相補足欠缺的元素時，可以視為「互補性高」、" +
+    "若某一方過強而另一方更被壓制時，可視為「一方壓力較大」或「容易感到不被理解」。" +
+    "但這些五行、生剋的專業名詞，只能作為你內部推理的依據，不能直接寫進輸出文字。" +
+    "請注意：在輸出的 JSON 文字內容中，不要出現「子、丑、寅、卯、辰、巳、午、未、申、酉、戌、亥」這些字眼，" +
+    "也不要使用「月支」「日支」「地支」「六合」「六沖」「相刑」「五行生剋」等專業術語。" +
+    "你可以在心裡完整使用這些命理概念，但對使用者的文字說明只用一般人聽得懂的語言，" +
+    "例如「個性互補」、「步調不同」、「需要多一點溝通」、「比較虐心」、「情緒起伏較大」等。" +
+    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ```。" +
+    "JSON 格式如下：" +
+    "{ " +
+    '"score": 0-100 的整數合婚分數,' +
+    '"summary": "整體合婚總評，約 80～150 字（用日常語言，不要命理術語）",' +
+    '"strengths": ["優點 1", "優點 2", "互補的地方等（用日常語言）"],' +
+    '"challenges": ["潛在摩擦點 1", "生活節奏／價值觀差異等（用日常語言）"],' +
+    '"advice": "給雙方的具體經營建議，約 120～200 字（用日常語言，不要命理術語）"' +
+    " }";
+
+  // 5) userPrompt：丟「兩份摘要 + 合婚 text」
+  const userPrompt =
+    "以下是兩位當事人的八字摘要，請你依照 JSON 格式做合婚評估：\n\n" +
+    "【男命八字摘要】\n" +
+    maleBaziSummaryText +
+    "\n\n" +
+    "【女命八字摘要】\n" +
+    femaleBaziSummaryText +
+    "\n\n" +
+    "【合婚提示（內部用）】\n" +
+    matchPromptText +
+    "\n\n" +
+    "請直接輸出 JSON。";
+
+  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
+  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
+
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
+
+  // 🔹 在這裡做「人話時間」版本
+  const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
+  const femaleBirthDisplay = formatBirthForDisplay(femaleBirthObj);
+
+  // 跟單人一樣先不 parse，交給 lineClient 處理
+  return {
+    aiText,
+    matchPromptText,
+    matchDisplayText,
+
+    // ⭐ 給 Flex header 用（人類看得懂）
+    maleBirthDisplay: formatBirthForDisplay(maleBirthObj),
+    femaleBirthDisplay: formatBirthForDisplay(femaleBirthObj),
+
+    // ⭐ 保留 raw 給 debug
+    maleBirthRaw: maleBirthObj.raw,
+    femaleBirthRaw: femaleBirthObj.raw,
+
+    malePillars,
+    femalePillars,
+    maleSummary: maleBaziSummaryText,
+    femaleSummary: femaleBaziSummaryText,
+  };
+}
+
 // ========================
 //  六爻占卜主流程
 // ========================
@@ -2881,7 +3390,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       // 存起來（可選，但建議）
       state.data.hexData = hexData;
 
-      // ⬇️【就貼在這裡】呼叫 AI 解卦
+      // ⬇️ 呼叫 AI 解卦
       const { aiText } = await callLiuYaoAI({
         genderText: state.data.gender === "female" ? "女命" : "男命",
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
@@ -3528,7 +4037,7 @@ async function sendLiuYaoMidGateFlex(userId) {
     },
   };
 
-  await pushFlex(userId, "已過中爻", contents);
+  await pushFlex(userId, "下卦已成", contents);
 }
 
 // 六爻 完成版六爻
@@ -3635,454 +4144,6 @@ async function sendLiuYaoSendoffFlex(userId) {
   await pushFlex(userId, "退神儀式", contents);
 }
 
-// --- 將 baziSummaryText 解析出 年柱/月柱/日柱/時柱 ---
-function extractPillars(baziSummaryText) {
-  const lines = baziSummaryText.split(/\r?\n/);
-
-  let year = "",
-    month = "",
-    day = "",
-    hour = "";
-
-  for (const line of lines) {
-    if (line.includes("年柱："))
-      year = line.replace(/.*?年柱[:：]\s*/, "").trim();
-    if (line.includes("月柱："))
-      month = line.replace(/.*?月柱[:：]\s*/, "").trim();
-    if (line.includes("日柱："))
-      day = line.replace(/.*?日柱[:：]\s*/, "").trim();
-    if (line.includes("時柱："))
-      hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
-  }
-
-  return { year, month, day, hour };
-}
-
-// --- 天干五行對照表 ---
-const stemElement = {
-  甲: "木",
-  乙: "木",
-  丙: "火",
-  丁: "火",
-  戊: "土",
-  己: "土",
-  庚: "金",
-  辛: "金",
-  壬: "水",
-  癸: "水",
-};
-// --- 地支五行對照表 ---
-const branchElement = {
-  子: "水",
-  丑: "土",
-  寅: "木",
-  卯: "木",
-  辰: "土",
-  巳: "火",
-  午: "火",
-  未: "土",
-  申: "金",
-  酉: "金",
-  戌: "土",
-  亥: "水",
-};
-
-// --- 計算五行數量 ---
-function calcFiveElements({ year, month, day, hour }) {
-  const all = [year, month, day, hour];
-
-  const count = { 金: 0, 木: 0, 水: 0, 火: 0, 土: 0 };
-
-  for (const pillar of all) {
-    if (!pillar) continue;
-    const [stem, branch] = pillar.split("");
-
-    const e1 = stemElement[stem];
-    const e2 = branchElement[branch];
-
-    if (e1) count[e1] += 1;
-    if (e2) count[e2] += 1;
-  }
-
-  return count;
-}
-
-////把八字結果組合成文字呼叫AI
-async function callMiniReadingAI(
-  birthObj,
-  mode = "pattern",
-  gender = "unknown"
-) {
-  const { raw, date, timeType, time, branch } = birthObj;
-
-  // --- 組合生日文字描述 ---
-  let birthDesc = `-西元生日：${date}`;
-  if (timeType === "hm") {
-    birthDesc += ` ${time}`;
-  } else if (timeType === "branch") {
-    birthDesc += ` ${branch}時（地支時辰，未提供分鐘）`;
-  } else if (timeType === "unknown") {
-    birthDesc += `（未提供時辰）`;
-  }
-
-  // --- focus 語氣設定 ----
-  let focusText = "";
-  let timePhraseHint = "";
-
-  if (mode === "pattern") {
-    focusText =
-      "本次以「格局 / 命盤基礎性格與人生主調」為主，不特別細拆流年流月。";
-    timePhraseHint =
-      "在描述時可以多用「整體來說」「長期來看」這類字眼，少用「今年」「這個月」「今天」。";
-  } else if (mode === "year") {
-    focusText =
-      "本次以「今年的流年變化與提醒」為主，重點放在流年年柱與命主八字之間的五行生剋制化、刑沖合害。格局只簡單帶過。";
-    timePhraseHint =
-      "請在內容中多用「今年」「這一年」「這一年當中」等字眼，讓讀者明顯感覺到是年度層級。";
-  } else if (mode === "month") {
-    focusText =
-      "本次以「這個月的運勢節奏與起伏」為主，重點放在本月月柱與命主八字之間的五行互動與刑沖合害。格局只簡單帶過。";
-    timePhraseHint =
-      "請多用「這幾個月」「本月」「近期一兩個月」等字眼，讓讀者感覺是 1～3 個月的節奏。";
-  } else if (mode === "day") {
-    focusText =
-      "本次以「今日 / 最近幾日的狀態提醒」為主，重點放在今日日柱對命主八字的觸發與起伏。格局只簡單帶過。";
-    timePhraseHint =
-      "請多用「今天」「這幾天」「這陣子」等字眼，讓讀者感覺是當下幾天的提醒。";
-  } else {
-    focusText = "本次以整體命格與最近一年提醒為主。";
-    timePhraseHint = "";
-  }
-
-  // --- 性別補充說明 ---
-  let genderHintForSystem = "";
-  let genderHintForUser = "";
-
-  if (gender === "male") {
-    genderHintForSystem =
-      "本次解讀對象為「男命」，請以男性命主的角度來描述，用詞自然即可。";
-    genderHintForUser =
-      "這次請以男命的角度說明命盤特質與建議，不用一直重複「男命」二字。";
-  } else if (gender === "female") {
-    genderHintForSystem =
-      "本次解讀對象為「女命」，請以女性命主的角度來描述，用詞自然即可。";
-    genderHintForUser =
-      "這次請以女命的角度說明命盤特質與建議，不用一直重複「女命」二字。";
-  } else {
-    genderHintForSystem =
-      "本次解讀對象未特別標註性別，請使用中性的稱呼，不要自行猜測性別。";
-    genderHintForUser = "";
-  }
-
-  // --- 先向 youhualao 取得八字摘要（已組成給 AI 用的文字） ---
-  let baziSummaryText = "";
-  try {
-    const { summaryText } = await getBaziSummaryForAI(birthObj);
-    baziSummaryText = summaryText;
-  } catch (err) {
-    console.error("[youhualao API error]", err);
-
-    // API 掛掉時的簡易 fallback：直接請 AI 自己算、直接回文字（不用 JSON）
-    const fallbackSystemPrompt =
-      "你是一位懂八字與紫微斗數的東方命理老師，講話溫和、實際，不宿命論，不嚇人。";
-    const fallbackUserPrompt =
-      `${birthDesc}\n` +
-      `原始輸入格式：${raw}\n\n` +
-      `${focusText}\n\n` +
-      (genderHintForUser ? genderHintForUser + "\n\n" : "") +
-      "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
-      "並依據上述重點，給予 150～200 字的簡短提醒與建議，語氣像朋友聊天。";
-
-    console.log(
-      "[callMiniReadingAI][fallback] systemPrompt:\n",
-      fallbackSystemPrompt
-    );
-    console.log(
-      "[callMiniReadingAI][fallback] userPrompt:\n",
-      fallbackUserPrompt
-    );
-
-    // ❗ 這支在 fallback 就回「純文字」，上層記得視為 aiText 直接展示
-    return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
-  }
-
-  ///////放到header用//
-  // 解析四柱//////////
-  const { year, month, day, hour } = extractPillars(baziSummaryText);
-  // 計算五行
-  const fiveCount = calcFiveElements({ year, month, day, hour });
-  const pillarsText = `-年柱：${year}\n-月柱：${month}\n-日柱：${day}\n-時柱：${hour}`;
-  const fiveElementsText = `-五行：木 ${fiveCount.木}、火 ${fiveCount.火}、土 ${fiveCount.土}、金 ${fiveCount.金}、水 ${fiveCount.水}`;
-
-  // --- 取得「現在」這一刻的干支（給流年 / 流月 / 流日用） ---
-  let flowingGzText = "";
-  console.log("[callMiniReadingAI] mode:", mode);
-
-  if (mode === "year" || mode === "month" || mode === "day") {
-    try {
-      const now = new Date();
-      const { yearGZ, monthGZ, dayGZ, hourGZ } = await getLiuYaoGanzhiForDate(
-        now
-      );
-
-      if (mode === "year") {
-        flowingGzText =
-          "【當下流年干支資訊】\n" +
-          `今年流年年柱：${yearGZ}\n` +
-          `今日月柱：${monthGZ}\n` +
-          `今日日柱：${dayGZ}\n` +
-          `目前時柱：${hourGZ}\n` +
-          "請特別留意「流年年柱」與命主原本命盤之間的五行生剋制化與刑沖合害對應。";
-      } else if (mode === "month") {
-        flowingGzText =
-          "【當下流月干支資訊】\n" +
-          `今年流年年柱：${yearGZ}\n` +
-          `本月月柱：${monthGZ}\n` +
-          `今日日柱：${dayGZ}\n` +
-          `目前時柱：${hourGZ}\n` +
-          "請特別留意「本月月柱」對命主原本命盤的五行起伏與刑沖合害。";
-      } else if (mode === "day") {
-        flowingGzText =
-          "【當下流日干支資訊】\n" +
-          `今年流年年柱：${yearGZ}\n` +
-          `本月月柱：${monthGZ}\n` +
-          `今日日柱：${dayGZ}\n` +
-          `目前時柱：${hourGZ}\n` +
-          "請特別留意「今日日柱」對命主原本命盤的五行觸發與情緒、事件起落。";
-      }
-    } catch (err) {
-      console.error("[youhualao ly] 取得當日干支失敗：", err);
-      flowingGzText = "";
-    }
-  }
-
-  // --- 系統提示 ---
-  const systemPrompt =
-    "你是一位懂八字與紫微斗數的東方命理老師，" +
-    "講話溫和、實際，不宿命論，不嚇人。" +
-    genderHintForSystem + //systemPrompt / fallback 補上「男命 / 女命」語氣
-    "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
-    "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
-    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。" +
-    "### 請務必遵守輸出格式：" +
-    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ``` 等 Markdown。" +
-    "格式如下：" +
-    "{ " +
-    '"personality": "人格特質的說明150-170 個中文字", ' +
-    '"social": "人際關係的說明，150-170 個中文字", ' +
-    '"partner": "伴侶 / 親密關係的說明，150-170 個中文字", ' +
-    '"family": "家庭互動 /原生家庭或家人互動的說明，150-170 個中文字", ' +
-    '"study_work": "學業 / 工作方向與節奏的說明，150-170 個中文字"' +
-    " }" +
-    "每一段都要濃縮具體，只寫可行建議，不要廢話、不重覆、不講專業術語堆疊。" +
-    "五段合計大約 750～850 個中文字（含標點）。" +
-    "務必符合 JSON 格式，所有 key 都要用雙引號包起來。";
-
-  // --- userPrompt ---
-  const userPrompt =
-    `【基本資料】\n` +
-    `${birthDesc}\n` +
-    `原始輸入格式：${raw}\n\n` +
-    `【本次解讀重點】\n${focusText}\n` +
-    (timePhraseHint ? `\n${timePhraseHint}\n\n` : "\n") +
-    "【命盤結構摘要（請以此為準）】\n" +
-    `${baziSummaryText}\n\n` +
-    (flowingGzText ? `${flowingGzText}\n\n` : "") +
-    "【請你這樣做】\n" +
-    "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
-    "2. 先簡短總結這個命盤的調性（例如：偏行動 / 思考 / 感受、偏穩定或變動等），但這段不要另外獨立輸出，只要自然融入五個欄位之中。\n" +
-    "3. 在內容中自然寫出年柱、月柱、日柱、時柱與日主，以及五行數量（不用算藏干），但不要做成條列，只要融入文字。\n" +
-    "4. 依照五個面向：人格特質、人際關係、伴侶關係、家庭互動、學業/工作，分別寫 150-170 個中文字的建議與提醒。\n" +
-    "5. 若時辰未知或僅為約略時段，請在適當欄位自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
-    "6. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
-    "7. 最後在某一欄位的結尾，用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
-    "8. 非常重要：最終輸出只能是 JSON 物件本身，不要出現任何解釋文字、不要多一句話、不要加 ```json。";
-
-  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
-  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
-  //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
-
-  const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
-
-  // 🚩 這裡先不 parse，直接把 AI 回來的「字串」丟回去，由上層決定 parse 或當成純文字
-  return {
-    aiText: AI_Reading_Text,
-    pillarsText,
-    fiveElementsText,
-  };
-}
-
-/**
- * 八字合婚主流程（Bazi Match Pipeline）
- * ------------------------------------------------------------
- * 此函式負責整合「男方」與「女方」的八字資料，並透過 AI
- * 產生完整的合婚評估 JSON（含分數 / 優點 / 磨合點 / 建議）。
- *
- * 【主要流程】
- * 1) 取得男、女雙方的八字摘要（getBaziSummaryForAI）
- *    - 此步驟與單人八字測算相同，沿用同一份 API 摘要格式。
- *    - 回傳值中的 summaryText 即為 baziSummaryText。
- *
- * 2) 解析四柱（extractPillars）
- *    - 從八字摘要文字中抓取：年柱、月柱、日柱、時柱。
- *    - 合婚僅需「月支」＋「日支」作為核心判斷基礎：
- *        malePillars.month  → 男方月柱（取地支）
- *        malePillars.day    → 男方日柱（取地支）
- *        femalePillars.month → 女方月柱（取地支）
- *        femalePillars.day   → 女方日柱（取地支）
- *
- * 3) 組合合婚提示語句（matchText）
- *    - 依你指定格式組成：
- *        例：「男命 月支申 日支寅 女命 月支亥 日支丑 幫我合婚」
- *    - 此文字會直接丟給 GPT 當作合婚語境的提示。
- *
- * 4) 呼叫 AI_Reading（GPT / fallback）
- *    - systemPrompt：
- *        定義合婚邏輯、輸出風格、強制 JSON 格式。
- *    - userPrompt：
- *        包含男命摘要、女命摘要、matchText。
- *    - AI 僅被允許回傳 JSON，格式包含：
- *        {
- *          score: 0-100,          // 合婚分數
- *          summary: "...",        // 整體總評
- *          strengths: [...],      // 互補亮點
- *          challenges: [...],     // 潛在磨合點
- *          advice: "..."          // 經營方向建議
- *        }
- *
- * 5) 回傳給上層（handleBaziMatchFlow）
- *    - 不在此階段解析 JSON，由 lineClient.js 的
- *      sendBaziMatchResultFlex 負責解析與生成 Flex Message。
- *    - 回傳結構：
- *        {
- *          aiText,                // AI 原始回應（string）
- *          matchText,             // 合婚提示語句
- *          malePillars,           // 男方四柱
- *          femalePillars,         // 女方四柱
- *          maleSummary,           // 男方八字摘要文字
- *          femaleSummary          // 女方八字摘要文字
- *        }
- *
- * 【使用到的元件 / 工具】
- * - getBaziSummaryForAI     ：取得 youhualao 的八字摘要文字
- * - extractPillars           ：從摘要中解析出四柱干支
- * - AI_Reading               ：包裝 GPT（優先）＋ Gemini（fallback）
- * - parseMiniBirthInput      ：解析生日輸入格式（於上層流程使用）
- *
- * ------------------------------------------------------------
- * 注意：
- * - 完全不改動單人測算流程的 baziSummaryText 結構。
- * - 合婚的 maleSummary / femaleSummary 皆為新變數，不會影響現有流程。
- * - Flex 呈現邏輯獨立於 lineClient.js 中處理。
- */
-async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
-  // 1) 先拿兩邊的八字摘要（沿用你原本那顆 getBaziSummaryForAI）
-  const { summaryText: maleBaziSummaryText } = await getBaziSummaryForAI(
-    maleBirthObj
-  );
-  const { summaryText: femaleBaziSummaryText } = await getBaziSummaryForAI(
-    femaleBirthObj
-  );
-
-  // 2) 拆出四柱，再取月支 + 日支
-  const malePillars = extractPillars(maleBaziSummaryText); // { year, month, day, hour }
-  const femalePillars = extractPillars(femaleBaziSummaryText);
-
-  const maleMonthBranch = (malePillars.month || "").slice(1); // 取第 2 個字當地支
-  const maleDayBranch = (malePillars.day || "").slice(1);
-  const femaleMonthBranch = (femalePillars.month || "").slice(1);
-  const femaleDayBranch = (femalePillars.day || "").slice(1);
-
-  // 3) 組給 AI 的「內部合婚提示」
-  //    👉 含 月支 / 日支 + 「幫我合婚」，只給 AI 用
-  const matchPromptText =
-    `男命 月支${maleMonthBranch} 日支${maleDayBranch} ` +
-    `女命 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
-
-  // 4) 組給使用者看的說明文字（看你要不要更 detail）
-  //    👉 不出現地支、也不出現「幫我合婚」
-  const matchDisplayText =
-    "本次合婚是依照雙方的出生年月日，" +
-    "以八字命盤的整體結構來評估緣分走向與相處模式計分。";
-
-  // 4) 系統提示：要求 JSON + 分數
-  const systemPrompt =
-    "你是一位專門看八字合婚的東方命理老師，講話是現代嘴炮風。" +
-    "你會收到兩位當事人的八字摘要（包含四柱與部分五行資訊），請根據兩人的命盤，" +
-    "重點參考「月支與日支之間的關係」以及「雙方五行生剋是否互補或失衡」，" +
-    "綜合給出合婚評估。" +
-    "在你的內部判斷邏輯中（不要寫進輸出的文字裡），請遵守以下原則：" +
-    "1.如果雙方月支、日支之間形成明顯的和諧關係（例如傳統所說的六合、相生、互補），" +
-    "合婚分數要有明顯加分，可以落在 80～95 分區間，並在文字裡用「很合」、「默契自然」" +
-    "「互補性高」、「相處很順」這類描述來呈現整體感受。" +
-    "2.如果雙方之間存在強烈對立關係（例如傳統所說的六沖、嚴重相剋），" +
-    "合婚分數應有明顯扣分，可以落在 40～65 分區間，在文字裡用「衝突感較強」、" +
-    "「磨合較多」、「步調差異大」、「需要更多溝通」這類語氣呈現。" +
-    "3.如果主要是相刑、內耗、反覆拉扯的關係，分數可落在 50～75 分之間，" +
-    "在文字裡可以使用「相處較虐心」、「情緒容易互相牽動」、「在意彼此但也容易磨耗」等描述。" +
-    "4.若同時有和諧與衝突並存，你要自行權衡，拉出明顯差異，不要所有情況都停在 70～80 分，" +
-    "而是根據整體相性，合理分配在 40～95 分之間。" +
-    "五行方面，請在心裡參考雙方命盤中日主以及整體五行的生剋關係，" +
-    "例如互相補足欠缺的元素時，可以視為「互補性高」、" +
-    "若某一方過強而另一方更被壓制時，可視為「一方壓力較大」或「容易感到不被理解」。" +
-    "但這些五行、生剋的專業名詞，只能作為你內部推理的依據，不能直接寫進輸出文字。" +
-    "請注意：在輸出的 JSON 文字內容中，不要出現「子、丑、寅、卯、辰、巳、午、未、申、酉、戌、亥」這些字眼，" +
-    "也不要使用「月支」「日支」「地支」「六合」「六沖」「相刑」「五行生剋」等專業術語。" +
-    "你可以在心裡完整使用這些命理概念，但對使用者的文字說明只用一般人聽得懂的語言，" +
-    "例如「個性互補」、「步調不同」、「需要多一點溝通」、「比較虐心」、「情緒起伏較大」等。" +
-    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ```。" +
-    "JSON 格式如下：" +
-    "{ " +
-    '"score": 0-100 的整數合婚分數,' +
-    '"summary": "整體合婚總評，約 80～150 字（用日常語言，不要命理術語）",' +
-    '"strengths": ["優點 1", "優點 2", "互補的地方等（用日常語言）"],' +
-    '"challenges": ["潛在摩擦點 1", "生活節奏／價值觀差異等（用日常語言）"],' +
-    '"advice": "給雙方的具體經營建議，約 120～200 字（用日常語言，不要命理術語）"' +
-    " }";
-
-  // 5) userPrompt：丟「兩份摘要 + 合婚 text」
-  const userPrompt =
-    "以下是兩位當事人的八字摘要，請你依照 JSON 格式做合婚評估：\n\n" +
-    "【男命八字摘要】\n" +
-    maleBaziSummaryText +
-    "\n\n" +
-    "【女命八字摘要】\n" +
-    femaleBaziSummaryText +
-    "\n\n" +
-    "【合婚提示（內部用）】\n" +
-    matchPromptText +
-    "\n\n" +
-    "請直接輸出 JSON。";
-
-  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
-  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
-
-  const aiText = await AI_Reading(userPrompt, systemPrompt);
-
-  // 🔹 在這裡做「人話時間」版本
-  const maleBirthDisplay = formatBirthForDisplay(maleBirthObj);
-  const femaleBirthDisplay = formatBirthForDisplay(femaleBirthObj);
-
-  // 跟單人一樣先不 parse，交給 lineClient 處理
-  return {
-    aiText,
-    matchPromptText,
-    matchDisplayText,
-
-    // ⭐ 給 Flex header 用（人類看得懂）
-    maleBirthDisplay: formatBirthForDisplay(maleBirthObj),
-    femaleBirthDisplay: formatBirthForDisplay(femaleBirthObj),
-
-    // ⭐ 保留 raw 給 debug
-    maleBirthRaw: maleBirthObj.raw,
-    femaleBirthRaw: femaleBirthObj.raw,
-
-    malePillars,
-    femalePillars,
-    maleSummary: maleBaziSummaryText,
-    femaleSummary: femaleBaziSummaryText,
-  };
-}
 ///用神推導函式
 function inferUseGod({ topicText, genderText }) {
   const gender = (genderText || "").includes("女") ? "female" : "male";
@@ -4158,13 +4219,389 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     `請你解卦,最後請以繁體中文回覆`;
 
   // ✅ 想先人工檢查 prompt 就打開這兩行
-  console.log("[liuyao] systemPrompt:\n", systemPrompt);
-  console.log("[liuyao] userPrompt:\n", userPrompt);
+  //console.log("[liuyao] systemPrompt:\n", systemPrompt);
+  //console.log("[liuyao] userPrompt:\n", userPrompt);
 
   // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
 
   return { aiText, userPrompt, systemPrompt };
+}
+
+/***************************************
+ * [六爻結果 Cache]：讓使用者點章節時不用重算
+ ***************************************/
+const LY_TTL = 30 * 60 * 1000; // 30 分鐘
+const lyCache = new Map();
+
+function lySave(userId, payload) {
+  lyCache.set(userId, { ...payload, ts: Date.now() });
+}
+
+function lyGet(userId) {
+  const v = lyCache.get(userId);
+  if (!v) return null;
+  if (Date.now() - v.ts > LY_TTL) {
+    lyCache.delete(userId);
+    return null;
+  }
+  return v;
+}
+
+/***************************************
+ * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
+ * - 允許中間有破折號、空行、標點變化
+ ***************************************/
+function lyParse(aiText = "") {
+  const text = String(aiText || "").trim();
+
+  // 用比較寬鬆的方式抓「總結」段
+  const sumMatch = text.match(/(?:總結|結論)[\s：:]*([\s\S]*)$/);
+  const summary = sumMatch ? `總結：${sumMatch[1].trim()}` : "";
+
+  // 抓 ①②③ 三段（各自到下一段標記前截止）
+  const p1 = pickBlock(text, /①[\s\S]*?(?=②|$)/);
+  const p2 = pickBlock(text, /②[\s\S]*?(?=③|$)/);
+  const p3 = pickBlock(text, /③[\s\S]*?(?=$)/);
+
+  // 清理：把最後的「總結」從③移掉（避免重複）
+  const future = summary ? p3.replace(/(?:總結|結論)[\s\S]*$/g, "").trim() : p3;
+
+  return {
+    past: p1.trim(),
+    now: p2.trim(),
+    future: future.trim(),
+    summary: summary.trim(),
+    raw: text,
+  };
+
+  function pickBlock(src, re) {
+    const m = src.match(re);
+    return m ? m[0] : "";
+  }
+}
+
+/***************************************
+ * [六爻總覽 Flex]：1 張總覽 + 2×2 章節選單 + Footer CTA
+ ***************************************/
+async function lyMenuFlex(userId, meta, parsed) {
+  const {
+    topicLabel = "六爻占卜",
+    genderLabel = "",
+    bengua = "",
+    biangua = "",
+  } = meta || {};
+  const oneLiner =
+    parsed?.summary || "總結：我先幫你把重點收斂好了，你可以挑你想看的段落。";
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `六爻占卜｜${topicLabel}`,
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: [
+            genderLabel,
+            bengua ? `本卦：${bengua}` : "",
+            biangua ? `變卦：${biangua}` : "",
+          ]
+            .filter(Boolean)
+            .join("　"),
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+        },
+
+        { type: "separator", margin: "md" },
+
+        {
+          type: "text",
+          text: "一句話總結",
+          size: "sm",
+          weight: "bold",
+          color: "#555555",
+        },
+        {
+          type: "text",
+          text: oneLiner,
+          size: "md",
+          wrap: true,
+        },
+
+        { type: "separator", margin: "md" },
+
+        {
+          type: "text",
+          text: "你想先看哪段？",
+          size: "sm",
+          weight: "bold",
+          color: "#555555",
+        },
+
+        /* 2×2 選單（box 當按鈕） */
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                lyBox("看過去", "看過去", "#F5EFE6"),
+                lyBox("看現在", "看現在", "#F0F4F8"),
+              ],
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                lyBox("看未來", "看未來", "#EEF6F0"),
+                lyBox("看全文", "看全文", "#EFEAF6"), // 全文：用 carousel 3 頁
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    /* Footer：回到流程 / 請老師解卦（接 booking） */
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: { type: "message", label: "回到流程", text: "回到流程" },
+        },
+        {
+          type: "button",
+          style: "primary",
+          height: "sm",
+          color: "#8E6CEF",
+          action: { type: "message", label: "請老師解卦", text: "請老師解卦" },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻解卦總覽", bubble);
+
+  function lyBox(label, text, bgColor) {
+    return {
+      type: "box",
+      layout: "vertical",
+      flex: 1,
+      paddingAll: "md",
+      cornerRadius: "12px",
+      backgroundColor: bgColor,
+      justifyContent: "center",
+      alignItems: "center",
+      action: { type: "message", label, text },
+      contents: [
+        {
+          type: "text",
+          text: label,
+          size: "md",
+          weight: "bold",
+          align: "center",
+          wrap: true,
+          color: "#333333",
+        },
+      ],
+    };
+  }
+}
+
+/***************************************
+ * [六爻章節頁 Flex]：單頁（過去/現在/未來）
+ * Footer：下一頁 / 回總覽
+ ***************************************/
+async function lyPartFlex(userId, meta, parsed, partKey) {
+  const titleMap = { past: "① 過去", now: "② 現在", future: "③ 未來" };
+  const order = ["past", "now", "future"];
+  const idx = order.indexOf(partKey);
+  const nextKey = idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null;
+
+  const text =
+    partKey === "past"
+      ? parsed.past
+      : partKey === "now"
+      ? parsed.now
+      : parsed.future;
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `六爻解卦｜${titleMap[partKey] || "段落"}`,
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: meta?.topicLabel ? `主題：${meta.topicLabel}` : "",
+          size: "xs",
+          color: "#777777",
+          wrap: true,
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: text || "（這段內容解析不到，我建議你按「看全文」確認原文）",
+          size: "md",
+          wrap: true,
+        },
+      ].filter(Boolean),
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: nextKey ? `下一頁（${titleMap[nextKey]}）` : "回總覽",
+            text: nextKey
+              ? nextKey === "past"
+                ? "看過去"
+                : nextKey === "now"
+                ? "看現在"
+                : "看未來"
+              : "看總覽",
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: { type: "message", label: "回總覽", text: "看總覽" },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "六爻解卦段落", bubble);
+}
+
+/***************************************
+ * [六爻全文]：用 carousel 3 頁（比 1300 字長文 Flex 好讀）
+ ***************************************/
+async function lyAllCarousel(userId, meta, parsed) {
+  const mk = (title, text) => ({
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `六爻解卦｜${title}`,
+          weight: "bold",
+          size: "lg",
+          wrap: true,
+        },
+        meta?.topicLabel
+          ? {
+              type: "text",
+              text: `主題：${meta.topicLabel}`,
+              size: "xs",
+              color: "#777777",
+              wrap: true,
+            }
+          : null,
+        { type: "separator", margin: "md" },
+        { type: "text", text: text || "（無內容）", size: "md", wrap: true },
+      ].filter(Boolean),
+    },
+  });
+
+  const flex = {
+    type: "carousel",
+    contents: [
+      mk("① 過去", parsed.past),
+      mk("② 現在", parsed.now),
+      mk("③ 未來", `${parsed.future}\n\n${parsed.summary || ""}`.trim()),
+    ],
+  };
+
+  await pushFlex(userId, "六爻解卦全文", flex);
+}
+
+/***************************************
+ * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
+ * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
+ ***************************************/
+async function handleLyNav(userId, text) {
+  const t = (text || "").trim();
+  if (!t) return false;
+
+  // 只攔這幾個關鍵字，避免誤傷其他流程
+  const allow = ["看總覽", "看過去", "看現在", "看未來", "看全文"];
+  if (!allow.includes(t)) return false;
+
+  const cached = lyGet(userId);
+  if (!cached) {
+    await pushText(
+      userId,
+      "你這一卦的內容我這邊找不到了（可能已過期）。要不要重新起一卦？"
+    );
+    return true;
+  }
+
+  const { meta, parsed } = cached;
+
+  if (t === "看總覽") {
+    await lyMenuFlex(userId, meta, parsed);
+    return true;
+  }
+  if (t === "看過去") {
+    await lyPartFlex(userId, meta, parsed, "past");
+    return true;
+  }
+  if (t === "看現在") {
+    await lyPartFlex(userId, meta, parsed, "now");
+    return true;
+  }
+  if (t === "看未來") {
+    await lyPartFlex(userId, meta, parsed, "future");
+    return true;
+  }
+  if (t === "看全文") {
+    await lyAllCarousel(userId, meta, parsed);
+    return true;
+  }
+
+  return false;
 }
 
 // --- Start server ---
