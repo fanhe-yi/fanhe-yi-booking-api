@@ -2271,7 +2271,7 @@ async function routePostback(userId, data, state) {
 
       // ✅ 結果先存起來，等退神完成再送
       currState.data.pendingAiText = aiText;
-
+      console.log("routePostback:", mode);
       // ✅ quota 在這裡扣（代表解卦已完成）
       await quotaUsage(userId, "liuyao");
 
@@ -3397,6 +3397,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         hexData: state.data.hexData,
       });
 
+      console.log("已進到handleLiuTaoFlow:", mode);
       // 扣次quota
       await quotaUsage(userId, "liuyao");
       //////////////////////////////////////////
