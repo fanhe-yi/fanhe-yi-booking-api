@@ -3747,6 +3747,7 @@ async function sendLiuYaoStartRollFlex(userId) {
           size: "lg",
           wrap: true,
         },
+        { type: "separator" },
         {
           type: "text",
           text: "請你在心裡（或小聲）唸完請神文。\n唸完後，按下開始搖爻。",
@@ -4089,13 +4090,13 @@ async function sendLiuYaoSendoffFlex(userId) {
           size: "lg",
           wrap: true,
         },
+        { type: "separator" },
         {
           type: "text",
           text:
-            "卦已立，謝神明指引。\n若你願意，心中說一句：\n「於今六爻已成，吉凶分判\n" +
+            "卦已立，謝神明指引。\n請念以下退神文：\n「於今六爻已成，吉凶分判\n" +
             "弟子(姓名)在此叩謝\n" +
-            "十方世界諸佛菩薩\n" +
-            "謝神明、謝祖先，弟子收卦退神。\n「收卦退神（最後一步）」\n" +
+            "十方世界諸佛菩薩。」\n" +
             "完成後，我會把此卦解讀送上。",
           size: "sm",
           color: "#666666",
