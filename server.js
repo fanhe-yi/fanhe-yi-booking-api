@@ -536,7 +536,8 @@ async function sendServiceSelectFlex(userId) {
 
   const buttons = services.map((s) => ({
     type: "button",
-    style: "link",
+    style: "secondary",
+    color: "#f5eae4",
     height: "sm",
     margin: "sm",
     action: {
@@ -812,7 +813,7 @@ async function sendSlotsFlexForDate(userId, dateStr, serviceId) {
 
   const buttons = openSlots.map((slot) => ({
     type: "button",
-    style: "primary",
+    style: "link", //預約時段的button風格,原本是secondary
     height: "sm",
     action: {
       type: "postback",
