@@ -562,6 +562,7 @@ async function sendServiceSelectFlex(userId) {
           text: "請先選擇你想預約的項目：",
           size: "sm",
         },
+        { type: "separator" },
         {
           type: "box",
           layout: "vertical",
