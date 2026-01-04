@@ -222,6 +222,7 @@ const SERVICE_NAME_MAP = {
   ziwei: "紫微斗數",
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
+  liuyao: '"六爻占卜',
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
@@ -526,6 +527,7 @@ async function sendServiceSelectFlex(userId) {
     { id: "bazi", label: "八字諮詢" },
     { id: "ziwei", label: "紫微斗數" },
     { id: "name", label: "改名 / 姓名學" },
+    { id: "liuyao", label: "六爻占卜" },
     // 之後你要開風水可以再加：
     // { id: "fengshui", label: "風水勘察" },
   ];
