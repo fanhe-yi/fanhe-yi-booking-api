@@ -40,7 +40,7 @@ function getServiceName(serviceId) {
     bazi: "八字諮詢",
     ziwei: "紫微斗數",
     name: "改名 / 姓名學",
-    liuyao: '"六爻占卜',
+    liuyao: "六爻占卜",
     fengshui: "風水勘察",
     chat_line: "命理諮詢",
   };
@@ -384,6 +384,7 @@ async function sendBookingSuccessHero(userId, booking) {
         },
       ],
     },
+    /*暫時沒有修改預約的功能
     footer: {
       type: "box",
       layout: "vertical",
@@ -410,6 +411,7 @@ async function sendBookingSuccessHero(userId, booking) {
         },
       ],
     },
+    */
   };
 
   await pushFlex(userId, "預約成功", bubble);
