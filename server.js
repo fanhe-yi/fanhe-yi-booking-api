@@ -536,7 +536,7 @@ async function sendServiceSelectFlex(userId) {
 
   const buttons = services.map((s) => ({
     type: "button",
-    style: "primary",
+    style: "secondary",
     color: "#f5eae4",
     height: "sm",
     margin: "sm",
