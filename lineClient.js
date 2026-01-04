@@ -590,6 +590,7 @@ async function sendLiuYaoMenuFlex(userId) {
           color: "#555555",
           margin: "sm",
         },
+        { type: "separator" },
         {
           type: "button",
           style: "primary",
