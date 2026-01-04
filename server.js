@@ -209,11 +209,13 @@ function requireAdmin(req, res, next) {
 
 // 系統所有可用時段（中心真相）——之後前端/後台都應該跟這個一致
 const ALL_TIME_SLOTS = [
-  "09:00-10:00",
-  "10:30-11:30",
-  "14:00-15:00",
-  "15:30-16:30",
-  "20:00-21:00（線上）",
+  //"09:00-10:00",
+  //"10:30-11:30",
+  //"14:00-15:00",
+  //"15:30-16:30",
+  "19:00-20:00(線上)",
+  "20:00-21:00(線上)",
+  "21:00-22:00(線上)",
 ];
 
 // 🔹 服務代碼 → 顯示名稱
@@ -222,7 +224,7 @@ const SERVICE_NAME_MAP = {
   ziwei: "紫微斗數",
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
-  liuyao: '"六爻占卜',
+  liuyao: "六爻占卜",
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
@@ -521,7 +523,7 @@ async function tryRedeemCouponFromText(userId, text) {
 ///新增「選服務」的 Flex（第一層 bubble/）//
 ////////////////////////////////////////
 
-// 🔹 第一步：服務選擇 Flex（八字 / 紫微 / 姓名）
+// 🔹 第一步：服務選擇 Flex（八字 / 紫微 / 姓名 / 六爻）
 async function sendServiceSelectFlex(userId) {
   const services = [
     { id: "bazi", label: "八字諮詢" },

@@ -40,6 +40,7 @@ function getServiceName(serviceId) {
     bazi: "八字諮詢",
     ziwei: "紫微斗數",
     name: "改名 / 姓名學",
+    liuyao: '"六爻占卜',
     fengshui: "風水勘察",
     chat_line: "命理諮詢",
   };
