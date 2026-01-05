@@ -44,6 +44,11 @@ const liuyaoV2 = initLiuYaoV2({
   handleLiuYaoFlow,
 });
 
+/***************************************
+ * [liuyao_v2 cache]：確保 server.js 跟 nav.js 用同一份 Map
+ ***************************************/
+const { lySave } = require("./modules/liuyao_v2/domain/cache.js");
+
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
 // 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
@@ -4248,7 +4253,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 /***************************************
  * [六爻結果 Cache]：讓使用者點章節時不用重算
  ***************************************/
-const LY_TTL = 30 * 60 * 1000; // 30 分鐘
+/*const LY_TTL = 30 * 60 * 1000; // 30 分鐘
 const lyCache = new Map();
 
 function lySave(userId, payload) {
@@ -4264,6 +4269,7 @@ function lyGet(userId) {
   }
   return v;
 }
+*/
 
 /***************************************
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
