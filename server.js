@@ -2096,26 +2096,42 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    /* 1) 解析 AI 文本 -> past/now/future/summary */
-    const parsed = lyParse(aiText);
+    /***************************************
+     * [退神完成]：解析 → 存 cache → 出總覽
+     * 目的：抓出是 lyMenuFlex / pushFlex 哪裡爆掉
+     ***************************************/
+    try {
+      const parsed = lyParse(aiText);
 
-    /* 2) 存 cache：讓使用者可以點章節 */
-    const meta = {
-      topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
-      genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
-      bengua: currState.data?.hexData?.bengua || "",
-      biangua: currState.data?.hexData?.biangua || "",
-    };
-    lySave(userId, { meta, parsed });
+      const meta = {
+        topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
+        genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
+        bengua: currState.data?.hexData?.bengua || "",
+        biangua: currState.data?.hexData?.biangua || "",
+      };
 
-    /* 3) 丟總覽頁 */
-    await lyMenuFlex(userId, meta, parsed);
+      lySave(userId, { meta, parsed });
+      console.log(
+        "[LY] after save, summary len =",
+        (parsed?.summary || "").length
+      );
 
-    /* 4) 收束落款 */
-    await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
+      await lyMenuFlex(userId, meta, parsed);
+      console.log("[LY] menu flex sent");
 
-    delete conversationStates[userId];
-    return;
+      await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
+      console.log("[LY] closing text sent");
+
+      delete conversationStates[userId];
+      return;
+    } catch (e) {
+      console.error("[LY] sendoff error:", e);
+      await pushText(
+        userId,
+        "我這邊送出總覽時卡了一下，請你再按一次「退神完成」🙏"
+      );
+      return;
+    }
   }
 
   // ============================
