@@ -44,11 +44,6 @@ const liuyaoV2 = initLiuYaoV2({
   handleLiuYaoFlow,
 });
 
-/***************************************
- * [liuyao_v2 cache]：確保 server.js 跟 nav.js 用同一份 Map
- ***************************************/
-const { lySave } = require("./modules/liuyao_v2/domain/cache.js");
-
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
 // 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
