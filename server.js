@@ -30,6 +30,9 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
+//六爻相關v2
+const { initLiuYaoV2 } = require("./modules/liuyao_v2");
+const liuyaoV2 = initLiuYaoV2({ handleLiuYaoFlow });
 
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
@@ -1725,9 +1728,13 @@ async function routeByConversationState(userId, text, state, event) {
   }
 
   // 新增：六爻占卜
+  //if (mode === "liuyao") {
+  //  return await handleLiuYaoFlow(userId, text, state, event);
+  //}
   if (mode === "liuyao") {
-    return await handleLiuYaoFlow(userId, text, state, event);
+    return await lyFlowProxy(userId, text, state, event);
   }
+
   // 其他未支援的 mode
   return false;
 }
@@ -3228,6 +3235,15 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     maleSummary: maleBaziSummaryText,
     femaleSummary: femaleBaziSummaryText,
   };
+}
+
+//舊版：原本的 handleLiuYaoFlow
+//新版：liuyao_v2（目前只是轉呼叫舊版）
+async function lyFlowProxy(userId, text, state, event) {
+  if (process.env.LIUYAO_V2 === "true") {
+    return await liuyaoV2.handleFlow(userId, text, state, event);
+  }
+  return await handleLiuYaoFlow(userId, text, state, event);
 }
 
 // ========================
