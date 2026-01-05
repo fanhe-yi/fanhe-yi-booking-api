@@ -6,10 +6,12 @@ const LY_TTL = 30 * 60 * 1000; // 30 分鐘
 const lyCache = new Map();
 
 function lySave(userId, payload) {
+  console.log("[LY CACHE] save", userId);
   lyCache.set(userId, { ...payload, ts: Date.now() });
 }
 
 function lyGet(userId) {
+  console.log("[LY CACHE] get", userId);
   const v = lyCache.get(userId);
   if (!v) return null;
   if (Date.now() - v.ts > LY_TTL) {
