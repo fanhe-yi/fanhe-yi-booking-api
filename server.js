@@ -31,8 +31,18 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 //六爻相關v2
+/***************************************
+ * [liuyao_v2 初始化]
+ * 目的：v2 的 nav / ui 需要用 pushText / pushFlex 回訊息
+ ***************************************/
 const { initLiuYaoV2 } = require("./modules/liuyao_v2");
-const liuyaoV2 = initLiuYaoV2({ handleLiuYaoFlow });
+const liuyaoV2 = initLiuYaoV2({
+  // v2 需要把「導航文字」轉成 Flex 回覆
+  pushText,
+  pushFlex,
+  // 如果 v2 內部也要用到主流程（看你 index.js 怎麼寫）
+  handleLiuYaoFlow,
+});
 
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
