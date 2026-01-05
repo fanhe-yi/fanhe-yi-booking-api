@@ -1647,16 +1647,16 @@ async function handleLineEvent(event) {
      * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
      * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
      ***************************************/
-    //if (await handleLyNav(userId, text)) return;
+    if (await handleLyNav(userId, text)) return;
 
     /***************************************
      * [Step 6] 六爻導航攔截（一定要放在狀態機前）
      * 目的：使用者點「六爻過去/現在/未來」要先被吃掉
      ***************************************/
-    if (process.env.LIUYAO_V2 === "true") {
+    /*if (process.env.LIUYAO_V2 === "true") {
       const hit = await liuyaoV2.handleLyNav(userId, text);
       if (hit) return;
-    }
+    }*/
 
     // --------------------------------------------------
     // 3) 若目前在某個對話流程中，優先交給該流程處理（例如預約 / 六爻 / 合婚）
