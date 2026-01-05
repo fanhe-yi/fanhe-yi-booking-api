@@ -29,10 +29,10 @@ function makeLiuyaoV2(deps) {
 
   /***************************************
    * [postback] 退神完成（liuyao_sendoff）
-   * 目的：AI 結果解析 → 存 cache → 丟總覽 → 收束
+   * 目的：直接用 routePostback 傳進來的 state（最穩）
    ***************************************/
-  async function handleSendoffPostback(userId) {
-    const currState = conversationStates?.[userId] || null;
+  async function handleSendoffPostback(userId, state) {
+    const currState = state || conversationStates?.[userId] || null;
 
     if (!currState || currState.mode !== "liuyao") {
       await pushText(userId, "目前沒有正在進行的六爻流程。");
@@ -49,14 +49,8 @@ function makeLiuyaoV2(deps) {
     }
 
     try {
-      /***************************************
-       * 1) 解析 AI 文本 -> past/now/future/summary
-       ***************************************/
       const parsed = lyParse(aiText);
 
-      /***************************************
-       * 2) 組 meta + 存 cache（讓導航能用）
-       ***************************************/
       const meta = {
         topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
         genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
@@ -66,15 +60,14 @@ function makeLiuyaoV2(deps) {
 
       lySave(userId, { meta, parsed });
 
-      /***************************************
-       * 3) 丟總覽頁 + 收束落款
-       ***************************************/
-      // 注意：v2 的 lyMenuFlex 是注入 pushFlex 的版本
       await lyMenuFlex(pushFlex, userId, meta, parsed);
 
       await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
 
-      delete conversationStates[userId];
+      // ✅ 收尾：清掉流程狀態（用 deps 的 conversationStates）
+      if (conversationStates && conversationStates[userId]) {
+        delete conversationStates[userId];
+      }
       return true;
     } catch (e) {
       console.error("[LY_V2] sendoff error:", e);

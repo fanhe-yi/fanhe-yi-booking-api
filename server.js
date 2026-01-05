@@ -1767,7 +1767,7 @@ async function routePostback(userId, data, state) {
    * [六爻 v2] 退神完成：交給 liuyao_v2 自己處理
    ***************************************/
   if (action === "liuyao_sendoff" && process.env.LIUYAO_V2 === "true") {
-    await liuyaoV2.handleSendoffPostback(userId);
+    await liuyaoV2.handleSendoffPostback(userId, state);
     return;
   }
 
