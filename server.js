@@ -1641,6 +1641,7 @@ async function handleLineEvent(event) {
      * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
      * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
      ***************************************/
+    //old
     //if (await handleLyNav(userId, text)) return;
 
     /***************************************
@@ -4627,7 +4628,7 @@ async function lyAllCarousel(userId, meta, parsed) {
  * - 指令統一加「六爻」前綴
  * - 移除「看全文」
  ***************************************/
-async function handleLyNav(userId, text) {
+async function _oldhandleLyNav(userId, text) {
   const t = String(text || "")
     .trim()
     .replace(/\s+/g, "");
