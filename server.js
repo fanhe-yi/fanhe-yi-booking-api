@@ -4269,7 +4269,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 /***************************************
  * [六爻結果 Cache]：讓使用者點章節時不用重算
  ***************************************/
-/*const LY_TTL = 30 * 60 * 1000; // 30 分鐘
+const LY_TTL = 30 * 60 * 1000; // 30 分鐘
 const lyCache = new Map();
 
 function lySave(userId, payload) {
@@ -4285,7 +4285,6 @@ function lyGet(userId) {
   }
   return v;
 }
-*/
 
 /***************************************
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
