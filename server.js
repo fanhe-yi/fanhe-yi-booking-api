@@ -23,6 +23,11 @@ const {
   sendLiuYaoTimeModeFlex,
 } = require("./lineClient");
 
+/***************************************
+ * [liuyao_v2] cache API
+ ***************************************/
+const { lySave } = require("./modules/liuyao_v2/domain/cache");
+
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
