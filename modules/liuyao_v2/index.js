@@ -1,25 +1,18 @@
 /***************************************
- * [Step 5] index.js
- * 目的：把 nav 組出來，讓 server.js 可以呼叫 liuyaoV2.handleLyNav
+ * [liuyao_v2/index.js]
+ * 目的：把各子模組用 deps（pushText/pushFlex）組起來，再輸出給 server.js 用
  ***************************************/
 const { makeLyNav } = require("./nav");
 
-function initLiuYaoV2(deps) {
-  const { handleLyNav } = makeLyNav(deps);
+function makeLiuyaoV2(deps) {
+  /***************************************
+   * [nav] 組出帶 deps 的 handleLyNav
+   ***************************************/
+  const nav = makeLyNav(deps);
 
   return {
-    /***************************************
-     * handleFlow：你已經搬好的主流程
-     ***************************************/
-    handleFlow: async (userId, text, state, event) => {
-      return await deps.handleLiuYaoFlow(userId, text, state, event);
-    },
-
-    /***************************************
-     * handleLyNav：新增（章節點擊/總覽）
-     ***************************************/
-    handleLyNav,
+    handleLyNav: nav.handleLyNav,
   };
 }
 
-module.exports = { initLiuYaoV2 };
+module.exports = { makeLiuyaoV2 };

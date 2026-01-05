@@ -35,14 +35,11 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
  * [liuyao_v2 初始化]
  * 目的：v2 的 nav / ui 需要用 pushText / pushFlex 回訊息
  ***************************************/
-const { initLiuYaoV2 } = require("./modules/liuyao_v2");
-const liuyaoV2 = initLiuYaoV2({
-  // v2 需要把「導航文字」轉成 Flex 回覆
-  pushText,
-  pushFlex,
-  // 如果 v2 內部也要用到主流程（看你 index.js 怎麼寫）
-  handleLiuYaoFlow,
-});
+/***************************************
+ * [liuyao_v2] 初始化（把 pushText/pushFlex 注入）
+ ***************************************/
+const { makeLiuyaoV2 } = require("./modules/liuyao_v2");
+const liuyaoV2 = makeLiuyaoV2({ pushText, pushFlex });
 
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
@@ -1642,16 +1639,16 @@ async function handleLineEvent(event) {
      * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
      * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
      ***************************************/
-    if (await handleLyNav(userId, text)) return;
+    //if (await handleLyNav(userId, text)) return;
 
     /***************************************
      * [Step 6] 六爻導航攔截（一定要放在狀態機前）
      * 目的：使用者點「六爻過去/現在/未來」要先被吃掉
      ***************************************/
-    /*if (process.env.LIUYAO_V2 === "true") {
+    if (process.env.LIUYAO_V2 === "true") {
       const hit = await liuyaoV2.handleLyNav(userId, text);
       if (hit) return;
-    }*/
+    }
 
     // --------------------------------------------------
     // 3) 若目前在某個對話流程中，優先交給該流程處理（例如預約 / 六爻 / 合婚）
@@ -4264,7 +4261,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 /***************************************
  * [六爻結果 Cache]：讓使用者點章節時不用重算
  ***************************************/
-const LY_TTL = 30 * 60 * 1000; // 30 分鐘
+/*const LY_TTL = 30 * 60 * 1000; // 30 分鐘
 const lyCache = new Map();
 
 function lySave(userId, payload) {
@@ -4279,7 +4276,7 @@ function lyGet(userId) {
     return null;
   }
   return v;
-}
+}*/
 
 /***************************************
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
