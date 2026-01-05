@@ -36,10 +36,7 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 //六爻相關v2
-/***************************************
- * [liuyao_v2 初始化]
- * 目的：v2 的 nav / ui 需要用 pushText / pushFlex 回訊息
- ***************************************/
+
 /***************************************
  * [liuyao_v2] 初始化（把 pushText/pushFlex 注入）
  ***************************************/
@@ -1766,6 +1763,14 @@ async function routePostback(userId, data, state) {
   const action = params.get("action");
   const service = params.get("service");
 
+  /***************************************
+   * [六爻 v2] 退神完成：交給 liuyao_v2 自己處理
+   ***************************************/
+  if (action === "liuyao_sendoff" && process.env.LIUYAO_V2 === "true") {
+    await liuyaoV2.handleSendoffPostback(userId);
+    return;
+  }
+
   // ✅ 使用者按下「開始」：先 gate，再進流程
   if (action === "start" && service) {
     const labelMap = {
@@ -2099,7 +2104,6 @@ async function routePostback(userId, data, state) {
      ***************************************/
     try {
       const parsed = lyParse(aiText);
-      console.log(`parsed=${parsed} aitText=${aiText}`);
       const meta = {
         topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
         genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
@@ -2108,16 +2112,10 @@ async function routePostback(userId, data, state) {
       };
 
       lySave(userId, { meta, parsed });
-      console.log(
-        "[LY] after save, summary len =",
-        (parsed?.summary || "").length
-      );
 
       await lyMenuFlex(userId, meta, parsed);
-      console.log("[LY] menu flex sent");
 
       await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
-      console.log("[LY] closing text sent");
 
       delete conversationStates[userId];
       return;
@@ -4262,26 +4260,6 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 
   return { aiText, userPrompt, systemPrompt };
 }
-
-/***************************************
- * [六爻結果 Cache]：讓使用者點章節時不用重算
- ***************************************/
-/*const LY_TTL = 30 * 60 * 1000; // 30 分鐘
-const lyCache = new Map();
-
-function lySave(userId, payload) {
-  lyCache.set(userId, { ...payload, ts: Date.now() });
-}
-
-function lyGet(userId) {
-  const v = lyCache.get(userId);
-  if (!v) return null;
-  if (Date.now() - v.ts > LY_TTL) {
-    lyCache.delete(userId);
-    return null;
-  }
-  return v;
-}*/
 
 /***************************************
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
