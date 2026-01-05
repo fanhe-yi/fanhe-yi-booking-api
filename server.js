@@ -2102,7 +2102,7 @@ async function routePostback(userId, data, state) {
      ***************************************/
     try {
       const parsed = lyParse(aiText);
-
+      console.log(`parsed=${parsed} aitText=${aiText}`);
       const meta = {
         topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
         genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
