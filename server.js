@@ -23,7 +23,7 @@ const {
   sendLiuYaoTimeModeFlex,
 } = require("./lineClient");
 
-const { makeLiuyao } = require("./modules/liuyao");
+const { makeLiuyao } = require("./liuyao");
 
 const liuyao = makeLiuyao({
   pushText,
