@@ -23,11 +23,6 @@ const {
   sendLiuYaoTimeModeFlex,
 } = require("./lineClient");
 
-/***************************************
- * [liuyao_v2] cache API
- ***************************************/
-const { lySave } = require("./modules/liuyao_v2/domain/cache");
-
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -35,13 +30,6 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
-//六爻相關v2
-
-/***************************************
- * [liuyao_v2] 初始化（把 pushText/pushFlex 注入）
- ***************************************/
-const { makeLiuyaoV2 } = require("./modules/liuyao_v2");
-const liuyaoV2 = makeLiuyaoV2({ pushText, pushFlex });
 
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
@@ -1641,17 +1629,7 @@ async function handleLineEvent(event) {
      * [六爻總覽導航]：讓使用者在聊天室輸入「看過去」等指令
      * - 你在 handleLineEvent 裡先呼叫它，吃到就 return
      ***************************************/
-    //old
-    //if (await handleLyNav(userId, text)) return;
-
-    /***************************************
-     * [Step 6] 六爻導航攔截（一定要放在狀態機前）
-     * 目的：使用者點「六爻過去/現在/未來」要先被吃掉
-     ***************************************/
-    if (process.env.LIUYAO_V2 === "true") {
-      const hit = await liuyaoV2.handleLyNav(userId, text);
-      if (hit) return;
-    }
+    if (await handleLyNav(userId, text)) return;
 
     // --------------------------------------------------
     // 3) 若目前在某個對話流程中，優先交給該流程處理（例如預約 / 六爻 / 合婚）
@@ -1747,13 +1725,9 @@ async function routeByConversationState(userId, text, state, event) {
   }
 
   // 新增：六爻占卜
-  //if (mode === "liuyao") {
-  //  return await handleLiuYaoFlow(userId, text, state, event);
-  //}
   if (mode === "liuyao") {
-    return await lyFlowProxy(userId, text, state, event);
+    return await handleLiuYaoFlow(userId, text, state, event);
   }
-
   // 其他未支援的 mode
   return false;
 }
@@ -1763,14 +1737,6 @@ async function routePostback(userId, data, state) {
   const params = new URLSearchParams(data);
   const action = params.get("action");
   const service = params.get("service");
-
-  /***************************************
-   * [六爻 v2] 退神完成：交給 liuyao_v2 自己處理
-   ***************************************/
-  if (action === "liuyao_sendoff" && process.env.LIUYAO_V2 === "true") {
-    await liuyaoV2.handleSendoffPostback(userId, state);
-    return;
-  }
 
   // ✅ 使用者按下「開始」：先 gate，再進流程
   if (action === "start" && service) {
@@ -2077,20 +2043,13 @@ async function routePostback(userId, data, state) {
     return;
   }
 
+  // ============================
+  // ✅ 儀式關卡 4：退神完成 → 丟出 pending AI 結果
+  // ============================
   /***************************************
-   * 儀式關卡 4：[退神完成] 不再丟長文，改丟「總覽頁」
+   * [退神完成]：不再丟長文，改丟「總覽頁」
    ***************************************/
   if (action === "liuyao_sendoff") {
-    // 🆕 新版 v2（開關打開才進）
-    if (process.env.LIUYAO_V2 === "true") {
-      console.log("[liuyao_sendoff] 進新版 v2流程", userId);
-      await liuyaoV2.handleSendoffPostback(userId, state);
-      return;
-    }
-
-    // ----------------------------
-    // ⛔ 舊版流程（保險用，之後會整段刪）
-    // ----------------------------
     const currState = state || conversationStates[userId];
     if (!currState || currState.mode !== "liuyao") {
       await pushText(userId, "目前沒有正在進行的六爻流程。");
@@ -2106,31 +2065,26 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    try {
-      const parsed = lyParse(aiText);
-      const meta = {
-        topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
-        genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
-        bengua: currState.data?.hexData?.bengua || "",
-        biangua: currState.data?.hexData?.biangua || "",
-      };
+    /* 1) 解析 AI 文本 -> past/now/future/summary */
+    const parsed = lyParse(aiText);
 
-      lySave(userId, { meta, parsed });
+    /* 2) 存 cache：讓使用者可以點章節 */
+    const meta = {
+      topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
+      genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
+      bengua: currState.data?.hexData?.bengua || "",
+      biangua: currState.data?.hexData?.biangua || "",
+    };
+    lySave(userId, { meta, parsed });
 
-      await lyMenuFlex(userId, meta, parsed);
+    /* 3) 丟總覽頁 */
+    await lyMenuFlex(userId, meta, parsed);
 
-      await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
+    /* 4) 收束落款 */
+    await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
 
-      delete conversationStates[userId];
-      return;
-    } catch (e) {
-      console.error("[LY] sendoff error:", e);
-      await pushText(
-        userId,
-        "我這邊送出總覽時卡了一下，請你再按一次「退神完成」🙏"
-      );
-      return;
-    }
+    delete conversationStates[userId];
+    return;
   }
 
   // ============================
@@ -3276,15 +3230,6 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   };
 }
 
-//舊版：原本的 handleLiuYaoFlow
-//新版：liuyao_v2（目前只是轉呼叫舊版）
-async function lyFlowProxy(userId, text, state, event) {
-  if (process.env.LIUYAO_V2 === "true") {
-    return await liuyaoV2.handleFlow(userId, text, state, event);
-  }
-  return await handleLiuYaoFlow(userId, text, state, event);
-}
-
 // ========================
 //  六爻占卜主流程
 // ========================
@@ -4266,10 +4211,29 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
 }
 
 /***************************************
+ * [六爻結果 Cache]：讓使用者點章節時不用重算
+ ***************************************/
+const LY_TTL = 30 * 60 * 1000; // 30 分鐘
+const lyCache = new Map();
+
+function lySave(userId, payload) {
+  lyCache.set(userId, { ...payload, ts: Date.now() });
+}
+
+function lyGet(userId) {
+  const v = lyCache.get(userId);
+  if (!v) return null;
+  if (Date.now() - v.ts > LY_TTL) {
+    lyCache.delete(userId);
+    return null;
+  }
+  return v;
+}
+
+/***************************************
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
  * - 允許中間有破折號、空行、標點變化
  ***************************************/
-// TODO: REMOVE AFTER V2 STABLE
 function lyParse(aiText = "") {
   const text = String(aiText || "").trim();
 
@@ -4302,7 +4266,6 @@ function lyParse(aiText = "") {
 /***************************************
  * [六爻總覽 Flex]：1 張總覽 + 2×2 章節選單 + Footer CTA
  ***************************************/
-// TODO: REMOVE AFTER V2 STABLE
 async function lyMenuFlex(userId, meta, parsed) {
   const {
     topicLabel = "六爻占卜",
@@ -4464,7 +4427,6 @@ async function lyMenuFlex(userId, meta, parsed) {
  * [六爻章節頁 Flex]：單頁（過去/現在/未來）
  * Footer：下一頁 / 回總覽
  ***************************************/
-// TODO: REMOVE AFTER V2 STABLE
 async function lyPartFlex(userId, meta, parsed, partKey) {
   /***************************************
    * [章節設定]：標題 + 順序 + 下一頁
@@ -4585,7 +4547,6 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
 /***************************************
  * [六爻全文]：用 carousel 3 頁（比 1300 字長文 Flex 好讀）
  ***************************************/
-// TODO: REMOVE AFTER V2 STABLE
 async function lyAllCarousel(userId, meta, parsed) {
   const mk = (title, text) => ({
     type: "bubble",
@@ -4635,8 +4596,7 @@ async function lyAllCarousel(userId, meta, parsed) {
  * - 指令統一加「六爻」前綴
  * - 移除「看全文」
  ***************************************/
-// TODO: REMOVE AFTER V2 STABLE
-async function _oldhandleLyNav(userId, text) {
+async function handleLyNav(userId, text) {
   const t = String(text || "")
     .trim()
     .replace(/\s+/g, "");
