@@ -32,6 +32,7 @@ function makeLiuyaoV2(deps) {
    * 目的：直接用 routePostback 傳進來的 state（最穩）
    ***************************************/
   async function handleSendoffPostback(userId, state) {
+    console.log("[liuyao_sendoff] 進新版 v2流程index.js", userId);
     const currState = state || conversationStates?.[userId] || null;
 
     if (!currState || currState.mode !== "liuyao") {
