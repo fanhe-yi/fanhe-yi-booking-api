@@ -2077,13 +2077,20 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  // ============================
-  // ✅ 儀式關卡 4：退神完成 → 丟出 pending AI 結果
-  // ============================
   /***************************************
-   * [退神完成]：不再丟長文，改丟「總覽頁」
+   * 儀式關卡 4：[退神完成] 不再丟長文，改丟「總覽頁」
    ***************************************/
   if (action === "liuyao_sendoff") {
+    // 🆕 新版 v2（開關打開才進）
+    if (process.env.LIUYAO_V2 === "true") {
+      console.log("[liuyao_sendoff] 進新版 v2流程", userId);
+      await liuyaoV2.handleSendoffPostback(userId, state);
+      return;
+    }
+
+    // ----------------------------
+    // ⛔ 舊版流程（保險用，之後會整段刪）
+    // ----------------------------
     const currState = state || conversationStates[userId];
     if (!currState || currState.mode !== "liuyao") {
       await pushText(userId, "目前沒有正在進行的六爻流程。");
@@ -2099,10 +2106,6 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    /***************************************
-     * [退神完成]：解析 → 存 cache → 出總覽
-     * 目的：抓出是 lyMenuFlex / pushFlex 哪裡爆掉
-     ***************************************/
     try {
       const parsed = lyParse(aiText);
       const meta = {
@@ -4266,6 +4269,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
  * [六爻文字 Parser]：把 AI 回覆拆成 ①②③ + 總結
  * - 允許中間有破折號、空行、標點變化
  ***************************************/
+// TODO: REMOVE AFTER V2 STABLE
 function lyParse(aiText = "") {
   const text = String(aiText || "").trim();
 
@@ -4298,6 +4302,7 @@ function lyParse(aiText = "") {
 /***************************************
  * [六爻總覽 Flex]：1 張總覽 + 2×2 章節選單 + Footer CTA
  ***************************************/
+// TODO: REMOVE AFTER V2 STABLE
 async function lyMenuFlex(userId, meta, parsed) {
   const {
     topicLabel = "六爻占卜",
@@ -4459,6 +4464,7 @@ async function lyMenuFlex(userId, meta, parsed) {
  * [六爻章節頁 Flex]：單頁（過去/現在/未來）
  * Footer：下一頁 / 回總覽
  ***************************************/
+// TODO: REMOVE AFTER V2 STABLE
 async function lyPartFlex(userId, meta, parsed, partKey) {
   /***************************************
    * [章節設定]：標題 + 順序 + 下一頁
@@ -4579,6 +4585,7 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
 /***************************************
  * [六爻全文]：用 carousel 3 頁（比 1300 字長文 Flex 好讀）
  ***************************************/
+// TODO: REMOVE AFTER V2 STABLE
 async function lyAllCarousel(userId, meta, parsed) {
   const mk = (title, text) => ({
     type: "bubble",
@@ -4628,6 +4635,7 @@ async function lyAllCarousel(userId, meta, parsed) {
  * - 指令統一加「六爻」前綴
  * - 移除「看全文」
  ***************************************/
+// TODO: REMOVE AFTER V2 STABLE
 async function _oldhandleLyNav(userId, text) {
   const t = String(text || "")
     .trim()

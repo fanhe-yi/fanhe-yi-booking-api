@@ -49,8 +49,14 @@ function makeLiuyaoV2(deps) {
     }
 
     try {
+      /***************************************
+       * [1] 解析 AI 文本
+       ***************************************/
       const parsed = lyParse(aiText);
 
+      /***************************************
+       * [2] 組 meta
+       ***************************************/
       const meta = {
         topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
         genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
@@ -58,16 +64,26 @@ function makeLiuyaoV2(deps) {
         biangua: currState.data?.hexData?.biangua || "",
       };
 
+      /***************************************
+       * [3] 存 cache（章節用）
+       ***************************************/
       lySave(userId, { meta, parsed });
 
+      /***************************************
+       * [4] 丟總覽 Flex
+       * 注意：這裡的 lyMenuFlex 是「吃 pushFlex」的版本
+       ***************************************/
       await lyMenuFlex(pushFlex, userId, meta, parsed);
 
+      /***************************************
+       * [5] 收尾文字 + 清狀態
+       ***************************************/
       await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
 
-      // ✅ 收尾：清掉流程狀態（用 deps 的 conversationStates）
       if (conversationStates && conversationStates[userId]) {
         delete conversationStates[userId];
       }
+
       return true;
     } catch (e) {
       console.error("[LY_V2] sendoff error:", e);
