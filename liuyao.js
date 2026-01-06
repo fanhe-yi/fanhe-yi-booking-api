@@ -152,7 +152,7 @@ function makeLiuyao(deps) {
    * - 你在 server.js 解析完 URLSearchParams 後，把 params/state 丟進來
    ***************************************/
   async function routePostback(userId, params, state) {
-    const params = new URLSearchParams(data);
+    //const params = new URLSearchParams(data);
     const action = params.get("action");
 
     // 不是六爻 action 就不處理
