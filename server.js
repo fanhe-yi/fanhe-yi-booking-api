@@ -700,7 +700,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
             type: "text",
             text:
               "⚠️ 僅供娛樂與參考，非結果保證\n" +
-              "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款",
+              "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款\n" +
+              "🆓 首次使用可享免費體驗一次\n",
             size: "xs",
             color: "#777777",
             wrap: true,
