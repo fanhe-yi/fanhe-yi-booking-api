@@ -630,9 +630,9 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         label: isFirstFree ? "🎁 首次免費" : "開始解析",
         data: `action=start&service=${serviceKey}`,
         // 有些 client 會顯示按下後的文字，順便加儀式感（可刪）
-        displayText: isFirstFree
-          ? `我要用首次免費開始：${meta.title}`
-          : `開始解析：${meta.title}`,
+        //displayText: isFirstFree
+        //  ? `我要用首次免費開始：${meta.title}`
+        //  : `開始解析：${meta.title}`,
       },
     };
   } else {
@@ -713,8 +713,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
             type: "text",
             text:
               "⚠️ 僅供娛樂與參考，非結果保證\n" +
-              "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款\n" +
-              "🆓 首次使用可享免費體驗一次\n",
+              "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款\n",
             size: "xs",
             color: "#777777",
             wrap: true,
