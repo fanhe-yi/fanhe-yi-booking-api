@@ -612,29 +612,42 @@ async function sendServiceIntroFlex(userId, serviceKey) {
   const eligibility = getEligibility(userRecord, serviceKey);
 
   // ==========================
-  // ✅ 主按鈕：有權限→開始解析；沒權限→前往付款
+  // ✅ 主按鈕（最小改動）
+  // - 首免：顯示「🎁 首次免費」→ 仍走 action=start（讓儀式感更直覺）
+  // - 有 quota：顯示「開始解析」→ 走 action=start
+  // - 無權限：顯示「前往付款」→ 導到 /pay 建單付款
   // ==========================
-  const primaryButton = eligibility.allow
-    ? {
-        type: "button",
-        style: "primary",
-        action: {
-          type: "postback",
-          label: "開始解析",
-          data: `action=start&service=${serviceKey}`,
-        },
-      }
-    : {
-        type: "button",
-        style: "primary",
-        action: {
-          type: "uri",
-          label: "前往付款",
-          uri: `${process.env.BASE_URL}/pay?userId=${encodeURIComponent(
-            userId
-          )}&feature=${encodeURIComponent(serviceKey)}`,
-        },
-      };
+  let primaryButton;
+
+  if (eligibility.allow) {
+    const isFirstFree = eligibility.source === "firstFree";
+
+    primaryButton = {
+      type: "button",
+      style: "primary",
+      action: {
+        type: "postback",
+        label: isFirstFree ? "🎁 首次免費" : "開始解析",
+        data: `action=start&service=${serviceKey}`,
+        // 有些 client 會顯示按下後的文字，順便加儀式感（可刪）
+        displayText: isFirstFree
+          ? `我要用首次免費開始：${meta.title}`
+          : `開始解析：${meta.title}`,
+      },
+    };
+  } else {
+    primaryButton = {
+      type: "button",
+      style: "primary",
+      action: {
+        type: "uri",
+        label: "前往付款",
+        uri: `${process.env.BASE_URL}/pay?userId=${encodeURIComponent(
+          userId
+        )}&feature=${encodeURIComponent(serviceKey)}`,
+      },
+    };
+  }
 
   const flex = {
     type: "flex",
@@ -713,19 +726,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         layout: "vertical",
         spacing: "sm",
         contents: [
-          //把 footer.contents 的第一顆按鈕換成 primaryButton
+          // ✅ 只留一顆主按鈕，避免「前往付款 + 開始」互打
           primaryButton,
-          /*
-          {
-            type: "button",
-            style: "primary",
-            action: {
-              type: "postback",
-              label: "開始",
-              data: `action=start&service=${serviceKey}`,
-            },          
-          },
-          */
           {
             type: "button",
             style: "link",
