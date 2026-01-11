@@ -3455,7 +3455,7 @@ async function sendLiuYaoNoticeFlex(userId, topicLabel = "這件事情") {
       contents: [
         {
           type: "text",
-          text: "卜卦前",
+          text: "卜卦前(請準備三個十元硬幣)",
           weight: "bold",
           size: "xl",
           wrap: true,
