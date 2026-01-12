@@ -1291,13 +1291,11 @@ async function sendBaziMatchResultFlex(userId, payload) {
     "https://line.me/R/ti/p/@415kfyus";
 
   // LINE 分享
-  const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
-    shareText
-  )}`;
-  // ✅ Threads 分享
-  //const shareUri = `https://www.threads.net/intent/post?text=${encodeURIComponent(
+  //const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
   //  shareText
   //)}`;
+  // ✅ Threads 分享
+  const shareUri = `barcelona://create?text=${encodeURIComponent(shareText)}`;
 
   const flexPayload = {
     type: "bubble",
@@ -1476,7 +1474,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
               style: "primary",
               action: {
                 type: "uri",
-                label: "分享官方LINE解鎖",
+                label: "分享到Threads解鎖",
                 uri: shareUri,
               },
             },
