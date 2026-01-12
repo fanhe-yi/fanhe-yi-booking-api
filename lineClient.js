@@ -1291,11 +1291,14 @@ async function sendBaziMatchResultFlex(userId, payload) {
     "https://line.me/R/ti/p/@415kfyus";
 
   // LINE 分享
-  const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
-    shareText
-  )}`;
+  //const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
+  //  shareText
+  //)}`;
+
   // ✅ Threads 分享
-  //const shareUri = `barcelona://create?text=${encodeURIComponent(shareText)}`;
+  const shareUri = `https://liff.line.me/${
+    process.env.LIFF_ID_SHARE
+  }?text=${encodeURIComponent(shareText)}`;
 
   const flexPayload = {
     type: "bubble",

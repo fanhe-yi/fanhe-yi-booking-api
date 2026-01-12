@@ -1067,6 +1067,91 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
+app.get("/liff/share", (req, res) => {
+  const liffId = process.env.LIFF_ID_SHARE || "";
+  const rawText = typeof req.query.text === "string" ? req.query.text : "";
+  const text = rawText.slice(0, 1200); // 避免過長（保險）
+
+  // Threads web intent（不保證一定喚起 App，但 external=true 會更有機會）
+  const threadsIntent = `https://www.threads.net/intent/post?text=${encodeURIComponent(
+    text
+  )}`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>分享解鎖</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",sans-serif;padding:18px;line-height:1.5}
+    .card{max-width:520px;margin:0 auto;border:1px solid #eee;border-radius:14px;padding:16px}
+    .btn{display:block;width:100%;padding:12px 14px;border-radius:12px;border:0;margin-top:10px;font-size:16px}
+    .primary{background:#111;color:#fff}
+    .secondary{background:#f3f3f3}
+    textarea{width:100%;min-height:140px;margin-top:10px;border-radius:12px;border:1px solid #ddd;padding:10px}
+    .hint{color:#666;font-size:13px;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 6px">準備跳去 Threads 分享</h2>
+    <div class="hint">如果沒有自動跳轉，請按「開啟 Threads 分享」。</div>
+
+    <button class="btn primary" id="openBtn">開啟 Threads 分享</button>
+
+    <div class="hint">若 Threads 沒跳 App，你可以直接複製文案貼到 Threads：</div>
+    <textarea id="txt" readonly></textarea>
+    <button class="btn secondary" id="copyBtn">複製文案</button>
+  </div>
+
+<script>
+  const LIFF_ID = ${JSON.stringify(liffId)};
+  const TEXT = ${JSON.stringify(text)};
+  const THREADS_INTENT = ${JSON.stringify(threadsIntent)};
+
+  document.getElementById("txt").value = TEXT;
+
+  async function goThreads() {
+    try {
+      // external:true 讓它用外部瀏覽器開，較可能喚起 Threads App
+      liff.openWindow({ url: THREADS_INTENT, external: true });
+    } catch (e) {
+      // 如果 LIFF 還沒 init，就用 window.open 保底
+      window.open(THREADS_INTENT, "_blank");
+    }
+  }
+
+  document.getElementById("openBtn").addEventListener("click", goThreads);
+
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(TEXT);
+      alert("已複製 ✅ 直接去 Threads 貼上就行");
+    } catch (e) {
+      alert("複製失敗，請手動全選複製");
+    }
+  });
+
+  (async () => {
+    try {
+      if (!LIFF_ID) return;
+      await liff.init({ liffId: LIFF_ID });
+      // 進來就自動跳一次（使用者體感比較順）
+      if (TEXT) goThreads();
+    } catch (e) {
+      // init 失敗也不要死，按鈕仍可用 window.open
+      console.log("LIFF init failed:", e);
+    }
+  })();
+</script>
+</body>
+</html>`);
+});
+
 // ==========================
 // ✅ 金流：建單 + 導轉付款頁
 // 用途：使用者點「前往付款」→ 先把舊 INIT 全部 EXPIRED → 建新 INIT 訂單 → auto-submit 到綠界
