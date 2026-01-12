@@ -1558,10 +1558,11 @@ async function sendBaziMatchResultFlex(userId, payload) {
 
   // ✅ 只有「最終版」才推圖片（預覽 shareLock 不推）
   if (!shareLock) {
-    await pushImage(userId, {
+    await pushImage(
+      userId,
       "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
-      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
-    });
+      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg"
+    );
   }
 }
 
