@@ -1241,15 +1241,44 @@ async function sendMiniBaziResultFlex(userId, payload) {
   return mbMenu(userId, payload);
 }
 
-//push 圖片
-async function pushImage(userId, { originalContentUrl, previewImageUrl }) {
-  if (!originalContentUrl || !previewImageUrl) return;
+// 圖片 push（沿用 pushFlex 同一套 axios + LINE_PUSH_URL）
+async function pushImage(to, originalContentUrl, previewImageUrl) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
 
-  return client.pushMessage(userId, {
-    type: "image",
-    originalContentUrl,
-    previewImageUrl,
-  });
+  // LINE image 必填兩個網址，且必須 https
+  if (!originalContentUrl || !previewImageUrl) {
+    console.warn("[LINE] pushImage 缺少圖片網址，略過");
+    return;
+  }
+
+  try {
+    await axios.post(
+      LINE_PUSH_URL,
+      {
+        to,
+        messages: [
+          {
+            type: "image",
+            originalContentUrl,
+            previewImageUrl,
+          },
+        ],
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+        },
+      }
+    );
+
+    console.log("[LINE] pushImage 發送成功");
+  } catch (err) {
+    console.error(
+      "[LINE] pushImage 發送失敗：",
+      err.response?.data || err.message
+    );
+  }
 }
 
 //    八字合婚測算結果
@@ -1530,8 +1559,8 @@ async function sendBaziMatchResultFlex(userId, payload) {
   // ✅ 只有「最終版」才推圖片（預覽 shareLock 不推）
   if (!shareLock) {
     await pushImage(userId, {
-      originalContentUrl: "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
-      previewImageUrl: "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
+      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
+      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
     });
   }
 }
