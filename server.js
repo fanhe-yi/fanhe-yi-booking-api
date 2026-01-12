@@ -184,6 +184,30 @@ function mbGet(userId) {
 }
 /////////////////MiniBazi UI cache
 
+// ✅ 合婚「分享解鎖」暫存（記憶體版，重啟會清掉）
+const baziMatchShareCache = new Map(); // userId -> { payload, createdAt }
+const BAZI_MATCH_CACHE_TTL_MS = 10 * 60 * 1000; // 10 分鐘
+
+function cacheBaziMatchResult(userId, payload) {
+  baziMatchShareCache.set(userId, { payload, createdAt: Date.now() });
+}
+
+function getCachedBaziMatchResult(userId) {
+  const hit = baziMatchShareCache.get(userId);
+  if (!hit) return null;
+  if (Date.now() - hit.createdAt > BAZI_MATCH_CACHE_TTL_MS) {
+    baziMatchShareCache.delete(userId);
+    return null;
+  }
+  return hit.payload;
+}
+
+function clearCachedBaziMatchResult(userId) {
+  baziMatchShareCache.delete(userId);
+}
+
+//////// ✅ 合婚「分享解鎖」暫存
+
 //////載入 couponRules（一次）
 const COUPON_RULES_PATH =
   process.env.COUPON_RULES_PATH || path.join(__dirname, "couponRules.json");
@@ -1830,6 +1854,31 @@ async function routePostback(userId, data, state) {
     return;
   }
 
+  // ✅ 合婚解鎖（分享後按這顆）
+  if (action === "bazimatch_unlock") {
+    const cached = getCachedBaziMatchResult(userId);
+
+    if (!cached) {
+      await pushText(
+        userId,
+        "解鎖按鈕我有收到✅\n但這份預覽已過期或你已經解鎖過了～\n麻煩你再跑一次合婚就好。"
+      );
+      return;
+    }
+
+    // ✅ 送完整版（shareLock=false）
+    await sendBaziMatchResultFlex(userId, {
+      ...cached,
+      shareLock: false,
+    });
+
+    // ✅ 這一刻才扣次（首免會在這裡被消耗）
+    await quotaUsage(userId, "bazimatch");
+
+    clearCachedBaziMatchResult(userId);
+    return;
+  }
+
   // ✅ 八字測算：選擇男命 / 女命（按鈕）
   if (action === "minibazi_gender") {
     const gender = params.get("gender"); // male / female
@@ -2751,21 +2800,45 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
 
-      ////quota使用扣次
-      await quotaUsage(userId, "bazimatch");
-      //////////////quota使用扣次
-
-      // 👉 這裡用「人話時間」格式給 Flex header 用
-      // 需要先在上面有定義 formatBirthForDisplay(birthObj)
+      // 👉 header 用「人話時間」
       const maleBirthDisplay = formatBirthForDisplay(state.data.maleBirth);
       const femaleBirthDisplay = formatBirthForDisplay(parsed);
 
-      // 🔚 丟 Flex 合婚結果
+      // ✅ 這次是不是首免：用 gateFeature 的那次判斷（你原本 gateFeature 入口已經有）
+      // 你如果目前沒有把 gate.source 存進 state，那就先用「現在查」也行，但會有時序問題
+      const userRecord = await getUser(userId);
+      const eligibility = getEligibility(userRecord, "bazimatch");
+      const isFirstFree =
+        eligibility.allow && eligibility.source === "firstFree";
+
+      if (isFirstFree) {
+        // ✅ 首免：先送「遮罩版」，不扣次
+        const fullPayload = {
+          ...result,
+          maleBirthDisplay,
+          femaleBirthDisplay,
+        };
+
+        cacheBaziMatchResult(userId, fullPayload);
+
+        await sendBaziMatchResultFlex(userId, {
+          ...fullPayload,
+          shareLock: true, // ⭐ 交給 lineClient 做遮罩 + 顯示分享/解鎖按鈕
+        });
+
+        delete conversationStates[userId];
+        return true;
+      }
+
+      // ✅ 非首免（有 quota/付費）：直接送完整版，然後扣次
       await sendBaziMatchResultFlex(userId, {
-        ...result, // 包含 aiText、matchDisplayText、matchPromptText 等
-        maleBirthDisplay, // 給 header 顯示「男方：YYYY-MM-DD HH:mm / 約 XX:XX–XX:XX」
-        femaleBirthDisplay, // 給 header 顯示「女方：...」
+        ...result,
+        maleBirthDisplay,
+        femaleBirthDisplay,
+        shareLock: false,
       });
+
+      await quotaUsage(userId, "bazimatch");
 
       delete conversationStates[userId];
       return true;

@@ -1256,6 +1256,9 @@ async function sendBaziMatchResultFlex(userId, payload) {
     // 舊的 raw 欄位（當備用 / debug 用）
     maleBirthRaw,
     femaleBirthRaw,
+
+    // ✅ 新增：是否為分享鎖定（首免預覽）
+    shareLock = false,
   } = payload;
 
   const data = extractPureJSON(aiText);
@@ -1279,8 +1282,16 @@ async function sendBaziMatchResultFlex(userId, payload) {
   const advice = String(data.advice || "").trim();
 
   // 🔹 真正要顯示在 header 上的「人話時間」
-  const maleDisplay = maleBirthDisplay || maleBirthRaw || "未提供"; // 有 display 用 display，沒有就退回 raw
+  const maleDisplay = maleBirthDisplay || maleBirthRaw || "未提供";
   const femaleDisplay = femaleBirthDisplay || femaleBirthRaw || "未提供";
+
+  // ✅ 分享文字（你可改成自己的話）
+  const shareText =
+    "我剛用「梵和易學」做了八字合婚預覽，想解鎖完整版👇\n" +
+    "https://line.me/R/ti/p/@415kfyus";
+  const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
+    shareText
+  )}`;
 
   const flexPayload = {
     type: "bubble",
@@ -1305,7 +1316,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `男方：${maleDisplay}`, // ✅ 人話時間（或至少是原始字串）
+          text: `男方：${maleDisplay}`,
           size: "xs",
           color: "#777777",
           margin: "md",
@@ -1313,35 +1324,31 @@ async function sendBaziMatchResultFlex(userId, payload) {
         },
         {
           type: "text",
-          text: `女方：${femaleDisplay}`, // ✅ 人話時間（或至少是原始字串）
+          text: `女方：${femaleDisplay}`,
           size: "xs",
           color: "#777777",
           wrap: true,
         },
         {
           type: "text",
-          text: "＊本合婚結果僅供參考，不做命定論＊",
+          text: shareLock
+            ? "＊首次免費為預覽版：分享後可解鎖完整版＊"
+            : "＊本合婚結果僅供參考，不做命定論＊",
           size: "xxs",
           color: "#999999",
           margin: "md",
           wrap: true,
         },
-        // 如果之後你想多一行描述可以再打開這段
-        // {
-        //   type: "text",
-        //   text: matchDisplayText || "",
-        //   size: "xs",
-        //   color: "#777777",
-        //   wrap: true,
-        //   margin: "md",
-        // },
+        // matchDisplayText 目前先不顯示，保留即可
       ],
     },
+
     body: {
       type: "box",
       layout: "vertical",
       spacing: "md",
       contents: [
+        // ---------- 整體總評 ----------
         {
           type: "box",
           layout: "vertical",
@@ -1356,6 +1363,8 @@ async function sendBaziMatchResultFlex(userId, payload) {
             },
           ],
         },
+
+        // ---------- 優點 / 相處亮點 ----------
         ...(strengths.length
           ? [
               {
@@ -1380,8 +1389,54 @@ async function sendBaziMatchResultFlex(userId, payload) {
               },
             ]
           : []),
-        ...(challenges.length
+
+        // ✅ shareLock：遮住 challenges + advice
+        ...(shareLock
           ? [
+              {
+                type: "box",
+                layout: "vertical",
+                margin: "md",
+                contents: [
+                  { type: "separator", margin: "sm" },
+                  {
+                    type: "text",
+                    text:
+                      "🔒 下面還有「更關鍵的磨合點」與「具體經營策略」\n" +
+                      "完成分享後即可解鎖完整版（不會再多扣一次）。",
+                    size: "xs",
+                    color: "#666666",
+                    wrap: true,
+                    margin: "md",
+                  },
+                ],
+              },
+            ]
+          : [
+              ...(challenges.length
+                ? [
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      margin: "md",
+                      contents: [
+                        {
+                          type: "text",
+                          text: "潛在磨合點",
+                          weight: "bold",
+                          size: "sm",
+                        },
+                        ...challenges.map((c) => ({
+                          type: "text",
+                          text: `• ${c}`,
+                          size: "xs",
+                          wrap: true,
+                          margin: "sm",
+                        })),
+                      ],
+                    },
+                  ]
+                : []),
               {
                 type: "box",
                 layout: "vertical",
@@ -1389,58 +1444,68 @@ async function sendBaziMatchResultFlex(userId, payload) {
                 contents: [
                   {
                     type: "text",
-                    text: "潛在磨合點",
+                    text: "經營建議",
                     weight: "bold",
                     size: "sm",
                   },
-                  ...challenges.map((c) => ({
+                  {
                     type: "text",
-                    text: `• ${c}`,
+                    text: advice,
                     size: "xs",
                     wrap: true,
                     margin: "sm",
-                  })),
+                  },
                 ],
               },
-            ]
-          : []),
-        {
-          type: "box",
-          layout: "vertical",
-          margin: "md",
-          contents: [
-            {
-              type: "text",
-              text: "經營建議",
-              weight: "bold",
-              size: "sm",
-            },
-            {
-              type: "text",
-              text: advice,
-              size: "xs",
-              wrap: true,
-              margin: "sm",
-            },
-          ],
-        },
+            ]),
       ],
     },
+
     footer: {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: [
-        {
-          type: "button",
-          style: "primary",
-          action: {
-            type: "message",
-            label: "想預約完整合婚諮詢",
-            text: "預約",
-          },
-        },
-      ],
+      contents: shareLock
+        ? [
+            {
+              type: "button",
+              style: "primary",
+              action: {
+                type: "uri",
+                label: "分享官方LINE解鎖",
+                uri: shareUri,
+              },
+            },
+            {
+              type: "button",
+              style: "secondary",
+              action: {
+                type: "postback",
+                label: "我已分享",
+                data: "action=bazimatch_unlock",
+              },
+            },
+            {
+              type: "button",
+              style: "link",
+              action: {
+                type: "message",
+                label: "想預約完整合婚諮詢",
+                text: "預約",
+              },
+            },
+          ]
+        : [
+            {
+              type: "button",
+              style: "primary",
+              action: {
+                type: "message",
+                label: "想預約完整合婚諮詢",
+                text: "預約",
+              },
+            },
+          ],
     },
   };
 
