@@ -1695,7 +1695,7 @@ async function routeGeneralCommands(userId, text) {
   }
 
   // 5) 其他
-  await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
+  //await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
 }
 
 //routeByConversationState：依照 state 分發到各個 flow//
