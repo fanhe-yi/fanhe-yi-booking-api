@@ -1401,9 +1401,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
                   { type: "separator", margin: "sm" },
                   {
                     type: "text",
-                    text:
-                      "🔒 下面還有「更關鍵的磨合點」與「具體經營策略」\n" +
-                      "完成分享後即可解鎖完整版（不會再多扣一次）。",
+                    text: "🔒 下面還有「更關鍵的磨合點」與「具體經營策略」，完成分享後即可解鎖完整版。",
                     size: "xs",
                     color: "#666666",
                     wrap: true,
@@ -1485,7 +1483,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
                 data: "action=bazimatch_unlock",
               },
             },
-            {
+            /*{
               type: "button",
               style: "link",
               action: {
@@ -1493,7 +1491,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
                 label: "想預約完整合婚諮詢",
                 text: "預約",
               },
-            },
+            },*/
           ]
         : [
             {
