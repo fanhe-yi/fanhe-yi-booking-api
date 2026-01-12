@@ -1521,24 +1521,33 @@ async function sendBaziMatchResultFlex(userId, payload) {
       spacing: "sm",
       contents: firstFreeLocked
         ? [
-            // ✅ 首免鎖定：分享 + 解鎖 + 預約
+            // ✅ 同一排：分享 + 我已分享
             {
-              type: "button",
-              style: "primary",
-              action: {
-                type: "uri",
-                label: "分享官方 LINE 解鎖",
-                uri: shareUri,
-              },
-            },
-            {
-              type: "button",
-              style: "secondary",
-              action: {
-                type: "postback",
-                label: "我已分享，解鎖完整版",
-                data: "action=bazimatch_unlock",
-              },
+              type: "box",
+              layout: "horizontal",
+              spacing: "sm",
+              contents: [
+                {
+                  type: "button",
+                  style: "primary",
+                  flex: 1,
+                  action: {
+                    type: "uri",
+                    label: "分享官方LINE解鎖",
+                    uri: shareUri,
+                  },
+                },
+                {
+                  type: "button",
+                  style: "secondary",
+                  flex: 1,
+                  action: {
+                    type: "postback",
+                    label: "我已分享",
+                    data: "action=bazimatch_unlock",
+                  },
+                },
+              ],
             },
             {
               type: "button",
@@ -1551,7 +1560,6 @@ async function sendBaziMatchResultFlex(userId, payload) {
             },
           ]
         : [
-            // ✅ 正常完整版：保留你原本預約 CTA
             {
               type: "button",
               style: "primary",

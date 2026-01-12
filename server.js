@@ -1826,37 +1826,47 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  ///// 八字合婚解鎖
+  // /////八字合婚解鎖
   if (action === "bazimatch_unlock") {
-    try {
-      // 1) 先把解鎖旗標寫進 redeemedCoupons（一次性）
-      // ✅ 建議用你已經有的 atomic 寫法，避免併發重複寫
-      await markCouponRedeemedAtomic(userId, SHARE_UNLOCK_CODE_BAZIMATCH);
+    const userRecord = await getUser(userId);
+    const unlocked =
+      !!userRecord?.redeemedCoupons?.[SHARE_UNLOCK_CODE_BAZIMATCH];
 
-      // 2) 取 cache（你前面首免半套時已經 cache 完整結果）
-      const cached = getCachedBaziMatchResult(userId);
-      if (!cached) {
-        await pushText(userId, "解鎖成功✅ 但結果已過期\n麻煩你再跑一次合婚。");
-        return;
-      }
-
-      // 3) 送完整版（務必把 firstFreeLocked 關掉）
-      await sendBaziMatchResultFlex(userId, {
-        ...cached,
-        firstFreeLocked: false,
-      });
-
-      // 4) 清掉 cache
-      baziMatchUnlockCache.delete(userId);
-      return;
-    } catch (err) {
-      console.error("[bazimatch_unlock] error:", err);
+    if (!unlocked) {
       await pushText(
         userId,
-        "解鎖時系統卡了一下😅 你再按一次『解鎖完整版』看看。"
+        "我這邊還沒收到你的分享解鎖紀錄～\n請先按「分享官方LINE解鎖」完成分享。"
       );
       return;
     }
+
+    const cached = getCachedBaziMatchResult(userId);
+
+    // ✅ 關鍵：避免 LINE 重送造成「你明明解鎖了又說過期」
+    if (!cached) {
+      await pushText(
+        userId,
+        "解鎖成功✅\n如果你剛剛已經看到完整版了，請直接回到上一則合婚結果查看就好。\n" +
+          "（若真的沒看到，再跑一次合婚我也接得住😄）"
+      );
+      return;
+    }
+
+    // ✅ 送完整版（不帶 locked）
+    await sendBaziMatchResultFlex(userId, {
+      ...cached,
+      firstFreeLocked: false,
+    });
+
+    // ✅ 不要立刻刪 cache，讓重送事件也能吃到
+    // 如果你硬要刪，也至少延後一點點（簡單止血版）
+    setTimeout(() => {
+      try {
+        baziMatchUnlockCache.delete(userId);
+      } catch (e) {}
+    }, 60 * 1000);
+
+    return;
   }
   /////八字合婚解鎖
 
