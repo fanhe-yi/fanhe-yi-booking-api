@@ -1287,9 +1287,15 @@ async function sendBaziMatchResultFlex(userId, payload) {
 
   // ✅ 分享文字（你可改成自己的話）
   const shareText =
-    "我剛用「梵和易學」做了八字合婚預覽，想解鎖完整版👇\n" +
+    "我剛用「梵和易學」做了八字合婚的小測驗，還蠻準的，你也一起來玩看看！👇\n" +
     "https://line.me/R/ti/p/@415kfyus";
-  const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
+
+  // LINE 分享
+  //const shareUri = `https://line.me/R/msg/text/?${encodeURIComponent(
+  //  shareText
+  //)}`;
+  // ✅ Threads 分享
+  const shareUri = `https://www.threads.net/intent/post?text=${encodeURIComponent(
     shareText
   )}`;
 
@@ -1470,7 +1476,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
               style: "primary",
               action: {
                 type: "uri",
-                label: "分享官方LINE解鎖",
+                label: "分享到Threads解鎖",
                 uri: shareUri,
               },
             },
