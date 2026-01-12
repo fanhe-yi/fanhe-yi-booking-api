@@ -1786,6 +1786,9 @@ async function routePostback(userId, data, state) {
       return;
     }
 
+    // ==============================
+    // routePostback 裡：啟動 bazimatch
+    // ==============================
     if (service === "bazimatch") {
       conversationStates[userId] = {
         mode: "bazi_match",
@@ -2786,7 +2789,9 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     return true;
   }
 
-  // 2) 等女方生日
+  // ==============================
+  // handleBaziMatchFlow 裡：等女方生日（關鍵修正順序）
+  // ==============================
   if (state.stage === "wait_female_birth_input") {
     const parsed = parseMiniBirthInput(text);
 
@@ -2807,15 +2812,12 @@ async function handleBaziMatchFlow(userId, text, state, event) {
     state.data.femaleBirth = parsed;
 
     try {
+      // ✅ 這次到底是不是首免，用「啟動流程時」的 gateSource 為準
+      // （避免 quotaUsage 後 firstFree 被吃掉，判斷失真）
+      const isFirstFree = state?.data?.gateSource === "firstFree";
+
       // 👉 呼叫合婚 AI，拿到合婚結果（JSON 字串等）
       const result = await callBaziMatchAI(state.data.maleBirth, parsed);
-
-      ////quota使用扣次
-      await quotaUsage(userId, "bazimatch");
-      //////////////quota使用扣次
-
-      // ✅ 這次到底是不是首免，用「啟動流程時」的 gateSource 為準（避免 quotaUsage 後判斷失真）
-      const isFirstFree = state?.data?.gateSource === "firstFree";
 
       // ✅ 是否已解鎖過（用 redeemed_coupons 當旗標）
       const userRecord = await getUser(userId);
@@ -2823,13 +2825,15 @@ async function handleBaziMatchFlow(userId, text, state, event) {
         !!userRecord?.redeemedCoupons?.[SHARE_UNLOCK_CODE_BAZIMATCH];
 
       // 👉 這裡用「人話時間」格式給 Flex header 用
-      // 需要先在上面有定義 formatBirthForDisplay(birthObj)
       const maleBirthDisplay = formatBirthForDisplay(state.data.maleBirth);
       const femaleBirthDisplay = formatBirthForDisplay(parsed);
 
-      // ✅ 首免且未解鎖：先送半段 + 解鎖按鈕
+      // ✅ 先扣次（不管首免或 quota，這次都算用掉一次）
+      await quotaUsage(userId, "bazimatch");
+
+      // ✅ 首免且未解鎖：送半段 + 分享/解鎖介面
       if (isFirstFree && !alreadyUnlocked) {
-        // 把完整 payload 先暫存，等解鎖按鈕回來再送完整版
+        // 把完整版 payload 先暫存，等解鎖回來再送完整版
         cacheBaziMatchResult(userId, {
           ...result,
           maleBirthDisplay,
@@ -2840,20 +2844,20 @@ async function handleBaziMatchFlow(userId, text, state, event) {
           ...result,
           maleBirthDisplay,
           femaleBirthDisplay,
-          shareLock: true,
-          shareUrl: "https://line.me/R/ti/p/@415kfyus", // 或你的官網/LIFF
-          unlockUrl: `${process.env.BASE_URL}/liff/share-unlock?feature=bazimatch`,
+
+          // ⭐ 你 lineClient.js 目前是吃 firstFreeLocked
+          firstFreeLocked: true,
         });
+
         delete conversationStates[userId];
         return true;
       }
 
-      // 其他情況（付費/非首免/已解鎖）：照舊送完整版
-      // 🔚 丟 Flex 合婚結果
+      // ✅ 其他情況（付費/非首免/已解鎖）：照舊送完整版
       await sendBaziMatchResultFlex(userId, {
-        ...result, // 包含 aiText、matchDisplayText、matchPromptText 等
-        maleBirthDisplay, // 給 header 顯示「男方：YYYY-MM-DD HH:mm / 約 XX:XX–XX:XX」
-        femaleBirthDisplay, // 給 header 顯示「女方：...」
+        ...result,
+        maleBirthDisplay,
+        femaleBirthDisplay,
       });
 
       delete conversationStates[userId];
