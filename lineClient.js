@@ -1241,6 +1241,17 @@ async function sendMiniBaziResultFlex(userId, payload) {
   return mbMenu(userId, payload);
 }
 
+//push 圖片
+async function pushImage(userId, { originalContentUrl, previewImageUrl }) {
+  if (!originalContentUrl || !previewImageUrl) return;
+
+  return client.pushMessage(userId, {
+    type: "image",
+    originalContentUrl,
+    previewImageUrl,
+  });
+}
+
 //    八字合婚測算結果
 async function sendBaziMatchResultFlex(userId, payload) {
   const {
@@ -1515,6 +1526,14 @@ async function sendBaziMatchResultFlex(userId, payload) {
   };
 
   await pushFlex(userId, "八字合婚結果", flexPayload);
+
+  // ✅ 只有「最終版」才推圖片（預覽 shareLock 不推）
+  if (!shareLock) {
+    await pushImage(userId, {
+      originalContentUrl: "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
+      previewImageUrl: "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
+    });
+  }
 }
 
 // ------------------------------------------------------------
