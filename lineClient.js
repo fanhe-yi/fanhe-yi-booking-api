@@ -1477,7 +1477,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
               style: "primary",
               action: {
                 type: "uri",
-                label: "分享官方Line解鎖",
+                label: "分享到Threads解鎖",
                 uri: shareUri,
               },
             },
