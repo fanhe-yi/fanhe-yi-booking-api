@@ -2941,14 +2941,14 @@ async function callMiniReadingAI(
       "目前八字 API 暫時無法使用，請你自行根據西元生日與時辰推算四柱八字，" +
       "並依據上述重點，給予 150～200 字的簡短提醒與建議，語氣像朋友聊天。";
 
-    console.log(
-      "[callMiniReadingAI][fallback] systemPrompt:\n",
-      fallbackSystemPrompt
-    );
-    console.log(
-      "[callMiniReadingAI][fallback] userPrompt:\n",
-      fallbackUserPrompt
-    );
+    //console.log(
+    //  "[callMiniReadingAI][fallback] systemPrompt:\n",
+    //  fallbackSystemPrompt
+    //);
+    //console.log(
+    //  "[callMiniReadingAI][fallback] userPrompt:\n",
+    //  fallbackUserPrompt
+    //);
 
     // ❗ 這支在 fallback 就回「純文字」，上層記得視為 aiText 直接展示
     return await AI_Reading(fallbackUserPrompt, fallbackSystemPrompt);
@@ -3202,8 +3202,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
     "\n\n" +
     "請直接輸出 JSON。";
 
-  console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
-  console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
+  //console.log("[callBaziMatchAI] userPrompt:\n", userPrompt);
+  //console.log("[callBaziMatchAI] systemPrompt:\n", systemPrompt);
 
   const aiText = await AI_Reading(userPrompt, systemPrompt);
 
