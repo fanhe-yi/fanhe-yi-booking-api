@@ -1252,6 +1252,67 @@ app.get("/api/admin/user-access", requireAdmin, async (req, res) => {
   }
 });
 
+/* 
+  ======================================
+  Admin API - user_access 單筆讀取（安全）
+  ======================================
+  ✅ 為什麼先做單筆讀取：
+  - 編輯前要先拿到最新資料（避免你看舊值亂改）
+  - 這支仍是唯讀，風險低、好驗證
+  
+  ✅ 設計：
+  - 用 userId 當 key（對應你表的 user_id）
+  - 回 404 表示沒有這個 user_id（之後新增 API 才會用到）
+*/
+app.get("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
+  /* 
+    ✅ userId 來源：URL path
+    - encodeURIComponent 在前端會做
+    - 後端這邊只拿字串並 trim
+  */
+  const userId = String(req.params.userId || "").trim();
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    /* 
+      ✅ 參數化查詢：避免 injection
+    */
+    const r = await pool.query(
+      `
+      SELECT
+        user_id,
+        first_free,
+        quota,
+        redeemed_coupons,
+        created_at,
+        updated_at
+      FROM user_access
+      WHERE user_id = $1
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (r.rowCount === 0) {
+      /* 
+        ✅ 找不到就回 404
+        - 前端可以用來判斷是否要顯示「新增」按鈕
+      */
+      return res.status(404).json({ error: "NOT_FOUND" });
+    }
+
+    /* 
+      ✅ 回傳單筆資料
+    */
+    return res.json(r.rows[0]);
+  } catch (err) {
+    console.error("[Admin user_access get] error:", err);
+    return res.status(500).json({ error: "Failed to fetch user_access" });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
