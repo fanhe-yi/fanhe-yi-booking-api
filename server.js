@@ -390,6 +390,80 @@ function chunkArray(arr, chunkSize) {
   return result;
 }
 
+// ✅ 取得未來 N 天內「有 open 時段」的日期列表（給日期 Carousel 用）
+// - showCount：你想顯示幾個「可約日期」
+// - scanDays：最多往後掃幾天（避免一直掃到宇宙盡頭）
+function getNextAvailableDays(showCount, scanDays = 60) {
+  const results = [];
+  const base = new Date();
+  const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
+
+  // ✅ 先讀一次，避免每個日期都讀檔
+  const bookings = loadBookings();
+  const unavailable = loadUnavailable();
+
+  for (let i = 0; i < scanDays; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const w = weekdayNames[d.getDay()];
+
+    // 只要這天有任何 open slot，就收進清單
+    if (hasOpenSlotOnDate(dateStr, bookings, unavailable)) {
+      results.push({
+        dateStr,
+        label: `${dateStr}（${w}）`,
+      });
+    }
+
+    // 收滿就停（顧客只看到「可約」的日期）
+    if (results.length >= showCount) break;
+  }
+
+  return results;
+}
+// ✅ 取得未來 N 天內「有 open 時段」的日期列表（給日期 Carousel 用）
+// - showCount：你想顯示幾個「可約日期」
+// - scanDays：最多往後掃幾天（避免一直掃到宇宙盡頭）
+// ✅ 判斷某日是否至少有 1 個 open slot（用同一套規則：fullDay / blockedSlots / bookedSlots）
+function hasOpenSlotOnDate(date, bookings, unavailable) {
+  // 這一天是否整天不開放
+  const isFullDayBlocked =
+    Array.isArray(unavailable.fullDay) && unavailable.fullDay.includes(date);
+
+  if (isFullDayBlocked) return false;
+
+  // 這一天被你標記為不開放的時段
+  const blockedSlotsForDate = [];
+  if (Array.isArray(unavailable.slots)) {
+    unavailable.slots
+      .filter((u) => u.date === date)
+      .forEach((u) => {
+        if (Array.isArray(u.timeSlots))
+          blockedSlotsForDate.push(...u.timeSlots);
+      });
+  }
+
+  // 這一天已被預約的時段
+  const bookedSlotsForDate = [];
+  bookings
+    .filter((b) => b.date === date)
+    .forEach((b) => {
+      const slots = Array.isArray(b.timeSlots)
+        ? b.timeSlots
+        : b.timeSlot
+        ? [b.timeSlot]
+        : [];
+      bookedSlotsForDate.push(...slots);
+    });
+
+  // 只要存在一個 slot 同時不是 blocked、也不是 booked，就代表可預約
+  return ALL_TIME_SLOTS.some((slot) => {
+    if (blockedSlotsForDate.includes(slot)) return false;
+    if (bookedSlotsForDate.includes(slot)) return false;
+    return true;
+  });
+}
+
 // 🔹 取得未來 N 天的日期列表（給日期 Carousel 用）
 function getNextDays(count) {
   const results = [];
@@ -774,7 +848,20 @@ async function sendDateCarouselFlex(userId, serviceId) {
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
   // 想開放幾天自己決定：例如未來 30 天
-  const days = getNextDays(30);
+  //const days = getNextDays(30);
+  // ✅ 只顯示「有可預約時段」的日期
+  // 你想顯示幾個可約日期：showCount = 30
+  // 最多往後掃幾天：scanDays = 90（自己調）
+  const days = getNextAvailableDays(30, 90);
+
+  if (days.length === 0) {
+    await pushText(
+      userId,
+      `近期沒有可預約的時段 🙏\n你可以直接跟我說你方便的日期/時段，我幫你看看能不能特別安排～`
+    );
+    return;
+  }
+
   // 每 5 個日期一頁（你可以改成 3 或 4）
   const dayGroups = chunkArray(days, 3);
 
