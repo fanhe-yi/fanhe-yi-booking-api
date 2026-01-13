@@ -31,6 +31,14 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 
+/* 
+  ✅ 後台 Admin API 也需要查 Postgres
+  - 你專案已經把 pg Pool 集中在 ./db（accessStore.pg.js 也這樣用）
+  - 所以 server.js 也用同一個 pool，不要再 require("pg") / new Pool
+  - 好處：連線集中管理、避免重複建立、避免連線數炸裂
+*/
+const { pool } = require("./db");
+
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
 // 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
@@ -1152,6 +1160,96 @@ app.post("/api/admin/unavailable", requireAdmin, (req, res) => {
 
   saveUnavailable(unavailable);
   res.json({ success: true });
+});
+
+/* 
+  ======================================
+  Admin API - user_access 列表（讀取用）
+  ======================================
+  ✅ 為什麼先做這支：
+  - 後台要「改」之前，先要「看」得到
+  - 列表是唯讀，風險最低、最好驗證前後端對接
+  
+  ✅ 功能：
+  - q：user_id 模糊搜尋（可不帶）
+  - page/pageSize：分頁，避免一次撈爆
+  
+  ✅ 安全：
+  - 走 requireAdmin（你現有的 x-admin-token）
+  - SQL 用參數化避免注入
+*/
+app.get("/api/admin/user-access", requireAdmin, async (req, res) => {
+  /* 
+    ✅ 讀 query string，並做防呆
+    - page 至少 1
+    - pageSize 最小 1 最大 100（避免有人亂打 99999）
+  */
+  const q = String(req.query.q || "").trim();
+  const page = Math.max(1, parseInt(req.query.page || "1", 10));
+  const pageSize = Math.min(
+    100,
+    Math.max(1, parseInt(req.query.pageSize || "20", 10))
+  );
+  const offset = (page - 1) * pageSize;
+
+  try {
+    /* 
+      ✅ 有 q 才加 WHERE 條件
+      - 用 ILIKE 做不分大小寫搜尋
+      - 參數化：避免 SQL injection
+    */
+    const whereSql = q ? "WHERE user_id ILIKE $1" : "";
+    const whereParams = q ? [`%${q}%`] : [];
+
+    /* 
+      ✅ 先算總筆數 total（前端做分頁要用）
+    */
+    const totalSql = `
+      SELECT COUNT(*)::int AS total
+      FROM user_access
+      ${whereSql}
+    `;
+    const totalResult = await pool.query(totalSql, whereParams);
+    const total = totalResult.rows[0]?.total || 0;
+
+    /* 
+      ✅ 再撈本頁 items
+      - 只選後台會用到的欄位
+      - updated_at DESC：最新更新的放前面
+      - LIMIT/OFFSET 也走參數化
+    */
+    const itemsSql = `
+      SELECT
+        user_id,
+        first_free,
+        quota,
+        redeemed_coupons,
+        created_at,
+        updated_at
+      FROM user_access
+      ${whereSql}
+      ORDER BY updated_at DESC NULLS LAST
+      LIMIT $${whereParams.length + 1}
+      OFFSET $${whereParams.length + 2}
+    `;
+    const itemsParams = [...whereParams, pageSize, offset];
+    const itemsResult = await pool.query(itemsSql, itemsParams);
+
+    /* 
+      ✅ 統一回傳格式
+      - items：資料列
+      - total/page/pageSize：前端可以直接畫分頁
+    */
+    return res.json({
+      items: itemsResult.rows,
+      total,
+      page,
+      pageSize,
+    });
+  } catch (err) {
+    console.error("[Admin user_access list] error:", err);
+    return res.status(500).json({ error: "Failed to fetch user_access" });
+  }
 });
 
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
@@ -3036,8 +3134,8 @@ function extractPillars(baziSummaryText) {
     month = "",
     day = "",
     hour = "";
-  console.log("======== [extractPillars] START ========");
-  console.log("total lines:", lines.length);
+  //console.log("======== [extractPillars] START ========");
+  //console.log("total lines:", lines.length);
 
   for (const line of lines) {
     if (line.includes("年柱："))
@@ -3050,8 +3148,8 @@ function extractPillars(baziSummaryText) {
       hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
   }
 
-  console.log("FINAL =>", { year, month, day, hour });
-  console.log("======== [extractPillars] END ==========");
+  //console.log("FINAL =>", { year, month, day, hour });
+  //console.log("======== [extractPillars] END ==========");
 
   return { year, month, day, hour };
 }
