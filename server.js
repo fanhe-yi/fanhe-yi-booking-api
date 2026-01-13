@@ -1313,6 +1313,143 @@ app.get("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
   }
 });
 
+/* 
+  =========================================================
+  Admin API - user_access 更新（PATCH / 白名單 / 安全）
+  =========================================================
+  ✅ 目標：
+  - 只允許更新：
+    - first_free.liuyao / minibazi / bazimatch
+    - quota.liuyao / minibazi / bazimatch
+  - 其他欄位一律忽略/拒絕（避免破壞 JSONB 結構）
+
+  ✅ 為什麼用 PATCH：
+  - 允許只改部分欄位（例如只改 quota.liuyao）
+  - 不需要每次送整包 JSON
+
+  ✅ 安全策略：
+  - requireAdmin 驗證 x-admin-token
+  - key 白名單（只允許三個 feature）
+  - 值必須是非負整數（0~很大都可，但不能負數/小數/字串）
+  - SQL 全參數化
+*/
+app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
+  const userId = String(req.params.userId || "").trim();
+  if (!userId) return res.status(400).json({ error: "userId is required" });
+
+  /* 
+    ✅ 白名單 key
+  */
+  const ALLOWED_KEYS = new Set(["liuyao", "minibazi", "bazimatch"]);
+
+  /* 
+    ✅ 只抓我們允許的兩塊
+    - 其餘 body 欄位不理（避免有人亂塞）
+  */
+  const firstFreePatch = req.body?.first_free || null;
+  const quotaPatch = req.body?.quota || null;
+
+  if (!firstFreePatch && !quotaPatch) {
+    return res.status(400).json({ error: "first_free or quota is required" });
+  }
+
+  /* 
+    ✅ 把 patch 內容「過濾成安全資料」
+    - 只保留白名單 key
+    - 值必須是整數且 >= 0
+  */
+  function sanitizePatch(obj) {
+    const out = {};
+    if (!obj || typeof obj !== "object") return out;
+
+    for (const [k, v] of Object.entries(obj)) {
+      if (!ALLOWED_KEYS.has(k)) continue;
+
+      /* 
+        ✅ 只接受 number 且為整數且 >= 0
+        - 你要允許 0（例如 first_free: 1 -> 0）
+      */
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0) continue;
+
+      out[k] = n;
+    }
+    return out;
+  }
+
+  const safeFirstFree = sanitizePatch(firstFreePatch);
+  const safeQuota = sanitizePatch(quotaPatch);
+
+  if (
+    Object.keys(safeFirstFree).length === 0 &&
+    Object.keys(safeQuota).length === 0
+  ) {
+    return res.status(400).json({ error: "No valid fields to update" });
+  }
+
+  try {
+    /* 
+      ✅ 先確保這筆 user 存在
+      - 找不到就回 404
+    */
+    const exists = await pool.query(
+      `SELECT 1 FROM user_access WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (exists.rowCount === 0) {
+      return res.status(404).json({ error: "NOT_FOUND" });
+    }
+
+    /* 
+      ✅ 動態組 SQL（但仍保持參數化）
+      - 每個 key 都用 jsonb_set 寫入（只改該 key，不覆蓋整包）
+      - updated_at 一併更新
+    */
+    const sets = [];
+    const params = [userId];
+    let idx = 2;
+
+    /* 
+      ✅ 將 JSONB 的某個 key 設成指定整數
+      - to_jsonb($n::int) 讓 DB 確定存 int
+    */
+    for (const [k, n] of Object.entries(safeFirstFree)) {
+      sets.push(
+        `first_free = jsonb_set(first_free, ARRAY['${k}'], to_jsonb($${idx}::int), true)`
+      );
+      params.push(n);
+      idx++;
+    }
+
+    for (const [k, n] of Object.entries(safeQuota)) {
+      sets.push(
+        `quota = jsonb_set(quota, ARRAY['${k}'], to_jsonb($${idx}::int), true)`
+      );
+      params.push(n);
+      idx++;
+    }
+
+    sets.push(`updated_at = NOW()`);
+
+    const sql = `
+      UPDATE user_access
+      SET ${sets.join(",\n          ")}
+      WHERE user_id = $1
+      RETURNING user_id, first_free, quota, redeemed_coupons, created_at, updated_at
+    `;
+
+    const r = await pool.query(sql, params);
+
+    /* 
+      ✅ 回傳更新後的最新資料，前端可直接刷新畫面
+    */
+    return res.json({ success: true, item: r.rows[0] });
+  } catch (err) {
+    console.error("[Admin user_access patch] error:", err);
+    return res.status(500).json({ error: "Failed to update user_access" });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
