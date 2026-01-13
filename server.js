@@ -848,7 +848,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
   // 想開放幾天自己決定：例如未來 30 天
-  //const days = getNextDays(30);
+  //const days = getNextDays(30);//原來不屏蔽不可預約時段前
   // ✅ 只顯示「有可預約時段」的日期
   // 你想顯示幾個可約日期：showCount = 30
   // 最多往後掃幾天：scanDays = 90（自己調）
@@ -3036,6 +3036,8 @@ function extractPillars(baziSummaryText) {
     month = "",
     day = "",
     hour = "";
+  console.log("======== [extractPillars] START ========");
+  console.log("total lines:", lines.length);
 
   for (const line of lines) {
     if (line.includes("年柱："))
@@ -3047,6 +3049,9 @@ function extractPillars(baziSummaryText) {
     if (line.includes("時柱："))
       hour = line.replace(/.*?時柱[:：]\s*/, "").trim();
   }
+
+  console.log("FINAL =>", { year, month, day, hour });
+  console.log("======== [extractPillars] END ==========");
 
   return { year, month, day, hour };
 }
