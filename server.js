@@ -1317,34 +1317,43 @@ app.get("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
   =========================================================
   Admin API - user_access 更新（PATCH / 白名單 / 安全）
   =========================================================
-  ✅ 目標：
-  - 只允許更新：
-    - first_free.liuyao / minibazi / bazimatch
-    - quota.liuyao / minibazi / bazimatch
-  - 其他欄位一律忽略/拒絕（避免破壞 JSONB 結構）
+  ✅ 功能：
+  - 更新 user_access 的 JSONB 欄位：
+    - first_free: { liuyao, minibazi, bazimatch }
+    - quota:      { liuyao, minibazi, bazimatch }
+  - 只允許以上三個 key（白名單）
+  - 值只允許「非負整數」（0 也可以）
 
-  ✅ 為什麼用 PATCH：
-  - 允許只改部分欄位（例如只改 quota.liuyao）
-  - 不需要每次送整包 JSON
+  ✅ 為什麼要做白名單 + 非負整數檢查：
+  - 避免後台手滑把 JSON 結構改壞（例如塞入字串、塞入新 key）
+  - 避免負數造成配額/首免資料不合理
 
-  ✅ 安全策略：
-  - requireAdmin 驗證 x-admin-token
-  - key 白名單（只允許三個 feature）
-  - 值必須是非負整數（0~很大都可，但不能負數/小數/字串）
-  - SQL 全參數化
+  ✅ Postgres 注意事項（你剛遇到的 500）：
+  - UPDATE 同一欄位不能重複 assignment（quota = ... 不能寫三次）
+  - 所以要把多個 key 的更新串成「單一 quota 表達式」
+    例如 quota = jsonb_set(jsonb_set(quota,'{liuyao}',...),'{minibazi}',...)
 */
 app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
+  /* 
+    ======================================
+    1) 讀 userId & 基本檢查
+    ======================================
+  */
   const userId = String(req.params.userId || "").trim();
-  if (!userId) return res.status(400).json({ error: "userId is required" });
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
 
   /* 
-    ✅ 白名單 key
+    ======================================
+    2) 白名單與輸入過濾
+    ======================================
   */
   const ALLOWED_KEYS = new Set(["liuyao", "minibazi", "bazimatch"]);
 
   /* 
-    ✅ 只抓我們允許的兩塊
-    - 其餘 body 欄位不理（避免有人亂塞）
+    ✅ 只接受這兩塊（其餘 body 欄位不處理）
+    - 例如 req.body.redeemed_coupons 我們不給改（避免爆炸）
   */
   const firstFreePatch = req.body?.first_free || null;
   const quotaPatch = req.body?.quota || null;
@@ -1354,9 +1363,9 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
   }
 
   /* 
-    ✅ 把 patch 內容「過濾成安全資料」
-    - 只保留白名單 key
-    - 值必須是整數且 >= 0
+    ✅ sanitizePatch：
+    - 只保留允許的 key
+    - 值必須是「整數且 >= 0」
   */
   function sanitizePatch(obj) {
     const out = {};
@@ -1365,10 +1374,6 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
     for (const [k, v] of Object.entries(obj)) {
       if (!ALLOWED_KEYS.has(k)) continue;
 
-      /* 
-        ✅ 只接受 number 且為整數且 >= 0
-        - 你要允許 0（例如 first_free: 1 -> 0）
-      */
       const n = Number(v);
       if (!Number.isInteger(n) || n < 0) continue;
 
@@ -1389,8 +1394,9 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
 
   try {
     /* 
-      ✅ 先確保這筆 user 存在
-      - 找不到就回 404
+      ======================================
+      3) 確認 user 存在（不存在回 404）
+      ======================================
     */
     const exists = await pool.query(
       `SELECT 1 FROM user_access WHERE user_id = $1 LIMIT 1`,
@@ -1401,34 +1407,54 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
     }
 
     /* 
-      ✅ 動態組 SQL（但仍保持參數化）
-      - 每個 key 都用 jsonb_set 寫入（只改該 key，不覆蓋整包）
-      - updated_at 一併更新
+      ======================================
+      4) 組 UPDATE SQL（每個欄位最多 assignment 一次）
+      ======================================
+
+      ✅ buildJsonbSetExpr：
+      - 從 columnName 開始（quota 或 first_free）
+      - 每個 key 都「包一層」jsonb_set
+      - 最後得到一個完整表達式
     */
-    const sets = [];
     const params = [userId];
     let idx = 2;
 
+    function buildJsonbSetExpr(columnName, patchObj) {
+      let expr = columnName;
+
+      for (const [k, n] of Object.entries(patchObj)) {
+        /* 
+          ✅ k 來自白名單 sanitizePatch：安全
+          ✅ n 用參數化：避免 SQL injection
+        */
+        expr = `jsonb_set(${expr}, ARRAY['${k}'], to_jsonb($${idx}::int), true)`;
+        params.push(n);
+        idx++;
+      }
+      return expr;
+    }
+
+    const sets = [];
+
     /* 
-      ✅ 將 JSONB 的某個 key 設成指定整數
-      - to_jsonb($n::int) 讓 DB 確定存 int
+      ✅ first_free 有需要更新才設定
     */
-    for (const [k, n] of Object.entries(safeFirstFree)) {
-      sets.push(
-        `first_free = jsonb_set(first_free, ARRAY['${k}'], to_jsonb($${idx}::int), true)`
-      );
-      params.push(n);
-      idx++;
+    if (Object.keys(safeFirstFree).length > 0) {
+      const firstFreeExpr = buildJsonbSetExpr("first_free", safeFirstFree);
+      sets.push(`first_free = ${firstFreeExpr}`);
     }
 
-    for (const [k, n] of Object.entries(safeQuota)) {
-      sets.push(
-        `quota = jsonb_set(quota, ARRAY['${k}'], to_jsonb($${idx}::int), true)`
-      );
-      params.push(n);
-      idx++;
+    /* 
+      ✅ quota 有需要更新才設定
+    */
+    if (Object.keys(safeQuota).length > 0) {
+      const quotaExpr = buildJsonbSetExpr("quota", safeQuota);
+      sets.push(`quota = ${quotaExpr}`);
     }
 
+    /* 
+      ✅ updated_at 一律更新
+    */
     sets.push(`updated_at = NOW()`);
 
     const sql = `
@@ -1438,12 +1464,17 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
       RETURNING user_id, first_free, quota, redeemed_coupons, created_at, updated_at
     `;
 
+    /* 
+      ======================================
+      5) 執行更新並回傳最新資料
+      ======================================
+    */
     const r = await pool.query(sql, params);
 
-    /* 
-      ✅ 回傳更新後的最新資料，前端可直接刷新畫面
-    */
-    return res.json({ success: true, item: r.rows[0] });
+    return res.json({
+      success: true,
+      item: r.rows[0],
+    });
   } catch (err) {
     console.error("[Admin user_access patch] error:", err);
     return res.status(500).json({ error: "Failed to update user_access" });
