@@ -1527,6 +1527,85 @@ app.delete("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
   }
 });
 
+/* 
+  ==========================================
+  Admin API - user_access 新增（POST）
+  ==========================================
+  ✅ 需求對應：
+  - 用 user_id 建立一筆
+  - first_free 預設全 1
+  - quota 預設全 0
+  - redeemed_coupons 預設 {}
+
+  ✅ 安全策略：
+  - requireAdmin 驗證 x-admin-token
+  - user_id trim + 基本格式檢查
+  - 已存在回 409（避免你誤按新增重複）
+*/
+app.post("/api/admin/user-access", requireAdmin, async (req, res) => {
+  /* 
+    ✅ user_id 從 body 來
+  */
+  const userId = String(req.body?.user_id || "").trim();
+  if (!userId) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
+
+  /* 
+    ✅ 你可以依需求放寬/收緊格式
+    - 這裡先做「不要太誇張」的保護：長度 3~80
+  */
+  if (userId.length < 3 || userId.length > 80) {
+    return res.status(400).json({ error: "user_id length invalid" });
+  }
+
+  /* 
+    ✅ 預設資料（符合你說的預設值）
+  */
+  const firstFreeDefault = { liuyao: 1, minibazi: 1, bazimatch: 1 };
+  const quotaDefault = { liuyao: 0, minibazi: 0, bazimatch: 0 };
+  const redeemedDefault = {};
+
+  try {
+    /* 
+      ✅ 先檢查是否已存在
+    */
+    const exists = await pool.query(
+      `SELECT 1 FROM user_access WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (exists.rowCount > 0) {
+      return res.status(409).json({ error: "ALREADY_EXISTS" });
+    }
+
+    /* 
+      ✅ 寫入資料
+      - created_at/updated_at 用 NOW()
+    */
+    const r = await pool.query(
+      `
+      INSERT INTO user_access (user_id, first_free, quota, redeemed_coupons, created_at, updated_at)
+      VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, NOW(), NOW())
+      RETURNING user_id, first_free, quota, redeemed_coupons, created_at, updated_at
+      `,
+      [
+        userId,
+        JSON.stringify(firstFreeDefault),
+        JSON.stringify(quotaDefault),
+        JSON.stringify(redeemedDefault),
+      ]
+    );
+
+    /* 
+      ✅ 回傳新增成功的那筆資料
+    */
+    return res.status(201).json({ success: true, item: r.rows[0] });
+  } catch (err) {
+    console.error("[Admin user_access create] error:", err);
+    return res.status(500).json({ error: "Failed to create user_access" });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
