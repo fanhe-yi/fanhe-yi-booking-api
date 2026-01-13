@@ -1481,6 +1481,52 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
   }
 });
 
+/* 
+  ==========================================
+  Admin API - user_access 整筆刪除（DELETE）
+  ==========================================
+  ✅ 需求對應：
+  - 你要「以 key=user_id 整筆刪掉」
+  - 這支就是：DELETE /api/admin/user-access/:userId
+
+  ✅ 安全策略：
+  - requireAdmin 驗證 x-admin-token
+  - userId trim + 參數化查詢
+  - 找不到回 404
+*/
+app.delete("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
+  /* 
+    ✅ userId 來源：URL path
+  */
+  const userId = String(req.params.userId || "").trim();
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    /* 
+      ✅ 直接刪除，RETURNING 用來判斷有沒有刪到
+      - rowCount=0 表示根本沒有這筆
+    */
+    const r = await pool.query(
+      `DELETE FROM user_access WHERE user_id = $1 RETURNING user_id`,
+      [userId]
+    );
+
+    if (r.rowCount === 0) {
+      return res.status(404).json({ error: "NOT_FOUND" });
+    }
+
+    /* 
+      ✅ 回傳 success + 被刪掉的 user_id
+    */
+    return res.json({ success: true, deletedUserId: r.rows[0].user_id });
+  } catch (err) {
+    console.error("[Admin user_access delete] error:", err);
+    return res.status(500).json({ error: "Failed to delete user_access" });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
