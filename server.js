@@ -785,12 +785,14 @@ async function sendServiceSelectFlex(userId) {
         paddingAll: "lg",
         spacing: "xs",
         contents: [
+          /*
           {
             type: "text",
             text: "梵和易學｜預約服務",
             size: "sm",
             color: "#888888",
           },
+          */
           {
             type: "text",
             text: s.label,
