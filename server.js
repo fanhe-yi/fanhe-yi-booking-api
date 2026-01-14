@@ -876,13 +876,16 @@ async function sendServiceSelectFlex(userId) {
               displayText: `我想預約 ${s.label}`,
             },
           },
+          /*
           {
             type: "text",
+            text: "⚠️ 僅供娛樂與參考，非結果保證",
             size: "xxs",
             color: "#999999",
             wrap: true,
             margin: "md",
           },
+          */
         ],
       },
     };
