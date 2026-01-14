@@ -878,7 +878,7 @@ async function sendServiceSelectFlex(userId) {
           },
           {
             type: "text",
-            text: "⚠️ 僅供娛樂與參考，非結果保證",
+            //text: "⚠️ 僅供娛樂與參考，非結果保證",
             size: "xxs",
             color: "#999999",
             wrap: true,
