@@ -706,6 +706,31 @@ async function sendServiceSelectFlex(userId) {
    ***************************************/
   const services = [
     {
+      id: "name",
+      label: "姓名學",
+      intro:
+        "名字是你每天都會喚醒的「靈魂能量」＋「社會名片」。\n改對了，就像開車爬山一樣輕鬆。",
+      highlights: [
+        "對自己的出生時間不是很清楚",
+        "改對名字人生直接起運",
+        "想轉運、創業、品牌命名的人",
+      ],
+      badges: ["姓名就像交通工具", "最推薦"],
+    },
+    {
+      id: "liuyao",
+      label: "六爻占卜",
+      intro:
+        "\n六爻占卜就是文王聖卦\n不繞圈、不講玄，重點是：接下來怎麼做比較好。",
+      highlights: [
+        "針對單一事件：會不會成？值不值得？",
+        "看短期走勢＋你該避開的坑",
+        "什麼時間所問之事會成",
+        "不用花很多錢一樣能算命",
+      ],
+      badges: ["這個就像你去廟裏問事一樣", "決策型工具"],
+    },
+    {
       id: "bazi",
       label: "八字諮詢",
       intro:
@@ -715,7 +740,7 @@ async function sendServiceSelectFlex(userId) {
         "依適合的屬性決定你的職業方向",
         "流年來時是壓力還是助力",
       ],
-      badge: "八字看氣場跟格局",
+      badges: ["八字看氣場跟格局"],
     },
     {
       id: "ziwei",
@@ -727,31 +752,7 @@ async function sendServiceSelectFlex(userId) {
         "想知道你的愛情觀(感情好嗎)",
         "想知道你的金錢觀(有偏財嗎)",
       ],
-      badge: "用紫微選更輕鬆的路",
-    },
-    {
-      id: "name",
-      label: "改名 / 姓名學",
-      intro:
-        "名字是你每天都會喚醒的「靈魂能量」＋「社會名片」。\n改對了，就像開車爬山一樣輕鬆。",
-      highlights: [
-        "對自己的出生時間不是很清楚",
-        "想要一個能真正旺自己的名字",
-        "想轉運、創業、品牌命名的人",
-      ],
-      badge: "姓名是你人生這段旅程的交通工具",
-    },
-    {
-      id: "liuyao",
-      label: "六爻占卜",
-      intro:
-        "六爻占卜就是文王聖卦\n不繞圈、不講玄，重點是：接下來怎麼做比較好。",
-      highlights: [
-        "針對單一事件：會不會成？值不值得？",
-        "看短期走勢＋你該避開的坑",
-        "什麼時間所問之事會成",
-      ],
-      badge: "快速決策",
+      badges: ["用紫微選更輕鬆的路"],
     },
   ];
 
@@ -802,15 +803,35 @@ async function sendServiceSelectFlex(userId) {
             wrap: true,
             margin: "sm",
           },
-          // ✅ 小 badge：不影響功能，只是讓頁面更有「商品感」
-          {
-            type: "text",
-            text: s.badge ? `▸ ${s.badge}` : "",
-            size: "xs",
-            color: "#635750",
-            wrap: true,
-            margin: "sm",
-          },
+          /***************************************
+           * ✅ 兩顆 badge（最多顯示前 2 個）
+           ***************************************/
+          ...(Array.isArray(s.badges) && s.badges.length
+            ? [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  spacing: "sm",
+                  margin: "sm",
+                  contents: s.badges.slice(0, 2).map((b) => ({
+                    type: "box",
+                    layout: "vertical",
+                    paddingAll: "sm",
+                    cornerRadius: "md",
+                    backgroundColor: "#F2EEE9", // 淺底，跟你 #635750 主色很搭
+                    contents: [
+                      {
+                        type: "text",
+                        text: b,
+                        size: "xxs",
+                        color: "#635750",
+                        wrap: false,
+                      },
+                    ],
+                  })),
+                },
+              ]
+            : []),
         ],
       },
 
@@ -2957,7 +2978,7 @@ async function routePostback(userId, data, state) {
     if (!aiText) {
       await pushText(
         userId,
-        "我這邊還在整理內容，稍等一下再按一次「退神完成」也可以～"
+        "我這邊還在整理內容，稍等3分鐘再按一次「退神完成」也可以～在等待期間請別使用其他服務，以免卦飛走～"
       );
       return;
     }
