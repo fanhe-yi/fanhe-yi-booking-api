@@ -64,7 +64,7 @@ async function adminLogDB(level, tag, message, options = {}) {
     const userId = options.userId ? String(options.userId) : null;
     const meta =
       options.meta && typeof options.meta === "object" ? options.meta : {};
-    const alsoConsole = options.alsoConsole !== false;
+    const alsoConsole = options.alsoConsole === true;
 
     /* ✅ 你原本習慣的 console.log 也保留（方便用 pm2 log 看即時） */
     if (alsoConsole) {
