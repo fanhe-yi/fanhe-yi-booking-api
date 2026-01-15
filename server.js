@@ -810,7 +810,7 @@ async function sendServiceSelectFlex(userId) {
             ? [
                 {
                   type: "box",
-                  layout: "horizontal",
+                  layout: "vertical",
                   spacing: "sm",
                   margin: "sm",
                   contents: s.badges.slice(0, 2).map((b) => ({
