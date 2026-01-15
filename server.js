@@ -769,7 +769,7 @@ async function sendServiceSelectFlex(userId) {
         "改對名字人生直接起運",
         "想轉運、創業、品牌命名的人",
       ],
-      badges: ["姓名就像交通工具", "最推薦"],
+      badges: ["最推薦", "我想先請你幫我看一下名字"],
     },
     {
       id: "liuyao",
@@ -782,7 +782,7 @@ async function sendServiceSelectFlex(userId) {
         "什麼時間所問之事會成",
         "不用花很多錢一樣能算命",
       ],
-      badges: ["這個就像你去廟裏問事一樣", "決策型工具"],
+      badges: ["這個就像你去廟裏問事一樣", "我有件事想用占卜看一下"],
     },
     {
       id: "ziwei",
@@ -794,7 +794,7 @@ async function sendServiceSelectFlex(userId) {
         "想知道你的愛情觀(感情好嗎)",
         "想知道你的金錢觀(有偏財嗎)",
       ],
-      badges: ["用紫微選更輕鬆的路"],
+      badges: ["用紫微選更輕鬆的路", "我想用紫微釐清一下狀態"],
     },
     {
       id: "bazi",
@@ -806,7 +806,7 @@ async function sendServiceSelectFlex(userId) {
         "依適合的屬性決定你的職業方向",
         "流年來時是壓力還是助力",
       ],
-      badges: ["八字看氣場跟格局"],
+      badges: ["八字看氣場跟格局", "我想先從八字方向開始看"],
     },
   ];
 
@@ -917,7 +917,8 @@ async function sendServiceSelectFlex(userId) {
 
       /***************************************
        * [1-3] Footer：每頁一顆按鈕（功能不變）
-       * - 依服務類型換成「先聊聊」的 CTA
+       * - label 改成「先聊聊」CTA（每頁輪一種）
+       * - data / displayText 維持原本 choose_service 流程
        ***************************************/
       footer: {
         type: "box",
@@ -932,32 +933,16 @@ async function sendServiceSelectFlex(userId) {
             height: "sm",
             action: {
               type: "postback",
-
-              // ✅ CTA：依服務類型配最合適的一句（不影響後端 service id）
-              label:
-                s.id === "name"
-                  ? "先幫我看一下"
-                  : s.id === "liuyao"
-                  ? "我想問這個"
-                  : s.id === "bazi"
-                  ? "從這裡開始"
-                  : s.id === "ziwei"
-                  ? "我比較需要這個"
-                  : `預約 ${s.label}`,
-
+              // ✅ 四頁輪替一句（第 1~4 頁分別顯示）
+              label: [
+                "先幫我看一下",
+                "我想問這個",
+                "從這裡開始",
+                "我比較需要這個",
+              ][idx % 4],
               data: `action=choose_service&service=${s.id}`,
-
-              // ✅ 點下去顯示在聊天室的那句，也用同樣語氣（更像在聊天）
-              displayText:
-                s.id === "name"
-                  ? "我想先請你幫我看一下名字"
-                  : s.id === "liuyao"
-                  ? "我想問一件事，想用六爻看一下"
-                  : s.id === "bazi"
-                  ? "我想先從八字方向開始看"
-                  : s.id === "ziwei"
-                  ? "我想用紫微釐清一下狀態"
-                  : `我想預約 ${s.label}`,
+              // ✅ 功能一樣，只是顯示成「我想聊聊」的語氣
+              displayText: `我想先聊聊：${s.label}`,
             },
           },
         ],
