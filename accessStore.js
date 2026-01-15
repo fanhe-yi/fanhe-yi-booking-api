@@ -28,7 +28,7 @@ function defaultUserRecord(userId) {
   const t = nowISO();
   return {
     userId,
-    firstFree: { liuyao: 0, bazimatch: 1, minibazi: 0 },
+    firstFree: { liuyao: 1, bazimatch: 1, minibazi: 1 },
     quota: { liuyao: 0, bazimatch: 0, minibazi: 0 },
     redeemedCoupons: {}, // { "FREE99": true }
     meta: { createdAt: t, updatedAt: t },
