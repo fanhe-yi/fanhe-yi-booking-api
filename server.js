@@ -917,8 +917,7 @@ async function sendServiceSelectFlex(userId) {
 
       /***************************************
        * [1-3] Footer：每頁一顆按鈕（功能不變）
-       * - label 改成「先聊聊」CTA（每頁輪一種）
-       * - data / displayText 維持原本 choose_service 流程
+       * - 依服務類型換成「先聊聊」的 CTA
        ***************************************/
       footer: {
         type: "box",
@@ -933,16 +932,32 @@ async function sendServiceSelectFlex(userId) {
             height: "sm",
             action: {
               type: "postback",
-              // ✅ 四頁輪替一句（第 1~4 頁分別顯示）
-              label: [
-                "先幫我看一下",
-                "我想問這個",
-                "從這裡開始",
-                "我比較需要這個",
-              ][idx % 4],
+
+              // ✅ CTA：依服務類型配最合適的一句（不影響後端 service id）
+              label:
+                s.id === "name"
+                  ? "先幫我看一下"
+                  : s.id === "liuyao"
+                  ? "我想問這個"
+                  : s.id === "bazi"
+                  ? "從這裡開始"
+                  : s.id === "ziwei"
+                  ? "我比較需要這個"
+                  : `預約 ${s.label}`,
+
               data: `action=choose_service&service=${s.id}`,
-              // ✅ 功能一樣，只是顯示成「我想聊聊」的語氣
-              displayText: `我想先聊聊：${s.label}`,
+
+              // ✅ 點下去顯示在聊天室的那句，也用同樣語氣（更像在聊天）
+              displayText:
+                s.id === "name"
+                  ? "我想先請你幫我看一下名字"
+                  : s.id === "liuyao"
+                  ? "我想問一件事，想用六爻看一下"
+                  : s.id === "bazi"
+                  ? "我想先從八字方向開始看"
+                  : s.id === "ziwei"
+                  ? "我想用紫微釐清一下狀態"
+                  : `我想預約 ${s.label}`,
             },
           },
         ],
