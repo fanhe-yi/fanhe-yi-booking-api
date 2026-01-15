@@ -39,6 +39,60 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 */
 const { pool } = require("./db");
 
+/* 
+==========================================================
+✅ Admin Logs - PostgreSQL 版（只記你指定的點）
+==========================================================
+✅ 為什麼這樣做：
+- 不把所有 console.log 寫進 DB（太多、太吵、太吃 I/O）
+- 你只要在「你覺得重要」的地方改成 adminLogDB(...) 就會入庫
+- created_at 用 DB NOW()（UTC），查詢時再轉台灣時間字串回前端
+==========================================================
+*/
+async function adminLogDB(level, tag, message, options = {}) {
+  try {
+    const lv = String(level || "info").toLowerCase();
+    const tg = String(tag || "app");
+    const msg = String(message || "");
+
+    /* 
+      ✅ options 可帶：
+      - userId: 方便用 user_id 查
+      - meta: 任何你想記的 JSON（action、feature、payload片段、錯誤訊息…）
+      - alsoConsole: 是否也要 console.log（預設 true）
+    */
+    const userId = options.userId ? String(options.userId) : null;
+    const meta =
+      options.meta && typeof options.meta === "object" ? options.meta : {};
+    const alsoConsole = options.alsoConsole !== false;
+
+    /* ✅ 你原本習慣的 console.log 也保留（方便用 pm2 log 看即時） */
+    if (alsoConsole) {
+      console.log(
+        `[ADMIN_LOG_DB][${lv}][${tg}]`,
+        msg,
+        userId ? `user=${userId}` : "",
+        meta
+      );
+    }
+
+    /* ✅ 寫入 DB（只要你呼叫它才會寫） */
+    await pool.query(
+      `
+      INSERT INTO admin_logs (level, tag, user_id, message, meta)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+      `,
+      [lv, tg, userId, msg, JSON.stringify(meta)]
+    );
+  } catch (err) {
+    /* 
+      ✅ 寫 log 不能把主流程搞掛
+      - 所以這裡只印錯誤，不 throw
+    */
+    console.error("[adminLogDB] insert failed:", err.message || err);
+  }
+}
+
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
 // 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
@@ -1260,6 +1314,125 @@ app.get("/", (req, res) => {
 app.get("/api/bookings", (req, res) => {
   const bookings = loadBookings();
   res.json(bookings);
+});
+
+/* 
+==========================================================
+✅ Admin API - 查詢 logs（分頁 / 搜尋 / 台灣時間篩選）
+==========================================================
+Query:
+- page=1
+- pageSize=20 (max 100)
+- q=關鍵字（搜尋 message）
+- level=info|warn|error（可選）
+- tag=postback|LINE|AI_USAGE...（可選，完全你自訂）
+- userId=...（可選）
+- from=YYYY-MM-DD 或 YYYY-MM-DDTHH:mm（台灣時間）
+- to=YYYY-MM-DD 或 YYYY-MM-DDTHH:mm（台灣時間）
+==========================================================
+✅ 台灣時間處理策略（不靠 Node 時區）：
+- 前端傳 from/to 以「台灣時間字串」
+- SQL 用 AT TIME ZONE 'Asia/Taipei' 轉換做篩選
+- 回傳額外欄位 created_at_tw：台灣時間字串，前端直接顯示
+==========================================================
+*/
+app.get("/api/admin/logs", requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(Number(req.query.page || 1), 1);
+    const pageSize = Math.min(
+      Math.max(Number(req.query.pageSize || 20), 1),
+      100
+    );
+
+    const q = String(req.query.q || "").trim();
+    const level = String(req.query.level || "")
+      .trim()
+      .toLowerCase();
+    const tag = String(req.query.tag || "").trim();
+    const userId = String(req.query.userId || "").trim();
+
+    const from = String(req.query.from || "").trim(); // 台灣時間字串
+    const to = String(req.query.to || "").trim();
+
+    /* 
+      ✅ 動態組 WHERE（用參數避免 SQL injection）
+    */
+    const where = [];
+    const params = [];
+    let i = 1;
+
+    if (q) {
+      where.push(`message ILIKE $${i++}`);
+      params.push(`%${q}%`);
+    }
+    if (level) {
+      where.push(`level = $${i++}`);
+      params.push(level);
+    }
+    if (tag) {
+      where.push(`tag = $${i++}`);
+      params.push(tag);
+    }
+    if (userId) {
+      where.push(`user_id = $${i++}`);
+      params.push(userId);
+    }
+
+    /* 
+      ✅ 台灣時間篩選：
+      - created_at 是 timestamptz（UTC）
+      - (created_at AT TIME ZONE 'Asia/Taipei') 會變成「台灣 local timestamp」
+      - from/to 也當作台灣 local timestamp 來比較
+    */
+    if (from) {
+      where.push(
+        `(created_at AT TIME ZONE 'Asia/Taipei') >= $${i++}::timestamp`
+      );
+      params.push(from);
+    }
+    if (to) {
+      where.push(
+        `(created_at AT TIME ZONE 'Asia/Taipei') <= $${i++}::timestamp`
+      );
+      params.push(to);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    /* ✅ total */
+    const totalR = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM admin_logs ${whereSql}`,
+      params
+    );
+    const total = totalR.rows?.[0]?.total || 0;
+
+    /* ✅ items（最新在前） */
+    const offset = (page - 1) * pageSize;
+
+    const itemsR = await pool.query(
+      `
+      SELECT 
+        id, level, tag, user_id, message, meta,
+        created_at,
+        to_char(created_at AT TIME ZONE 'Asia/Taipei', 'YYYY-MM-DD HH24:MI:SS') AS created_at_tw
+      FROM admin_logs
+      ${whereSql}
+      ORDER BY id DESC
+      LIMIT $${i++} OFFSET $${i++}
+      `,
+      [...params, pageSize, offset]
+    );
+
+    res.json({
+      items: itemsR.rows,
+      total,
+      page,
+      pageSize,
+    });
+  } catch (err) {
+    console.error("[Admin logs list] error:", err);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
 });
 
 //前台主要查詢時段狀態
@@ -2582,8 +2755,24 @@ async function routeGeneralCommands(userId, text) {
     await sendServiceIntroFlex(userId, "liuyao");
     return;
   }
+  /* 
+  ==========================================================
+  ✅ 使用者輸入文字：記錄到 admin_logs
+  ==========================================================
+  ✅ 為什麼這樣改：
+  - 你要把使用者說的話留存，方便後台追查/篩選
+  - 但你不想每次都 pushText 回去干擾使用者
+  - 所以改成「只寫 DB log」
+  ==========================================================
+  */
+  //* ✅ 簡單記錄：使用者說話（DB 會自動寫 created_at=NOW()） */
+  const msg = String(text || "") // ✅ 避免空字串/爆長,500字內
+    .trim()
+    .slice(0, 500);
+  await adminLogDB("info", "user_text", msg, { userId });
+
   // 5)
-  console.log("=========有聽到使用者說話=========", userId);
+  //console.log("=========有聽到使用者說話=========", userId);
 
   // 6) 其他
   //await pushText(userId, `我有聽到你說：「${text}」，目前是機器人回覆唷`);
