@@ -4081,16 +4081,18 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   const malePillars = extractPillars(maleBaziSummaryText); // { year, month, day, hour }
   const femalePillars = extractPillars(femaleBaziSummaryText);
 
-  const maleMonthBranch = (malePillars.month || "").slice(1); // 取第 2 個字當地支
+  const maleYearBranch = (malePillars.year || "").slice(1); // 取第 2 個字當地支
+  const maleMonthBranch = (malePillars.month || "").slice(1);
   const maleDayBranch = (malePillars.day || "").slice(1);
+  const femaleYearBranch = (femalePillars.year || "").slice(1);
   const femaleMonthBranch = (femalePillars.month || "").slice(1);
   const femaleDayBranch = (femalePillars.day || "").slice(1);
 
   // 3) 組給 AI 的「內部合婚提示」
   //    👉 含 月支 / 日支 + 「幫我合婚」，只給 AI 用
   const matchPromptText =
-    `男命 月支${maleMonthBranch} 日支${maleDayBranch} ` +
-    `女命 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
+    `男命 年支${maleYearBranch} 月支${maleMonthBranch} 日支${maleDayBranch} ` +
+    `女命 年支${femaleYearBranch} 月支${femaleMonthBranch} 日支${femaleDayBranch} 幫我合婚`;
 
   // 4) 組給使用者看的說明文字（看你要不要更 detail）
   //    👉 不出現地支、也不出現「幫我合婚」
@@ -4102,8 +4104,8 @@ async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   const systemPrompt =
     "你是一位專門看八字合婚的東方命理老師，講話是現代嘴炮風。" +
     "你會收到兩位當事人的八字摘要（包含四柱與部分五行資訊），請根據兩人的命盤，" +
-    "重點參考「月支與日支之間的關係」以及「雙方五行生剋是否互補或失衡」，" +
-    "綜合給出合婚評估。" +
+    "重點參考「優先參考月支與日支之間的關係」再參考「年支與月支與日支之間的關係」" +
+    "以及「雙方五行生剋是否互補或失衡」，綜合給出合婚評估。" +
     "在你的內部判斷邏輯中（不要寫進輸出的文字裡），請遵守以下原則：" +
     "1.如果雙方月支、日支之間形成明顯的和諧關係（例如傳統所說的六合、相生、互補），" +
     "合婚分數要有明顯加分，可以落在 80～95 分區間，並在文字裡用「很合」、「默契自然」" +
