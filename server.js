@@ -858,35 +858,18 @@ async function sendServiceSelectFlex(userId) {
             margin: "sm",
           },
           /***************************************
-           * ✅ 兩顆 badge（上下排、膠囊樣式、不撐滿）
+           * ✅ badges：改成「上下排列」＋「無底色」
+           * - 最多顯示前 2 個
            ***************************************/
           ...(Array.isArray(s.badges) && s.badges.length
-            ? [
-                {
-                  type: "box",
-                  layout: "vertical",
-                  spacing: "sm",
-                  margin: "sm",
-                  contents: s.badges.slice(0, 2).map((b) => ({
-                    type: "box",
-                    layout: "baseline",
-                    flex: 0, // ✅ 不要吃滿寬
-                    paddingAll: "xs",
-                    cornerRadius: "xl",
-                    backgroundColor: "#F2EEE9",
-                    contents: [
-                      {
-                        type: "text",
-                        text: b,
-                        size: "xxs",
-                        color: "#635750",
-                        wrap: true, // ✅ 字太長就換行（但 box 不會硬撐滿）
-                        flex: 0,
-                      },
-                    ],
-                  })),
-                },
-              ]
+            ? s.badges.slice(0, 2).map((b, idx) => ({
+                type: "text",
+                text: `🏷️ ${b}`,
+                size: "xxs",
+                color: "#635750",
+                wrap: true,
+                margin: idx === 0 ? "sm" : "xs",
+              }))
             : []),
         ],
       },
