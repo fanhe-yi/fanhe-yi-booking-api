@@ -785,18 +785,6 @@ async function sendServiceSelectFlex(userId) {
       badges: ["這個就像你去廟裏問事一樣", "決策型工具"],
     },
     {
-      id: "bazi",
-      label: "八字諮詢",
-      intro:
-        "你常聽到命理師在講八字缺水、土。\n就是在講這個，八字在看你五行的格局。",
-      highlights: [
-        "不知道自己適合什麼屬性",
-        "依適合的屬性決定你的職業方向",
-        "流年來時是壓力還是助力",
-      ],
-      badges: ["八字看氣場跟格局"],
-    },
-    {
       id: "ziwei",
       label: "紫微斗數",
       intro:
@@ -807,6 +795,18 @@ async function sendServiceSelectFlex(userId) {
         "想知道你的金錢觀(有偏財嗎)",
       ],
       badges: ["用紫微選更輕鬆的路"],
+    },
+    {
+      id: "bazi",
+      label: "八字諮詢",
+      intro:
+        "你常聽到命理師在講八字缺水、土。\n就是在講這個，八字在看你五行的格局。",
+      highlights: [
+        "不知道自己適合什麼屬性",
+        "依適合的屬性決定你的職業方向",
+        "流年來時是壓力還是助力",
+      ],
+      badges: ["八字看氣場跟格局"],
     },
   ];
 
@@ -858,33 +858,18 @@ async function sendServiceSelectFlex(userId) {
             margin: "sm",
           },
           /***************************************
-           * ✅ 兩顆 badge（最多顯示前 2 個）
+           * ✅ badges：改成「上下排列」＋「無底色」
+           * - 最多顯示前 2 個
            ***************************************/
           ...(Array.isArray(s.badges) && s.badges.length
-            ? [
-                {
-                  type: "box",
-                  layout: "vertical",
-                  spacing: "sm",
-                  margin: "sm",
-                  contents: s.badges.slice(0, 2).map((b) => ({
-                    type: "box",
-                    layout: "vertical",
-                    paddingAll: "sm",
-                    cornerRadius: "md",
-                    backgroundColor: "#F2EEE9", // 淺底，跟你 #635750 主色很搭
-                    contents: [
-                      {
-                        type: "text",
-                        text: b,
-                        size: "xxs",
-                        color: "#635750",
-                        wrap: false,
-                      },
-                    ],
-                  })),
-                },
-              ]
+            ? s.badges.slice(0, 2).map((b, idx) => ({
+                type: "text",
+                text: `🏷️ ${b}`,
+                size: "xxs",
+                color: "#635750",
+                wrap: true,
+                margin: idx === 0 ? "sm" : "xs",
+              }))
             : []),
         ],
       },
@@ -5011,13 +4996,14 @@ async function sendLiuYaoRollFlex(userId, yaoIndex, yySoFar = "") {
             },
           ],
         },
-
+        /*不提示使用者可以手動輸入
         {
           type: "text",
           text: "（也可以直接輸入 0～3 ）",
           size: "xs",
           color: "#999999",
         },
+        */
       ],
     },
   };
