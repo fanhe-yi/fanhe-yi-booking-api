@@ -816,7 +816,7 @@ async function sendServiceSelectFlex(userId) {
    * - body：intro + highlights
    * - footer：一顆「立即預約」按鈕（功能跟原本一樣）
    ***************************************/
-  const bubbles = services.map((s) => {
+  const bubbles = services.map((s, idx) => {
     // ✅ 亮點 bullets：用小字＋• 組出清爽的條列
     const bulletTexts = (s.highlights || []).map((t) => ({
       type: "text",
@@ -917,8 +917,8 @@ async function sendServiceSelectFlex(userId) {
 
       /***************************************
        * [1-3] Footer：每頁一顆按鈕（功能不變）
-       * - data: action=choose_service&service=xxx
-       * - displayText: 用戶端顯示用（保留儀式感）
+       * - label 改成「先聊聊」CTA（每頁輪一種）
+       * - data / displayText 維持原本 choose_service 流程
        ***************************************/
       footer: {
         type: "box",
@@ -933,21 +933,18 @@ async function sendServiceSelectFlex(userId) {
             height: "sm",
             action: {
               type: "postback",
-              label: `預約 ${s.label}`,
+              // ✅ 四頁輪替一句（第 1~4 頁分別顯示）
+              label: [
+                "先幫我看一下",
+                "我想問這個",
+                "從這裡開始",
+                "我比較需要這個",
+              ][idx % 4],
               data: `action=choose_service&service=${s.id}`,
-              displayText: `我想預約 ${s.label}`,
+              // ✅ 功能一樣，只是顯示成「我想聊聊」的語氣
+              displayText: `我想先聊聊：${s.label}`,
             },
           },
-          /*
-          {
-            type: "text",
-            text: "⚠️ 僅供娛樂與參考，非結果保證",
-            size: "xxs",
-            color: "#999999",
-            wrap: true,
-            margin: "md",
-          },
-          */
         ],
       },
     };
