@@ -3167,10 +3167,11 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    /* ✅ 核心：把「使用者想問的題目」先存起來
-     * - mode 先切到 booking（等同你原本輸入「預約」後的狀態）
-     * - stage 用 idle，下一步直接丟服務選擇
-     */
+    /* =========================================================
+     * STEP 3：選題目後，直接走「命理諮詢(chat_line)」→ 選日期 → 選時段
+     * - 跳過 sendServiceSelectFlex（服務選擇）
+     * - serviceId 統一固定為 chat_line（命理諮詢）
+     * ========================================================= */
     if (action === "choose_q") {
       const catId = params.get("cat");
       const qid = params.get("q");
@@ -3763,21 +3764,50 @@ async function handleBookingFlow(userId, text, state, event) {
     return true;
   }
 
-  // A-3. 問備註 → 收齊資料 → 寫入預約 → 通知 + hero
+  /* =========================================================
+   * STEP 4：把「使用者選的常見問題」自動寫入 note
+   * - 使用者輸入的備註（trimmed）仍然保留
+   * - 最終 note 會是：
+   *   【常見問題】xxx
+   *   【補充】yyy（若有）
+   * ========================================================= */
   if (state.stage === "waiting_note") {
-    state.data.note = trimmed === "無" ? "" : trimmed;
+    /* 【4-1】先把使用者輸入備註整理好 */
+    const userNote = trimmed === "無" ? "" : trimmed;
 
-    // 組一份 bookingBody，格式跟 /api/bookings 類似
+    /* 【4-2】如果是從常見問題流程進來，state.data.questionText 會存在
+     * - 沒有的話就不寫（避免一般預約流程也被硬塞）
+     */
+    const pickedQuestion =
+      state.data && state.data.questionText ? state.data.questionText : "";
+
+    /* 【4-3】把 note 組合起來（合併，不覆蓋） */
+    let finalNote = "";
+
+    /* 先放「常見問題」 */
+    if (pickedQuestion) {
+      finalNote += `【常見問題】${pickedQuestion}`;
+    }
+
+    /* 再放使用者補充（有填才放） */
+    if (userNote) {
+      finalNote += (finalNote ? "\n" : "") + `【補充】${userNote}`;
+    }
+
+    /* 同步存回 state.data.note（讓你後續 debug 或 hero 可用） */
+    state.data.note = finalNote;
+
+    /* 【4-4】組一份 bookingBody（note 用 finalNote） */
     const bookingBody = {
-      serviceId: state.data.serviceId || "chat_line", // 目前沒有選服務，就先標記 chat_line
+      serviceId: state.data.serviceId || "chat_line",
       name: state.data.name || "",
       email: "",
       phone: state.data.phone || "",
-      lineId: "", // 聊天預約這裡就不另外收 lineId
+      lineId: "",
       date: state.data.date,
       timeSlots: [state.data.timeSlot],
-      note: state.data.note || "",
-      lineUserId: userId, // 直接用 LINE userId 綁定
+      note: finalNote, // ✅ 這裡改成 finalNote
+      lineUserId: userId,
     };
 
     // 寫入 bookings.json
