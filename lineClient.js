@@ -357,24 +357,6 @@ async function sendBookingSuccessHero(userId, booking) {
               contents: [
                 {
                   type: "text",
-                  text: "內容",
-                  size: "sm",
-                  color: "#aaaaaa",
-                },
-                {
-                  type: "text",
-                  text: note,
-                  size: "sm",
-                  margin: "lg",
-                },
-              ],
-            },
-            {
-              type: "box",
-              layout: "baseline",
-              contents: [
-                {
-                  type: "text",
                   text: "預約人",
                   size: "sm",
                   color: "#aaaaaa",
@@ -391,6 +373,13 @@ async function sendBookingSuccessHero(userId, booking) {
         },
         {
           type: "separator",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: `諮詢內容：\n${note || ""}`,
+          size: "sm",
+          wrap: true,
           margin: "md",
         },
         {

@@ -3840,7 +3840,8 @@ async function handleBookingFlow(userId, text, state, event) {
           `日期：${bookingBody.date}\n` +
           `時段：${bookingBody.timeSlots.join("、")}\n` +
           `姓名：${bookingBody.name}\n` +
-          `聯絡方式：${bookingBody.phone}`
+          `聯絡方式：${bookingBody.phone}\n` +
+          `備註：${bookingBody.note}`
       );
     }
 
