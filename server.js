@@ -773,7 +773,7 @@ async function sendQuestionCategoryCarouselFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#f5eae4",
+          color: "#bdafa7ff",
           height: "sm",
           action: {
             type: "postback",
