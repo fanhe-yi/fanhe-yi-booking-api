@@ -3171,7 +3171,7 @@ async function routePostback(userId, data, state) {
 
     /* ✅ 核心：常見問題統一歸類成 single（單題占問） */
     //const serviceId = "single";
-    const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+    //const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
     /* ✅ 存對話狀態：直接準備進入「選日期」 */
     conversationStates[userId] = {
