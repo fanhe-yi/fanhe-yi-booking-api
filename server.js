@@ -311,6 +311,7 @@ const SERVICE_NAME_MAP = {
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
+  single: "單題占問",
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
@@ -3145,9 +3146,11 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  /* =========================
-   * STEP 2：選題目 → 存進 state → 導入 booking
-   * ========================= */ //回朔2
+  /* =========================================================
+   * STEP 3-1B：選到「某題」後，直接跳到選日期（略過選服務）
+   * - 常見問題一律當作 serviceId = "single"
+   * - 直接進 sendDateCarouselFlex → 接續你原本 choose_date / choose_slot 流程
+   * ========================================================= */ //回朔3
   if (action === "choose_q") {
     const catId = params.get("cat");
     const qid = params.get("q");
@@ -3160,21 +3163,25 @@ async function routePostback(userId, data, state) {
     if (!cat || !q) {
       await pushText(
         userId,
-        "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
+        "我有收到你的選擇，但主題資料對不上 🙏\n你可以再選一次。"
       );
       await sendQuestionCategoryCarouselFlex(userId);
       return;
     }
 
-    /* ✅ 核心：把「使用者想問的題目」先存起來
-     * - mode 先切到 booking（等同你原本輸入「預約」後的狀態）
-     * - stage 用 idle，下一步直接丟服務選擇
-     */
+    /* ✅ 核心：常見問題統一歸類成 single（單題占問） */
+    const serviceId = "single";
+    const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+    /* ✅ 存對話狀態：直接準備進入「選日期」 */
     conversationStates[userId] = {
       mode: "booking",
-      stage: "idle",
+      stage: "waiting_date",
       data: {
-        /* 記錄：他選的問題分類與題目 */
+        /* 常見問題專用服務 */
+        serviceId,
+
+        /* 記錄：使用者選的題目（後面可塞進 note） */
         qCategoryId: catId,
         qCategoryTitle: cat.title,
         questionId: qid,
@@ -3182,14 +3189,14 @@ async function routePostback(userId, data, state) {
       },
     };
 
-    /* 先回一句話，讓使用者知道你有記到他要問什麼 */
+    /* ✅ 回覆一段「你選了什麼 + 接下來選時間」 */
     await pushText(
       userId,
-      `收到～你想問的是：\n「${q.full}」\n\n下一步選擇你想用哪一種方式來看（四柱八字 / 紫微斗數 / 六爻占卜 / 姓名學）。`
+      `收到～你想問的是：\n「${q.full}」\n\n我先幫你用「${serviceName}」排時間。\n接下來請選擇可預約日期：`
     );
 
-    /* ✅ 直接導入你既有的預約「選服務」流程 */
-    await sendServiceSelectFlex(userId);
+    /* ✅ 直接丟日期 Carousel（略過 sendServiceSelectFlex） */
+    await sendDateCarouselFlex(userId, serviceId);
 
     return;
   }
