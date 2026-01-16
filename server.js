@@ -2957,7 +2957,7 @@ async function handleLineEvent(event) {
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
   // 1) 預約（維持原樣）
-  if (text === "預約") {
+  if (text === "關於八字/紫微/占卜") {
     conversationStates[userId] = {
       mode: "booking",
       stage: "idle",
@@ -3786,12 +3786,12 @@ async function handleBookingFlow(userId, text, state, event) {
 
     /* 先放「常見問題」 */
     if (pickedQuestion) {
-      finalNote += `• 諮詢內容：\n${pickedQuestion}`;
+      finalNote += `• 諮詢內容：${pickedQuestion}`;
     }
 
     /* 再放使用者補充（有填才放） */
     if (userNote) {
-      finalNote += (finalNote ? "\n" : "") + `• 您的備註：\n${userNote}`;
+      finalNote += (finalNote ? "\n" : "") + `• 您的備註：${userNote}`;
     }
 
     /* 同步存回 state.data.note（讓你後續 debug 或 hero 可用） */
