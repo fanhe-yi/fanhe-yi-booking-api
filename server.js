@@ -750,14 +750,6 @@ async function sendQuestionCategoryCarouselFlex(userId) {
       layout: "vertical",
       spacing: "md",
       contents: [
-        /* 小標：你的品牌 */
-        {
-          type: "text",
-          text: "梵和易學｜常見問題分類",
-          size: "sm",
-          color: "#888888",
-        },
-
         /* 大標：emoji + 類別名稱 */
         {
           type: "text",
@@ -808,6 +800,235 @@ async function sendQuestionCategoryCarouselFlex(userId) {
   };
 
   await pushFlex(userId, "你想問哪一類？", carousel);
+}
+
+/* =========================================================
+ * STEP 2：大類 → 題目清單 Carousel → 選題 → 導入 booking//回朔2
+ * 你會新增：
+ * 1) QUESTION_BANK：每個大類對應的題目清單
+ * 2) sendQuestionListCarouselFlex：丟出題目清單 Carousel
+ * 3) routePostback：新增 action=choose_q / show_qcats
+ * 4) handleBookingPostback：做 data merge，避免覆蓋掉題目資料
+ * ========================================================= */
+
+/* 【2-0】保險：如果你原本沒有 chunkArray，就補一個//回朔2
+ * - 你的 sendDateCarouselFlex 已經用過 chunkArray
+ * - 但我不確定你檔案上面是否有實作
+ * - 沒有的話，這段會讓你不會炸掉
+ */
+if (typeof chunkArray !== "function") {
+  //回朔2
+  /* 把陣列切成固定大小的小段 */
+  function chunkArray(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) {
+      out.push(arr.slice(i, i + size));
+    }
+    return out;
+  }
+}
+
+/* 【2-1】題庫：把你整理的題目放進各大類//回朔2
+ * - qid：短代碼（postback 用，避免 data 太長）
+ * - label：按鈕顯示用（建議短一點，避免 LINE 按鈕字數限制）
+ * - full：完整題目（你後續寫入 note 或顯示用）
+ */
+const QUESTION_BANK = {
+  //回朔2
+  love: [
+    { qid: "reconcile", label: "我們會復合嗎", full: "我們會復合嗎？" },
+    {
+      qid: "ex_contact",
+      label: "前任會聯絡嗎",
+      full: "三個月內前任會重新聯絡我嗎？",
+    },
+    {
+      qid: "amb_next",
+      label: "曖昧會升級嗎",
+      full: "現在的曖昧關係會往下一步發展嗎？",
+    },
+    {
+      qid: "initiative",
+      label: "我該主動嗎",
+      full: "我該主動表達還是等待更好的時機？",
+    },
+    { qid: "third", label: "有第三者嗎", full: "是否有潛在第三者需要注意？" },
+    { qid: "continue", label: "要繼續嗎", full: "這段關係該不該繼續走下去？" },
+    {
+      qid: "fix",
+      label: "問題怎麼調整",
+      full: "這段感情目前的問題該怎麼調整？",
+    },
+    { qid: "marry", label: "適合結婚嗎", full: "我們適合走向婚姻嗎？" },
+    { qid: "peach", label: "今年有桃花嗎", full: "我今年有沒有桃花？" },
+    { qid: "meet", label: "何時遇到對的人", full: "什麼時候會遇到對的人？" },
+    { qid: "letgo", label: "怎麼放下", full: "我應該如何放下過去的感情？" },
+    { qid: "divorce", label: "婚姻要離嗎", full: "這段婚姻該不該離？" },
+  ],
+
+  career: [
+    { qid: "stay", label: "公司還待嗎", full: "這間公司還待嗎？" },
+    { qid: "valued", label: "會被重視嗎", full: "我在公司會被重視嗎？" },
+    { qid: "raise", label: "升遷加薪嗎", full: "是否有升遷或加薪的機會？" },
+    { qid: "change", label: "該換工作嗎", full: "該不該換工作？" },
+    { qid: "better", label: "換了更好嗎", full: "換工作會比現在更好嗎？" },
+    {
+      qid: "study",
+      label: "進修轉換順嗎",
+      full: "出國、轉換跑道或進修會順利嗎？",
+    },
+    {
+      qid: "direction",
+      label: "哪方向有潛力",
+      full: "哪個方向的事業最有潛力？",
+    },
+    { qid: "startup", label: "適合創業嗎", full: "我適合創業嗎？" },
+    { qid: "five", label: "職業五行", full: "適合我的職業五行是什麼？" },
+    { qid: "talent", label: "天賦在哪", full: "我的天賦與潛能在哪方面？" },
+  ],
+
+  money: [
+    { qid: "fortune", label: "今年財運如何", full: "今年的財運如何？" },
+    { qid: "loss", label: "會破財嗎", full: "有破財風險需要留意嗎？" },
+    { qid: "side", label: "有偏財嗎", full: "是否有偏財運或額外收入？" },
+    {
+      qid: "startup_loss",
+      label: "創業會賠嗎",
+      full: "我適合創業嗎？會不會賠錢？",
+    },
+  ],
+
+  year: [
+    {
+      qid: "overall_2026",
+      label: "2026整體運勢",
+      full: "我 2026 年的整體運勢如何？",
+    },
+  ],
+
+  family: [
+    {
+      qid: "parents",
+      label: "家人矛盾怎解",
+      full: "如何化解與父母或伴侶間的矛盾？",
+    },
+    { qid: "kid", label: "孩子學業如何", full: "我的孩子在學業狀況如何？" },
+    {
+      qid: "villain",
+      label: "小人阻礙注意",
+      full: "有需要特別留意的小人或阻礙嗎？",
+    },
+  ],
+
+  name: [
+    { qid: "name_check", label: "看我的名字", full: "幫我看一下我的名字。" },
+  ],
+
+  house: [{ qid: "buy", label: "房子能買嗎", full: "這間房子能買嗎？" }],
+};
+
+/* 【2-2】丟出「題目清單」Carousel//回朔2
+ * - 一頁放 3 題（你也可以改成 4）
+ * - 每題按下去 → postback：action=choose_q&cat=love&q=reconcile
+ * - 額外提供一顆「換類別」讓他回到分類 Carousel
+ */
+async function sendQuestionListCarouselFlex(userId, catId) {
+  //回朔2
+  /* 找到大類資料（用你 Step1 的 QUESTION_CATEGORIES） */
+  const cat = QUESTION_CATEGORIES.find((x) => x.id === catId);
+
+  /* 找到題目清單 */
+  const list = QUESTION_BANK[catId] || [];
+
+  /* 如果沒有題目：防呆 */
+  if (!cat || list.length === 0) {
+    await pushText(
+      userId,
+      "這個分類目前題庫還沒填好 🙏\n你可以先選其他類別，或直接輸入「預約」。"
+    );
+    return;
+  }
+
+  /* 每 3 題一頁 */
+  const groups = chunkArray(list, 3);
+
+  const bubbles = groups.map((group) => ({
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        /* 小標 */
+        {
+          type: "text",
+          text: "梵和易學｜選一個最貼近的問題",
+          size: "sm",
+          color: "#888888",
+        },
+
+        /* 類別標題 */
+        {
+          type: "text",
+          text: `${cat.emoji} ${cat.title}`,
+          size: "lg",
+          weight: "bold",
+          wrap: true,
+        },
+
+        /* 題目按鈕區 */
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: group.map((q) => ({
+            type: "button",
+            style: "link",
+            height: "sm",
+            action: {
+              type: "postback",
+              label: q.label,
+              data: `action=choose_q&cat=${catId}&q=${q.qid}`,
+              displayText: `我想問：${q.full}`,
+            },
+          })),
+        },
+      ],
+    },
+
+    /* footer 放「換類別」 */
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "換類別",
+            data: "action=show_qcats",
+            displayText: "我想換一個問題分類",
+          },
+        },
+        {
+          type: "text",
+          text: "選完題目後，我會直接帶你進預約流程。",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
+        },
+      ],
+    },
+  }));
+
+  const carousel = { type: "carousel", contents: bubbles };
+
+  await pushFlex(userId, "選一個最貼近的問題", carousel);
 }
 
 // 🔹 第一步：服務選擇 Flex（Carousel：八字 / 紫微 / 姓名 / 六爻(兩頁)）
@@ -2965,19 +3186,68 @@ async function routePostback(userId, data, state) {
   }
 
   /* =========================
-   * STEP 1：常見問題大類選擇（暫時先提示）//回朔
+   * STEP 2：回到「分類」Carousel
+   * ========================= */
+  if (action === "show_qcats") {
+    await sendQuestionCategoryCarouselFlex(userId);
+    return;
+  }
+
+  /* =========================
+   * STEP 2：選大類 → 丟題目清單
    * ========================= */
   if (action === "choose_qcat") {
-    const cat = params.get("cat");
-    const found = QUESTION_CATEGORIES.find((x) => x.id === cat);
+    const catId = params.get("cat");
+    await sendQuestionListCarouselFlex(userId, catId);
+    return;
+  }
 
-    /* 先做最小可用：有按到就回覆文字，避免使用者覺得壞掉 */
+  /* =========================
+   * STEP 2：選題目 → 存進 state → 導入 booking
+   * ========================= */ //回朔2
+  if (action === "choose_q") {
+    const catId = params.get("cat");
+    const qid = params.get("q");
+
+    const cat = QUESTION_CATEGORIES.find((x) => x.id === catId);
+    const list = QUESTION_BANK[catId] || [];
+    const q = list.find((x) => x.qid === qid);
+
+    /* 防呆：找不到題目就提醒 */
+    if (!cat || !q) {
+      await pushText(
+        userId,
+        "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
+      );
+      await sendQuestionCategoryCarouselFlex(userId);
+      return;
+    }
+
+    /* ✅ 核心：把「使用者想問的題目」先存起來
+     * - mode 先切到 booking（等同你原本輸入「預約」後的狀態）
+     * - stage 用 idle，下一步直接丟服務選擇
+     */
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "idle",
+      data: {
+        /* 記錄：他選的問題分類與題目 */
+        qCategoryId: catId,
+        qCategoryTitle: cat.title,
+        questionId: qid,
+        questionText: q.full,
+      },
+    };
+
+    /* 先回一句話，讓使用者知道你有記到他要問什麼 */
     await pushText(
       userId,
-      found
-        ? `收到～你選的是「${found.title}」。\n下一步我會丟出更精準的問題清單，讓你一鍵選，然後直接帶你進預約流程。`
-        : "收到～我有收到你的選擇。下一步我會丟出更精準的問題清單。"
+      `收到～你想問的是：\n「${q.full}」\n\n下一步選擇你想用哪一種方式來看（四柱八字 / 紫微斗數 / 六爻占卜 / 姓名學）。`
     );
+
+    /* ✅ 直接導入你既有的預約「選服務」流程 */
+    await sendServiceSelectFlex(userId);
+
     return;
   }
 
@@ -3616,6 +3886,9 @@ async function handleBookingPostback(userId, action, params, state) {
       mode: "booking",
       stage: "waiting_date",
       data: {
+        /* ✅ 保留先前資料（包含 questionText） */
+        ...(state.data || {}),
+        /* ✅ 更新服務 */
         serviceId,
       },
     };
@@ -3650,6 +3923,9 @@ async function handleBookingPostback(userId, action, params, state) {
       mode: "booking",
       stage: "waiting_slot",
       data: {
+        /* ✅ 保留先前資料（包含 questionText） */
+        ...(state.data || {}),
+        /* ✅ 更新日期與 service */
         serviceId,
         date,
       },
@@ -3687,6 +3963,9 @@ async function handleBookingPostback(userId, action, params, state) {
       mode: "booking",
       stage: "waiting_name",
       data: {
+        /* ✅ 保留先前資料（包含 questionText） */
+        ...(state.data || {}),
+        /* ✅ 更新時段資訊 */
         serviceId,
         date,
         timeSlot: time,
