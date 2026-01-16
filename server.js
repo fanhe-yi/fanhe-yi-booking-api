@@ -322,6 +322,63 @@ const LIU_YAO_TOPIC_LABEL = {
   health: "健康",
 };
 
+/* =========================================================
+ * STEP 1：常見問題「大類」Carousel（先做大類選單）
+ * - 先不展開到「題目清單」
+ * - 先讓按鈕能送出 postback：action=choose_qcat&cat=xxx
+ * ========================================================= */
+
+/* 【1-1】定義「問題大類」資料（先做大類就好）
+ * - id：短代碼（postback 用，避免 data 太長）
+ * - title：顯示在 Flex 的標題
+ * - desc：一句話描述，讓使用者知道這類在問什麼
+ * - emoji：讓大類更直覺//回朔
+ */
+const QUESTION_CATEGORIES = [
+  {
+    id: "love",
+    emoji: "❤️",
+    title: "感情 / 桃花 / 復合",
+    desc: "復合、曖昧、對方心意、婚姻去留、真愛時間點",
+  },
+  {
+    id: "career",
+    emoji: "💼",
+    title: "工作 / 職涯 / 事業",
+    desc: "留不留公司、換工作、升遷加薪、創業方向、天賦",
+  },
+  {
+    id: "money",
+    emoji: "💰",
+    title: "財運 / 破財 / 偏財",
+    desc: "今年財運、破財風險、偏財與額外收入、創業會不會賠",
+  },
+  {
+    id: "year",
+    emoji: "🧭",
+    title: "流年 / 整體運勢",
+    desc: "年度趨勢、關鍵月份、要注意的坑與機會",
+  },
+  {
+    id: "family",
+    emoji: "👪",
+    title: "家庭 / 親子 / 小人",
+    desc: "父母伴侶磨合、孩子學業、人際小人與阻礙",
+  },
+  {
+    id: "name",
+    emoji: "🪪",
+    title: "名字 / 形象 / 定位",
+    desc: "名字給人的第一印象、需要調整嗎、走專業或親和",
+  },
+  {
+    id: "house",
+    emoji: "🏠",
+    title: "房產 / 置產決策",
+    desc: "房子能不能買、適不適合入手、風險點在哪",
+  },
+];
+
 //全域中斷
 function isAbortCommand(text) {
   const t = (text || "").trim();
@@ -679,37 +736,13 @@ async function tryRedeemCouponFromText(userId, text) {
   }
 }
 
-////////////////////////////////////////
-///新增「選服務」的 Flex（第一層 bubble/）//
-////////////////////////////////////////
-
-// 🔹 第一步：服務選擇 Flex（八字 / 紫微 / 姓名 / 六爻）
-/*
-async function sendServiceSelectFlex(userId) {
-  const services = [
-    { id: "bazi", label: "八字諮詢" },
-    { id: "ziwei", label: "紫微斗數" },
-    { id: "name", label: "改名 / 姓名學" },
-    { id: "liuyao", label: "六爻占卜" },
-    // 之後你要開風水可以再加：
-    // { id: "fengshui", label: "風水勘察" },
-  ];
-
-  const buttons = services.map((s) => ({
-    type: "button",
-    style: "primary",
-    color: "#635750",
-    height: "sm",
-    margin: "sm",
-    action: {
-      type: "postback",
-      label: s.label,
-      data: `action=choose_service&service=${s.id}`,
-      displayText: `我想預約 ${s.label}`,
-    },
-  }));
-
-  const bubble = {
+/* 【1-2】丟出「大類」Carousel Flex///回朔
+ * - 每一頁一個大類（更乾淨、滑起來像選單）
+ * - 每頁一顆「選這類」按鈕：postback 帶 action=choose_qcat&cat=love
+ */
+async function sendQuestionCategoryCarouselFlex(userId) {
+  /* 這裡用 bubble 一頁一類，視覺很像「分類選單」 */
+  const bubbles = QUESTION_CATEGORIES.map((c) => ({
     type: "bubble",
     size: "mega",
     body: {
@@ -717,32 +750,65 @@ async function sendServiceSelectFlex(userId) {
       layout: "vertical",
       spacing: "md",
       contents: [
+        /* 小標：你的品牌 */
         {
           type: "text",
-          text: "梵和易學｜預約服務",
+          text: "梵和易學｜常見問題分類",
           size: "sm",
           color: "#888888",
         },
+
+        /* 大標：emoji + 類別名稱 */
         {
           type: "text",
-          text: "請先選擇你想預約的項目：",
-          size: "sm",
+          text: `${c.emoji} ${c.title}`,
+          size: "lg",
+          weight: "bold",
+          wrap: true,
         },
-        { type: "separator" },
+
+        /* 描述：讓使用者知道這類大概會問什麼 */
         {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          margin: "md",
-          contents: buttons,
+          type: "text",
+          text: c.desc,
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+
+        /* 主按鈕：選這類 */
+        {
+          type: "button",
+          style: "primary",
+          color: "#f5eae4",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "選這類",
+            data: `action=choose_qcat&cat=${c.id}`,
+            displayText: `我想問：${c.title}`,
+          },
+        },
+
+        /* 次要提示：先不做功能，只是讓使用者安心 */
+        {
+          type: "text",
+          text: "選完我會再讓你挑更貼近的問題，然後直接帶你去預約。",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
         },
       ],
     },
+  }));
+
+  const carousel = {
+    type: "carousel",
+    contents: bubbles,
   };
 
-  await pushFlex(userId, "請選擇預約服務", bubble);
+  await pushFlex(userId, "你想問哪一類？", carousel);
 }
-*/
 
 // 🔹 第一步：服務選擇 Flex（Carousel：八字 / 紫微 / 姓名 / 六爻(兩頁)）
 // ------------------------------------------------------------
@@ -2736,6 +2802,16 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
+  /* =========================
+   * STEP 1.1 新增：常見問題分類入口
+   * - 先不進 booking
+   * - 先讓使用者選大類//回朔
+   * ========================= */
+  if (text === "常見問題" || text === "問題" || text === "我想問") {
+    await sendQuestionCategoryCarouselFlex(userId);
+    return;
+  }
+
   // 2) 八字格局解析（原本「八字測算 / 小占卜」）
   // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
   if (text === "八字測算" || text === "小占卜" || text === "八字格局解析") {
@@ -2886,6 +2962,23 @@ async function routePostback(userId, data, state) {
     action === "choose_slot"
   ) {
     return await handleBookingPostback(userId, action, params, state);
+  }
+
+  /* =========================
+   * STEP 1：常見問題大類選擇（暫時先提示）//回朔
+   * ========================= */
+  if (action === "choose_qcat") {
+    const cat = params.get("cat");
+    const found = QUESTION_CATEGORIES.find((x) => x.id === cat);
+
+    /* 先做最小可用：有按到就回覆文字，避免使用者覺得壞掉 */
+    await pushText(
+      userId,
+      found
+        ? `收到～你選的是「${found.title}」。\n下一步我會丟出更精準的問題清單，讓你一鍵選，然後直接帶你進預約流程。`
+        : "收到～我有收到你的選擇。下一步我會丟出更精準的問題清單。"
+    );
+    return;
   }
 
   // 🔮 八字測算：使用者從主選單選了「格局 / 流年 / 流月 / 流日」
