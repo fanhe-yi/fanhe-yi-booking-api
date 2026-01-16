@@ -774,6 +774,8 @@ async function sendServiceSelectFlex(userId) {
         "• 我該如何提升愛情運與吸引力？",
         "• 我容易在哪裡遇到真愛？",
         "• 什麼時候會遇到對的人？",
+        "• 為什麼我總吸引到不合適的對象？",
+        "• 是否有潛在第三者需要注意？",
       ],
     },
     {
@@ -795,12 +797,7 @@ async function sendServiceSelectFlex(userId) {
       badges: ["用紫微選更輕鬆的路", "我想用紫微釐清一下狀態"],
       ctaLabel: "從這裡開始",
       ctaDisplay: "我想先聊聊：紫微斗數",
-      questions: [
-        "• 為什麼我總吸引到不合適的對象？",
-        "• 是否有潛在第三者需要注意？",
-        "• 我和現任的緣分深嗎？",
-        "• 我們適合走向婚姻嗎？",
-      ],
+      questions: ["• 我和現任的緣分深嗎？", "• 我們適合走向婚姻嗎？"],
     },
     {
       id: "bazi",
@@ -828,7 +825,7 @@ async function sendServiceSelectFlex(userId) {
     const questionTexts = (s.questions || []).map((q) => ({
       type: "text",
       text: q,
-      size: "xs",
+      size: "sm",
       color: "#444444",
       wrap: true,
       margin: "sm",
@@ -883,12 +880,12 @@ async function sendServiceSelectFlex(userId) {
         spacing: "md",
         contents: [
           { type: "separator" },
-
+          //LINE Flex 的字級大概是：xxs < xs < sm < md < lg < xl
           // ✅ 你指定：往上拉到分隔線下面
           {
             type: "text",
-            text: "適合什麼樣的人？",
-            size: "sm",
+            text: "適合什麼問題的人？",
+            size: "md",
             weight: "bold",
             color: "#111111",
             margin: "md",
