@@ -345,7 +345,7 @@ const QUESTION_CATEGORIES = [
   {
     id: "career",
     emoji: "💼",
-    title: "工作 / 職涯 / 事業",
+    title: "工作 / 職涯 / 事業 / 小人",
     desc: "留不留公司、換工作、升遷加薪、創業方向、天賦",
   },
   {
@@ -363,7 +363,7 @@ const QUESTION_CATEGORIES = [
   {
     id: "family",
     emoji: "👪",
-    title: "家庭 / 親子 / 小人",
+    title: "家庭 / 親子",
     desc: "父母伴侶磨合、孩子學業、人際小人與阻礙",
   },
   {
@@ -861,7 +861,7 @@ const QUESTION_BANK = {
     { qid: "startup", full: "我適合創業嗎？" },
     { qid: "five", full: "適合我的職業五行是什麼？" },
     { qid: "talent", full: "我的天賦與潛能在哪方面？" },
-    { qid: "villain", full: "有需要特別留意的小人或阻礙嗎？" },
+    { qid: "villain", full: "我在職場上容易有小人嗎？" },
   ],
 
   money: [
@@ -3220,7 +3220,7 @@ async function routePostback(userId, data, state) {
       /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
       await pushText(
         userId,
-        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n可以的話我先幫你安排時段，請選擇日期。`
+        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`
       );
 
       /* ✅ 直接丟日期 Carousel（用 chat_line） */
