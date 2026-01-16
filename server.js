@@ -956,7 +956,7 @@ async function sendServiceSelectFlex(userId) {
           {
             type: "button",
             style: "primary",
-            color: "#635750",
+            color: "#52a6c0ff",
             height: "sm",
             action: {
               type: "postback",
