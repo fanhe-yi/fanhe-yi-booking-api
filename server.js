@@ -837,8 +837,8 @@ async function sendServiceSelectFlex(userId) {
     {
       pageKey: "liuyao_2",
       serviceId: "liuyao",
-      label: "六爻占卜",
-      badges: ["🏷️ 針對單一事件快狠準", "🏷️ 我想問這個"],
+      label: "六爻占卜(財運/事業/疾病)",
+      badges: ["🏷️ 針對單一事件快狠準", "🏷️ 財運/事業/疾病/買房/官司"],
       cta: "我想問這個",
     },
     {
@@ -920,7 +920,7 @@ async function sendServiceSelectFlex(userId) {
           { type: "separator", margin: "md" },
           {
             type: "text",
-            text: "適合什麼樣的人？",
+            text: "適合什麼問題的人？",
             size: "sm",
             weight: "bold",
             color: "#111111",
