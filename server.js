@@ -3738,13 +3738,76 @@ async function handleBookingFlow(userId, text, state, event) {
 
     // 存姓名，進入下一階段
     state.data.name = trimmed;
+    /* ✅ 下一步改問性別 */
+    state.stage = "waiting_gender";
+    conversationStates[userId] = state;
+
+    await pushText(
+      userId,
+      `好的，${trimmed}～已幫你記錄姓名。\n\n接下來請輸入性別：男 或 女\n（不方便也可以輸入「略過」）`
+    );
+    return true;
+  }
+
+  /* -------------------------
+   * A-1.1 問性別
+   * ------------------------- */
+  if (state.stage === "waiting_gender") {
+    if (trimmed === "略過") {
+      state.data.gender = "";
+      state.stage = "waiting_birth";
+      conversationStates[userId] = state;
+
+      await pushText(
+        userId,
+        "OK～性別我先略過。\n\n接下來請輸入出生年月日（格式不限，怎麼打都可以）：\n例如 1992-12-05 或 1992/12/05 或 1992-12-05 08:30\n（不方便也可以輸入「略過」）"
+      );
+      return true;
+    }
+
+    const g = trimmed.replace(/\s+/g, "");
+    if (g !== "男" && g !== "女") {
+      await pushText(userId, "性別請輸入：男 或 女（或輸入「略過」）");
+      return true;
+    }
+
+    state.data.gender = g;
+    state.stage = "waiting_birth";
+    conversationStates[userId] = state;
+
+    await pushText(
+      userId,
+      `收到～性別：${g}\n\n接下來請輸入出生年月日（格式不限，怎麼打都可以）：\n例如 1992-12-05 或 1992/12/05 或 1992-12-05 08:30\n（不方便也可以輸入「略過」）`
+    );
+    return true;
+  }
+
+  /* -------------------------
+   * A-1.3 問出生（不解析）
+   * ------------------------- */
+  if (state.stage === "waiting_birth") {
+    if (trimmed === "略過") {
+      state.data.birthRaw = "";
+
+      state.stage = "waiting_phone";
+      conversationStates[userId] = state;
+
+      await pushText(
+        userId,
+        "OK～出生資訊我先略過。\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。"
+      );
+      return true;
+    }
+
+    /* ✅ 不解析、不驗證：原文直接存 */
+    state.data.birthRaw = trimmed;
+
     state.stage = "waiting_phone";
     conversationStates[userId] = state;
 
     await pushText(
       userId,
-      `好的，${trimmed}～\n` +
-        `已幫你記錄姓名。\n\n接下來請輸入「聯絡電話」。\n如果不方便留電話，也可以輸入「略過」。`
+      `收到～出生資訊：${trimmed}\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。`
     );
     return true;
   }

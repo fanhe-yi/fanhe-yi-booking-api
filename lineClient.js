@@ -181,7 +181,7 @@ async function notifyNewBooking(booking) {
     `時段：${slotText}\n` +
     `-----------------\n` +
     `聯絡方式：\n${contactBlock}\n` +
-    (note ? `-----------------\n備註：${note}\n` : "") +
+    `-----------------\n${note}\n` +
     `-----------------\n` +
     `建立時間：${convertToTaiwanTime(createdAt)}`;
 
