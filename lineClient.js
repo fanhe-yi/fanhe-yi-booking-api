@@ -268,7 +268,7 @@ async function notifyCustomerBooking(booking) {
 ////客戶預約成功 Hero Flex
 // ------------------------------------------------------------
 async function sendBookingSuccessHero(userId, booking) {
-  const { name, date, timeSlots, serviceId, note } = booking;
+  const { name, date, timeSlots, serviceId, note, gender, birthRaw } = booking;
 
   const serviceName = getServiceName(serviceId);
   const finalTime = Array.isArray(timeSlots) ? timeSlots[0] : timeSlots;
@@ -366,6 +366,47 @@ async function sendBookingSuccessHero(userId, booking) {
                   text: name || "（無填寫）",
                   size: "sm",
                   margin: "lg",
+                },
+              ],
+            },
+            /* ✅ 新增：性別 */
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "性別",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: gender || "（略過）",
+                  size: "sm",
+                  margin: "lg",
+                  wrap: true,
+                },
+              ],
+            },
+
+            /* ✅ 新增：出生（不解析，原文顯示） */
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "出生",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: birthRaw || "（略過）",
+                  size: "sm",
+                  margin: "lg",
+                  wrap: true,
                 },
               ],
             },

@@ -3744,7 +3744,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      `好的，${trimmed}～已幫你記錄姓名。\n\n接下來請輸入性別：男 或 女\n（不方便也可以輸入「略過」）`
+      `好的，${trimmed}～已幫你記錄姓名。\n\n接下來請輸入性別：男 或 女\n不方便也可以輸入「略過」`
     );
     return true;
   }
@@ -3777,7 +3777,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      `收到～性別：${g}\n\n接下來請輸入出生年月日（格式不限，怎麼打都可以）：\n例如 1992-12-05 或 1992/12/05 或 1992-12-05 08:30\n（不方便也可以輸入「略過」）`
+      `收到～性別：${g}\n\n接下來請輸入出生年月日：\n例如 1992-12-05 或\n 1992/12/05 或 \n1992-12-05 08:30\n\n不方便也可以輸入「略過」`
     );
     return true;
   }
@@ -3879,6 +3879,10 @@ async function handleBookingFlow(userId, text, state, event) {
       timeSlots: [state.data.timeSlot],
       note: finalNote, // ✅ 這裡改成 finalNote
       lineUserId: userId,
+
+      /* ✅ 把性別/生日原文一起存進 bookings.json */
+      gender: state.data.gender || "",
+      birthRaw: state.data.birthRaw || "",
     };
 
     // 寫入 bookings.json
