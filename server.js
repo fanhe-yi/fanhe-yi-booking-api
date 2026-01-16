@@ -311,7 +311,7 @@ const SERVICE_NAME_MAP = {
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
-  //single: "單題占問",
+
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
@@ -3146,11 +3146,9 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  /* =========================================================
-   * STEP 3-1B：選到「某題」後，直接跳到選日期（略過選服務）
-   * - 常見問題一律當作 serviceId = "single"
-   * - 直接進 sendDateCarouselFlex → 接續你原本 choose_date / choose_slot 流程
-   * ========================================================= */ //回朔3
+  /* =========================
+   * STEP 2：選題目 → 存進 state → 導入 booking
+   * ========================= */ //回朔2
   if (action === "choose_q") {
     const catId = params.get("cat");
     const qid = params.get("q");
@@ -3163,42 +3161,64 @@ async function routePostback(userId, data, state) {
     if (!cat || !q) {
       await pushText(
         userId,
-        "我有收到你的選擇，但主題資料對不上 🙏\n你可以再選一次。"
+        "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
       );
       await sendQuestionCategoryCarouselFlex(userId);
       return;
     }
 
-    /* ✅ 核心：常見問題統一歸類成 single（單題占問） */
-    //const serviceId = "single";
-    //const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+    /* ✅ 核心：把「使用者想問的題目」先存起來
+     * - mode 先切到 booking（等同你原本輸入「預約」後的狀態）
+     * - stage 用 idle，下一步直接丟服務選擇
+     */
+    if (action === "choose_q") {
+      const catId = params.get("cat");
+      const qid = params.get("q");
 
-    /* ✅ 存對話狀態：直接準備進入「選日期」 */
-    conversationStates[userId] = {
-      mode: "booking",
-      stage: "waiting_date",
-      data: {
-        /* ✅ 固定服務為「命理諮詢」 */
-        serviceId: "chat_line",
+      const cat = QUESTION_CATEGORIES.find((x) => x.id === catId);
+      const list = QUESTION_BANK[catId] || [];
+      const q = list.find((x) => x.qid === qid);
 
-        /* 記錄：使用者選的題目（後面可塞進 note） */
-        qCategoryId: catId,
-        qCategoryTitle: cat.title,
-        questionId: qid,
-        questionText: q.full,
-      },
-    };
+      /* 【防呆】找不到題目就回到分類 */
+      if (!cat || !q) {
+        await pushText(
+          userId,
+          "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
+        );
+        await sendQuestionCategoryCarouselFlex(userId);
+        return;
+      }
 
-    /* ✅ 回覆一段「你選了什麼 + 接下來選時間」 */
-    await pushText(
-      userId,
-      `收到～你想問的是：\n「${q.full}」\n\n我先幫你用「${serviceName}」排時間。\n接下來請選擇可預約日期：`
-    );
+      /* 【核心】直接把服務固定成 chat_line（命理諮詢）
+       * - stage 直接切到 waiting_date
+       * - 後面 choose_date / choose_slot 都會沿用 state.data.serviceId
+       */
+      conversationStates[userId] = {
+        mode: "booking",
+        stage: "waiting_date",
+        data: {
+          /* ✅ 固定服務為「命理諮詢」 */
+          serviceId: "chat_line",
 
-    /* ✅ 直接丟日期 Carousel（略過 sendServiceSelectFlex） */
-    await sendDateCarouselFlex(userId, serviceId);
+          /* ✅ 保留你要的問句資料（後續可寫入 note 或通知用） */
+          qCategoryId: catId,
+          qCategoryTitle: cat.title,
+          questionId: qid,
+          questionText: q.full,
+        },
+      };
 
-    return;
+      /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
+      await pushText(
+        userId,
+        `收到～你想問的是：\n「${q.full}」\n\n我先幫你安排「命理諮詢」的時段，請你選擇日期。`
+      );
+
+      /* ✅ 直接丟日期 Carousel（用 chat_line） */
+      await sendDateCarouselFlex(userId, "chat_line");
+
+      return;
+    }
   }
 
   // 🔮 八字測算：使用者從主選單選了「格局 / 流年 / 流月 / 流日」
