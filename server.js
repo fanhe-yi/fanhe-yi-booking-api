@@ -3786,12 +3786,12 @@ async function handleBookingFlow(userId, text, state, event) {
 
     /* 先放「常見問題」 */
     if (pickedQuestion) {
-      finalNote += `【常見問題】${pickedQuestion}`;
+      finalNote += `• 諮詢內容：\n${pickedQuestion}`;
     }
 
     /* 再放使用者補充（有填才放） */
     if (userNote) {
-      finalNote += (finalNote ? "\n" : "") + `【補充】${userNote}`;
+      finalNote += (finalNote ? "\n" : "") + `• 您的備註：\n${userNote}`;
     }
 
     /* 同步存回 state.data.note（讓你後續 debug 或 hero 可用） */

@@ -377,7 +377,7 @@ async function sendBookingSuccessHero(userId, booking) {
         },
         {
           type: "text",
-          text: `諮詢內容：\n${note || ""}`,
+          text: `${note || ""}`,
           size: "sm",
           wrap: true,
           margin: "md",
