@@ -268,7 +268,7 @@ async function notifyCustomerBooking(booking) {
 ////客戶預約成功 Hero Flex
 // ------------------------------------------------------------
 async function sendBookingSuccessHero(userId, booking) {
-  const { name, date, timeSlots, serviceId } = booking;
+  const { name, date, timeSlots, serviceId, note } = booking;
 
   const serviceName = getServiceName(serviceId);
   const finalTime = Array.isArray(timeSlots) ? timeSlots[0] : timeSlots;
@@ -346,6 +346,24 @@ async function sendBookingSuccessHero(userId, booking) {
                 {
                   type: "text",
                   text: finalTime,
+                  size: "sm",
+                  margin: "lg",
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "內容",
+                  size: "sm",
+                  color: "#aaaaaa",
+                },
+                {
+                  type: "text",
+                  text: note,
                   size: "sm",
                   margin: "lg",
                 },
