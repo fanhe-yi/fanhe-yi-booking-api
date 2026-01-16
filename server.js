@@ -834,97 +834,52 @@ if (typeof chunkArray !== "function") {
  * - full：完整題目（你後續寫入 note 或顯示用）
  */
 const QUESTION_BANK = {
-  //回朔2
   love: [
-    { qid: "reconcile", label: "我們會復合嗎", full: "我們會復合嗎？" },
-    {
-      qid: "ex_contact",
-      label: "前任會聯絡嗎",
-      full: "三個月內前任會重新聯絡我嗎？",
-    },
-    {
-      qid: "amb_next",
-      label: "曖昧會升級嗎",
-      full: "現在的曖昧關係會往下一步發展嗎？",
-    },
-    {
-      qid: "initiative",
-      label: "我該主動嗎",
-      full: "我該主動表達還是等待更好的時機？",
-    },
-    { qid: "third", label: "有第三者嗎", full: "是否有潛在第三者需要注意？" },
-    { qid: "continue", label: "要繼續嗎", full: "這段關係該不該繼續走下去？" },
-    {
-      qid: "fix",
-      label: "問題怎麼調整",
-      full: "這段感情目前的問題該怎麼調整？",
-    },
-    { qid: "marry", label: "適合結婚嗎", full: "我們適合走向婚姻嗎？" },
-    { qid: "peach", label: "今年有桃花嗎", full: "我今年有沒有桃花？" },
-    { qid: "meet", label: "何時遇到對的人", full: "什麼時候會遇到對的人？" },
-    { qid: "letgo", label: "怎麼放下", full: "我應該如何放下過去的感情？" },
-    { qid: "divorce", label: "婚姻要離嗎", full: "這段婚姻該不該離？" },
+    { qid: "reconcile", full: "我們會復合嗎？" },
+    { qid: "ex_contact", full: "三個月內前任會重新聯絡我嗎？" },
+    { qid: "amb_next", full: "現在的曖昧關係會往下一步發展嗎？" },
+    { qid: "initiative", full: "我該主動表達還是等待更好的時機？" },
+    { qid: "third", full: "是否有潛在第三者需要注意？" },
+    { qid: "continue", full: "這段關係該不該繼續走下去？" },
+    { qid: "fix", full: "這段感情目前的問題該怎麼調整？" },
+    { qid: "marry", full: "我們適合走向婚姻嗎？" },
+    { qid: "peach", full: "我今年有沒有桃花？" },
+    { qid: "meet", full: "什麼時候會遇到對的人？" },
+    { qid: "letgo", full: "我應該如何放下過去的感情？" },
+    { qid: "divorce", full: "這段婚姻該不該離？" },
   ],
 
   career: [
-    { qid: "stay", label: "公司還待嗎", full: "這間公司還待嗎？" },
-    { qid: "valued", label: "會被重視嗎", full: "我在公司會被重視嗎？" },
-    { qid: "raise", label: "升遷加薪嗎", full: "是否有升遷或加薪的機會？" },
-    { qid: "change", label: "該換工作嗎", full: "該不該換工作？" },
-    { qid: "better", label: "換了更好嗎", full: "換工作會比現在更好嗎？" },
-    {
-      qid: "study",
-      label: "進修轉換順嗎",
-      full: "出國、轉換跑道或進修會順利嗎？",
-    },
-    {
-      qid: "direction",
-      label: "哪方向有潛力",
-      full: "哪個方向的事業最有潛力？",
-    },
-    { qid: "startup", label: "適合創業嗎", full: "我適合創業嗎？" },
-    { qid: "five", label: "職業五行", full: "適合我的職業五行是什麼？" },
-    { qid: "talent", label: "天賦在哪", full: "我的天賦與潛能在哪方面？" },
+    { qid: "stay", full: "這間公司還待嗎？" },
+    { qid: "valued", full: "我在公司會被重視嗎？" },
+    { qid: "raise", full: "是否有升遷或加薪的機會？" },
+    { qid: "change", full: "該不該換工作？" },
+    { qid: "better", full: "換工作會比現在更好嗎？" },
+    { qid: "study", full: "出國、轉換跑道或進修會順利嗎？" },
+    { qid: "direction", full: "哪個方向的事業最有潛力？" },
+    { qid: "startup", full: "我適合創業嗎？" },
+    { qid: "five", full: "適合我的職業五行是什麼？" },
+    { qid: "talent", full: "我的天賦與潛能在哪方面？" },
   ],
 
   money: [
-    { qid: "fortune", label: "今年財運如何", full: "今年的財運如何？" },
-    { qid: "loss", label: "會破財嗎", full: "有破財風險需要留意嗎？" },
-    { qid: "side", label: "有偏財嗎", full: "是否有偏財運或額外收入？" },
-    {
-      qid: "startup_loss",
-      label: "創業會賠嗎",
-      full: "我適合創業嗎？會不會賠錢？",
-    },
+    { qid: "fortune", full: "今年的財運如何？" },
+    { qid: "loss", full: "有破財風險需要留意嗎？" },
+    { qid: "side", full: "是否有偏財運或額外收入？" },
+    { qid: "startup_loss", full: "我適合創業嗎？會不會賠錢？" },
   ],
 
-  year: [
-    {
-      qid: "overall_2026",
-      label: "2026整體運勢",
-      full: "我 2026 年的整體運勢如何？",
-    },
-  ],
+  year: [{ qid: "overall_2026", full: "我 2026 年的整體運勢如何？" }],
 
   family: [
-    {
-      qid: "parents",
-      label: "家人矛盾怎解",
-      full: "如何化解與父母或伴侶間的矛盾？",
-    },
-    { qid: "kid", label: "孩子學業如何", full: "我的孩子在學業狀況如何？" },
-    {
-      qid: "villain",
-      label: "小人阻礙注意",
-      full: "有需要特別留意的小人或阻礙嗎？",
-    },
+    { qid: "parents", full: "如何化解與父母或伴侶間的矛盾？" },
+    { qid: "kid", full: "我的孩子在學業狀況如何？" },
+    { qid: "villain", full: "有需要特別留意的小人或阻礙嗎？" },
   ],
 
-  name: [
-    { qid: "name_check", label: "看我的名字", full: "幫我看一下我的名字。" },
-  ],
+  name: [{ qid: "name_check", full: "幫我看一下我的名字。" }],
 
-  house: [{ qid: "buy", label: "房子能買嗎", full: "這間房子能買嗎？" }],
+  house: [{ qid: "buy", full: "這間房子能買嗎？" }],
 };
 
 /* 【2-2】丟出「題目清單」Carousel//回朔2
@@ -933,14 +888,9 @@ const QUESTION_BANK = {
  * - 額外提供一顆「換類別」讓他回到分類 Carousel
  */
 async function sendQuestionListCarouselFlex(userId, catId) {
-  //回朔2
-  /* 找到大類資料（用你 Step1 的 QUESTION_CATEGORIES） */
   const cat = QUESTION_CATEGORIES.find((x) => x.id === catId);
-
-  /* 找到題目清單 */
   const list = QUESTION_BANK[catId] || [];
 
-  /* 如果沒有題目：防呆 */
   if (!cat || list.length === 0) {
     await pushText(
       userId,
@@ -949,7 +899,6 @@ async function sendQuestionListCarouselFlex(userId, catId) {
     return;
   }
 
-  /* 每 3 題一頁 */
   const groups = chunkArray(list, 3);
 
   const bubbles = groups.map((group) => ({
@@ -960,15 +909,12 @@ async function sendQuestionListCarouselFlex(userId, catId) {
       layout: "vertical",
       spacing: "md",
       contents: [
-        /* 小標 */
         {
           type: "text",
           text: "梵和易學｜選一個最貼近的問題",
           size: "sm",
           color: "#888888",
         },
-
-        /* 類別標題 */
         {
           type: "text",
           text: `${cat.emoji} ${cat.title}`,
@@ -976,8 +922,6 @@ async function sendQuestionListCarouselFlex(userId, catId) {
           weight: "bold",
           wrap: true,
         },
-
-        /* 題目按鈕區 */
         {
           type: "box",
           layout: "vertical",
@@ -989,16 +933,16 @@ async function sendQuestionListCarouselFlex(userId, catId) {
             height: "sm",
             action: {
               type: "postback",
-              label: q.label,
+              /* ✅ 按鈕上直接顯示完整問題 */
+              label: q.full,
               data: `action=choose_q&cat=${catId}&q=${q.qid}`,
+              /* ✅ 使用者聊天室顯示也用完整問題 */
               displayText: `我想問：${q.full}`,
             },
           })),
         },
       ],
     },
-
-    /* footer 放「換類別」 */
     footer: {
       type: "box",
       layout: "vertical",
@@ -1027,7 +971,6 @@ async function sendQuestionListCarouselFlex(userId, catId) {
   }));
 
   const carousel = { type: "carousel", contents: bubbles };
-
   await pushFlex(userId, "選一個最貼近的問題", carousel);
 }
 
@@ -3883,6 +3826,7 @@ async function handleBookingPostback(userId, action, params, state) {
 
     // 更新狀態：記住 service，接下來要選日期
     conversationStates[userId] = {
+      //回朔2
       mode: "booking",
       stage: "waiting_date",
       data: {
@@ -3920,6 +3864,7 @@ async function handleBookingPostback(userId, action, params, state) {
 
     // 更新狀態：記住日期，下一步要選時段
     conversationStates[userId] = {
+      //回朔2
       mode: "booking",
       stage: "waiting_slot",
       data: {
@@ -3960,6 +3905,7 @@ async function handleBookingPostback(userId, action, params, state) {
 
     // 更新這個 user 的對話狀態：已選好服務＋日期＋時段，接下來要問姓名
     conversationStates[userId] = {
+      //回朔2
       mode: "booking",
       stage: "waiting_name",
       data: {
