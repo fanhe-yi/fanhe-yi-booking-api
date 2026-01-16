@@ -311,7 +311,7 @@ const SERVICE_NAME_MAP = {
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
-  single: "單題占問",
+  //single: "單題占問",
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
 
@@ -3170,7 +3170,7 @@ async function routePostback(userId, data, state) {
     }
 
     /* ✅ 核心：常見問題統一歸類成 single（單題占問） */
-    const serviceId = "single";
+    //const serviceId = "single";
     const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
     /* ✅ 存對話狀態：直接準備進入「選日期」 */
