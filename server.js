@@ -3178,8 +3178,8 @@ async function routePostback(userId, data, state) {
       mode: "booking",
       stage: "waiting_date",
       data: {
-        /* 常見問題專用服務 */
-        serviceId,
+        /* ✅ 固定服務為「命理諮詢」 */
+        serviceId: "chat_line",
 
         /* 記錄：使用者選的題目（後面可塞進 note） */
         qCategoryId: catId,
