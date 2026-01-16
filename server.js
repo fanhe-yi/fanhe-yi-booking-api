@@ -837,9 +837,9 @@ if (typeof chunkArray !== "function") {
 const QUESTION_BANK = {
   love: [
     { qid: "reconcile", full: "我們會復合嗎？" },
-    { qid: "ex_contact", full: "三個月內前任會重新聯絡我嗎？" },
-    { qid: "amb_next", full: "現在的曖昧關係會往下一步發展嗎？" },
-    { qid: "initiative", full: "我該主動表達還是等待更好的時機？" },
+    { qid: "ex_contact", full: "前任會重新聯絡我嗎？" },
+    { qid: "amb_next", full: "曖昧關係會往下一步發展嗎？" },
+    { qid: "initiative", full: "我該主動表達還是等待？" },
     { qid: "third", full: "是否有潛在第三者需要注意？" },
     { qid: "continue", full: "這段關係該不該繼續走下去？" },
     { qid: "fix", full: "這段感情目前的問題該怎麼調整？" },
@@ -856,11 +856,12 @@ const QUESTION_BANK = {
     { qid: "raise", full: "是否有升遷或加薪的機會？" },
     { qid: "change", full: "該不該換工作？" },
     { qid: "better", full: "換工作會比現在更好嗎？" },
-    { qid: "study", full: "出國、轉換跑道或進修會順利嗎？" },
+    { qid: "study", full: "出國進修轉換跑道會順利嗎？" },
     { qid: "direction", full: "哪個方向的事業最有潛力？" },
     { qid: "startup", full: "我適合創業嗎？" },
     { qid: "five", full: "適合我的職業五行是什麼？" },
     { qid: "talent", full: "我的天賦與潛能在哪方面？" },
+    { qid: "villain", full: "有需要特別留意的小人或阻礙嗎？" },
   ],
 
   money: [
@@ -875,12 +876,19 @@ const QUESTION_BANK = {
   family: [
     { qid: "parents", full: "如何化解與父母或伴侶間的矛盾？" },
     { qid: "kid", full: "我的孩子在學業狀況如何？" },
-    { qid: "villain", full: "有需要特別留意的小人或阻礙嗎？" },
+    { qid: "familyhealth", full: "我家人的疾病狀況？" },
   ],
 
-  name: [{ qid: "name_check", full: "幫我看一下我的名字。" }],
+  name: [
+    { qid: "name_check", full: "這個名字對我好嗎？" },
+    { qid: "kid_name", full: "想幫小孩子取名？" },
+    { qid: "shop_name", full: "店名用什麼名字好？" },
+  ],
 
-  house: [{ qid: "buy", full: "這間房子能買嗎？" }],
+  house: [
+    { qid: "buy", full: "這間房子能買嗎？" },
+    { qid: "sell", full: "賣掉這間房子好嗎？" },
+  ],
 };
 
 /* 【2-2】丟出「題目清單」Carousel//回朔2
@@ -900,7 +908,7 @@ async function sendQuestionListCarouselFlex(userId, catId) {
     return;
   }
 
-  const groups = chunkArray(list, 3);
+  const groups = chunkArray(list, 4);
 
   const bubbles = groups.map((group) => ({
     type: "bubble",
@@ -3212,7 +3220,7 @@ async function routePostback(userId, data, state) {
       /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
       await pushText(
         userId,
-        `收到～你想問的是：\n「${q.full}」\n\n我先幫你安排「命理諮詢」的時段，請你選擇日期。`
+        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n可以的話我先幫你安排時段，請選擇日期。`
       );
 
       /* ✅ 直接丟日期 Carousel（用 chat_line） */
@@ -4819,7 +4827,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     if (!/^[0-3]$/.test(trimmed)) {
       await pushText(
         userId,
-        "請選擇「人頭數」（推薦用按鈕），或直接輸入 0～3。\n\n" +
+        "請選擇「人頭數」（推薦用按鈕）。\n\n" +
           "0=零個人頭、1=一個人頭、2=兩個人頭、3=三個人頭。"
       );
       // ✅ B 方案：手打錯了也拉回按鈕
