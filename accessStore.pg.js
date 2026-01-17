@@ -9,7 +9,7 @@ function defaultUserRecord(userId) {
   const now = new Date().toISOString();
   return {
     userId,
-    firstFree: { liuyao: 0, bazimatch: 1, minibazi: 0 },
+    firstFree: { liuyao: 0, bazimatch: 0, minibazi: 1 },
     quota: { liuyao: 0, bazimatch: 0, minibazi: 0 },
     redeemedCoupons: {},
     meta: { createdAt: now, updatedAt: now },
