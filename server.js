@@ -72,7 +72,7 @@ async function adminLogDB(level, tag, message, options = {}) {
         `[ADMIN_LOG_DB][${lv}][${tg}]`,
         msg,
         userId ? `user=${userId}` : "",
-        meta
+        meta,
       );
     }
 
@@ -82,7 +82,7 @@ async function adminLogDB(level, tag, message, options = {}) {
       INSERT INTO admin_logs (level, tag, user_id, message, meta)
       VALUES ($1, $2, $3, $4, $5::jsonb)
       `,
-      [lv, tg, userId, msg, JSON.stringify(meta)]
+      [lv, tg, userId, msg, JSON.stringify(meta)],
     );
   } catch (err) {
     /* 
@@ -444,7 +444,7 @@ function saveUnavailable(unavailable) {
     fs.writeFileSync(
       UNAVAILABLE_FILE,
       JSON.stringify(unavailable, null, 2),
-      "utf-8"
+      "utf-8",
     );
     console.log("已寫入 unavailable.json");
   } catch (err) {
@@ -480,8 +480,8 @@ function getSlotsForDate(date) {
       const slots = Array.isArray(b.timeSlots)
         ? b.timeSlots
         : b.timeSlot
-        ? [b.timeSlot]
-        : [];
+          ? [b.timeSlot]
+          : [];
       bookedSlotsForDate.push(...slots);
     });
 
@@ -571,8 +571,8 @@ function hasOpenSlotOnDate(date, bookings, unavailable) {
       const slots = Array.isArray(b.timeSlots)
         ? b.timeSlots
         : b.timeSlot
-        ? [b.timeSlot]
-        : [];
+          ? [b.timeSlot]
+          : [];
       bookedSlotsForDate.push(...slots);
     });
 
@@ -614,7 +614,7 @@ async function gateFeature(userId, featureKey, featureLabel) {
       userId,
       `🔒 ${featureLabel} 目前需要「首次體驗 / 優惠碼 / 付款」才能使用。\n\n` +
         `✅ 若你有優惠碼，直接輸入即可（例如：FREE66）\n` +
-        `或完成付款後再回來啟用。`
+        `或完成付款後再回來啟用。`,
     );
     return { allow: false, source: "none" };
   }
@@ -626,7 +626,7 @@ async function gateFeature(userId, featureKey, featureLabel) {
     const remaining = Number(userRecord.quota?.[featureKey] || 0);
     await pushText(
       userId,
-      `✅ 你目前還有 ${remaining} 次 ${featureLabel} 可用次數。`
+      `✅ 你目前還有 ${remaining} 次 ${featureLabel} 可用次數。`,
     );
   }
 
@@ -706,7 +706,7 @@ async function tryRedeemCouponFromText(userId, text) {
     const mark = await markCouponRedeemedAtomic(userId, normalizedCode);
     if (!mark.ok) {
       throw new Error(
-        `[COUPON_ERROR] coupon already redeemed: ${normalizedCode}`
+        `[COUPON_ERROR] coupon already redeemed: ${normalizedCode}`,
       );
     }
 
@@ -717,11 +717,11 @@ async function tryRedeemCouponFromText(userId, text) {
       userId,
       `✅ 優惠碼兌換成功：${normalizedCode}\n` +
         `已增加「${feature}」可用次數：+${added}\n\n` +
-        `你可以繼續輸入你的資料，我會接著幫你解。`
+        `你可以繼續輸入你的資料，我會接著幫你解。`,
     );
 
     console.log(
-      `[COUPON] user=${userId} code=${normalizedCode} feature=${feature} added=${added}`
+      `[COUPON] user=${userId} code=${normalizedCode} feature=${feature} added=${added}`,
     );
 
     return { handled: true };
@@ -729,7 +729,7 @@ async function tryRedeemCouponFromText(userId, text) {
     await pushText(
       userId,
       `❌ 優惠碼兌換失敗：${e.message.replace(/^\[.*?\]\s*/, "")}\n` +
-        `（提示：同一張券同一人只能用一次，或可能已過期）`
+        `（提示：同一張券同一人只能用一次，或可能已過期）`,
     );
 
     console.warn(`[COUPON] redeem failed user=${userId} err=${e.message}`);
@@ -903,7 +903,7 @@ async function sendQuestionListCarouselFlex(userId, catId) {
   if (!cat || list.length === 0) {
     await pushText(
       userId,
-      "這個分類目前題庫還沒填好 🙏\n你可以先選其他類別，或直接輸入「預約」。"
+      "這個分類目前題庫還沒填好 🙏\n你可以先選其他類別，或直接輸入「預約」。",
     );
     return;
   }
@@ -1284,7 +1284,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         type: "uri",
         label: "前往付款",
         uri: `${process.env.BASE_URL}/pay?userId=${encodeURIComponent(
-          userId
+          userId,
         )}&feature=${encodeURIComponent(serviceKey)}`,
       },
     };
@@ -1400,7 +1400,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
   if (days.length === 0) {
     await pushText(
       userId,
-      `近期沒有可預約的時段 🙏\n你可以直接跟我說你方便的日期/時段，我幫你看看能不能特別安排～`
+      `近期沒有可預約的時段 🙏\n你可以直接跟我說你方便的日期/時段，我幫你看看能不能特別安排～`,
     );
     return;
   }
@@ -1462,7 +1462,7 @@ async function sendSlotsFlexForDate(userId, dateStr, serviceId) {
   if (openSlots.length === 0) {
     await pushText(
       userId,
-      `這一天（${dateStr}）目前沒有開放的時段喔。\n你可以換一天試試看，或直接跟我說你方便的時間～`
+      `這一天（${dateStr}）目前沒有開放的時段喔。\n你可以換一天試試看，或直接跟我說你方便的時間～`,
     );
     return;
   }
@@ -1581,7 +1581,7 @@ app.get("/api/admin/logs", requireAdmin, async (req, res) => {
     const page = Math.max(Number(req.query.page || 1), 1);
     const pageSize = Math.min(
       Math.max(Number(req.query.pageSize || 20), 1),
-      100
+      100,
     );
 
     const q = String(req.query.q || "").trim();
@@ -1626,13 +1626,13 @@ app.get("/api/admin/logs", requireAdmin, async (req, res) => {
     */
     if (from) {
       where.push(
-        `(created_at AT TIME ZONE 'Asia/Taipei') >= $${i++}::timestamp`
+        `(created_at AT TIME ZONE 'Asia/Taipei') >= $${i++}::timestamp`,
       );
       params.push(from);
     }
     if (to) {
       where.push(
-        `(created_at AT TIME ZONE 'Asia/Taipei') <= $${i++}::timestamp`
+        `(created_at AT TIME ZONE 'Asia/Taipei') <= $${i++}::timestamp`,
       );
       params.push(to);
     }
@@ -1642,7 +1642,7 @@ app.get("/api/admin/logs", requireAdmin, async (req, res) => {
     /* ✅ total */
     const totalR = await pool.query(
       `SELECT COUNT(*)::int AS total FROM admin_logs ${whereSql}`,
-      params
+      params,
     );
     const total = totalR.rows?.[0]?.total || 0;
 
@@ -1660,7 +1660,7 @@ app.get("/api/admin/logs", requireAdmin, async (req, res) => {
       ORDER BY id DESC
       LIMIT $${i++} OFFSET $${i++}
       `,
-      [...params, pageSize, offset]
+      [...params, pageSize, offset],
     );
 
     res.json({
@@ -1713,7 +1713,7 @@ app.post("/api/bookings", (req, res) => {
     .catch((err) => {
       console.error(
         "[LINE] 新預約通知失敗：",
-        err?.response?.data || err.message || err
+        err?.response?.data || err.message || err,
       );
     });
 
@@ -1739,7 +1739,7 @@ app.get("/api/test-line", async (req, res) => {
   try {
     await require("./lineClient").pushText(
       process.env.LINE_ADMIN_USER_ID,
-      "這是一則測試訊息：預約系統 LINE 通知已連線 ✅"
+      "這是一則測試訊息：預約系統 LINE 通知已連線 ✅",
     );
     res.json({ success: true });
   } catch (err) {
@@ -1842,7 +1842,7 @@ app.get("/api/admin/user-access", requireAdmin, async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page || "1", 10));
   const pageSize = Math.min(
     100,
-    Math.max(1, parseInt(req.query.pageSize || "20", 10))
+    Math.max(1, parseInt(req.query.pageSize || "20", 10)),
   );
   const offset = (page - 1) * pageSize;
 
@@ -1946,7 +1946,7 @@ app.get("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
       WHERE user_id = $1
       LIMIT 1
       `,
-      [userId]
+      [userId],
     );
 
     if (r.rowCount === 0) {
@@ -2054,7 +2054,7 @@ app.patch("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
     */
     const exists = await pool.query(
       `SELECT 1 FROM user_access WHERE user_id = $1 LIMIT 1`,
-      [userId]
+      [userId],
     );
     if (exists.rowCount === 0) {
       return res.status(404).json({ error: "NOT_FOUND" });
@@ -2164,7 +2164,7 @@ app.delete("/api/admin/user-access/:userId", requireAdmin, async (req, res) => {
     */
     const r = await pool.query(
       `DELETE FROM user_access WHERE user_id = $1 RETURNING user_id`,
-      [userId]
+      [userId],
     );
 
     if (r.rowCount === 0) {
@@ -2226,7 +2226,7 @@ app.post("/api/admin/user-access", requireAdmin, async (req, res) => {
     */
     const exists = await pool.query(
       `SELECT 1 FROM user_access WHERE user_id = $1 LIMIT 1`,
-      [userId]
+      [userId],
     );
     if (exists.rowCount > 0) {
       return res.status(409).json({ error: "ALREADY_EXISTS" });
@@ -2247,7 +2247,7 @@ app.post("/api/admin/user-access", requireAdmin, async (req, res) => {
         JSON.stringify(firstFreeDefault),
         JSON.stringify(quotaDefault),
         JSON.stringify(redeemedDefault),
-      ]
+      ],
     );
 
     /* 
@@ -2268,7 +2268,7 @@ app.get("/liff/share", (req, res) => {
 
   // Threads web intent（不保證一定喚起 App，但 external=true 會更有機會）
   const threadsIntent = `https://www.threads.net/intent/post?text=${encodeURIComponent(
-    text
+    text,
   )}`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2435,7 +2435,7 @@ app.get("/pay", async (req, res) => {
       params,
       HashKey,
       HashIV,
-      "sha256"
+      "sha256",
     );
 
     // ==========================
@@ -2532,7 +2532,7 @@ app.post(
 
         await pushText(
           order.user_id,
-          "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。"
+          "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。",
         );
       }
 
@@ -2542,7 +2542,7 @@ app.post(
       // 讓綠界不要一直重送把你打爆（先回 OK，錯誤看 log）
       res.send("1|OK");
     }
-  }
+  },
 );
 
 // ==========================
@@ -2783,7 +2783,7 @@ function buildLiuYaoTimeParams(state) {
     const hh = String(h).padStart(2, "0");
     const mm = String(mi).padStart(2, "0");
     desc = `起卦時間（現在）：${y}-${String(m).padStart(2, "0")}-${String(
-      d
+      d,
     ).padStart(2, "0")} ${hh}:${mm}`;
   }
 
@@ -2815,7 +2815,7 @@ async function handleMbText(userId, text) {
   if (!cached) {
     await pushText(
       userId,
-      "你剛剛那份測算結果我找不到了（可能隔太久）。你再輸入一次：八字測算"
+      "你剛剛那份測算結果我找不到了（可能隔太久）。你再輸入一次：八字測算",
     );
     return true;
   }
@@ -2916,7 +2916,7 @@ async function handleLineEvent(event) {
       delete conversationStates[userId];
       await pushText(
         userId,
-        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 六爻占卜"
+        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 六爻占卜",
       );
       return;
     }
@@ -2943,7 +2943,7 @@ async function handleLineEvent(event) {
         userId,
         text,
         state,
-        event
+        event,
       );
       if (handled) return;
     }
@@ -3086,7 +3086,7 @@ async function routePostback(userId, data, state) {
     const gate = await gateFeature(
       userId,
       service,
-      labelMap[service] || service
+      labelMap[service] || service,
     );
     if (!gate.allow) return;
 
@@ -3114,7 +3114,7 @@ async function routePostback(userId, data, state) {
           "1) 1992-12-05-0830\n" +
           "2) 1992-12-05-辰時\n" +
           "3) 1992-12-05-辰\n" +
-          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+          "如果不想提供時辰，可以輸入：1992-12-05-未知",
       );
       return;
     }
@@ -3174,7 +3174,7 @@ async function routePostback(userId, data, state) {
     if (!cat || !q) {
       await pushText(
         userId,
-        "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
+        "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。",
       );
       await sendQuestionCategoryCarouselFlex(userId);
       return;
@@ -3197,7 +3197,7 @@ async function routePostback(userId, data, state) {
       if (!cat || !q) {
         await pushText(
           userId,
-          "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。"
+          "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。",
         );
         await sendQuestionCategoryCarouselFlex(userId);
         return;
@@ -3225,7 +3225,7 @@ async function routePostback(userId, data, state) {
       /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
       await pushText(
         userId,
-        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`
+        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`,
       );
 
       /* ✅ 直接丟日期 Carousel（用 chat_line） */
@@ -3265,7 +3265,7 @@ async function routePostback(userId, data, state) {
     if (!cached) {
       await pushText(
         userId,
-        "解鎖按鈕我有收到✅\n但這份預覽已過期或你已經解鎖過了～"
+        "解鎖按鈕我有收到✅\n但這份預覽已過期或你已經解鎖過了～",
       );
       return;
     }
@@ -3316,7 +3316,7 @@ async function routePostback(userId, data, state) {
         "1) 1992-12-05-未知\n" +
         "2) 1992-12-05-0830\n" +
         "3) 1992-12-05-辰時 或 1992-12-05-辰\n\n" +
-        "如果不想提供時辰，可以在最後寫「未知」。"
+        "如果不想提供時辰，可以在最後寫「未知」。",
     );
     return;
   }
@@ -3353,7 +3353,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻占卜流程，想開始請輸入「六爻占卜」。"
+        "目前沒有正在進行的六爻占卜流程，想開始請輸入「六爻占卜」。",
       );
       return;
     }
@@ -3384,7 +3384,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻占卜流程，如果要重來，可以先輸入「六爻占卜」。"
+        "目前沒有正在進行的六爻占卜流程，如果要重來，可以先輸入「六爻占卜」。",
       );
       return;
     }
@@ -3410,7 +3410,7 @@ async function routePostback(userId, data, state) {
           "1) 2025-11-24-2150\n" +
           "2) 2025-11-24-亥時\n" +
           "3) 2025-11-24-亥\n\n" +
-          "⚠️ 六爻起卦盡量不要用「未知」，至少要大約時辰區間。"
+          "⚠️ 六爻起卦盡量不要用「未知」，至少要大約時辰區間。",
       );
       return;
     }
@@ -3427,7 +3427,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜",
       );
       return;
     }
@@ -3444,10 +3444,10 @@ async function routePostback(userId, data, state) {
       currState.data.topic === "love"
         ? "感情"
         : currState.data.topic === "career"
-        ? "事業"
-        : currState.data.topic === "wealth"
-        ? "財運"
-        : "健康";
+          ? "事業"
+          : currState.data.topic === "wealth"
+            ? "財運"
+            : "健康";
 
     currState.stage = "wait_spelled";
     conversationStates[userId] = currState;
@@ -3464,7 +3464,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜",
       );
       return;
     }
@@ -3483,7 +3483,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜",
       );
       return;
     }
@@ -3515,7 +3515,7 @@ async function routePostback(userId, data, state) {
     if (!aiText) {
       await pushText(
         userId,
-        "我這邊還在整理內容，稍等3分鐘再按一次「退神完成」也可以～在等待期間請別使用其他服務，以免卦飛走～"
+        "我這邊還在整理內容，稍等3分鐘再按一次「退神完成」也可以～在等待期間請別使用其他服務，以免卦飛走～",
       );
       return;
     }
@@ -3550,7 +3550,7 @@ async function routePostback(userId, data, state) {
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
-        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜"
+        "目前沒有正在進行的六爻流程。想開始請輸入：六爻占卜",
       );
       return;
     }
@@ -3584,7 +3584,7 @@ async function routePostback(userId, data, state) {
         await sendLiuYaoRollFlex(
           userId,
           currState.data?.yaoIndex || 1,
-          currState.data?.yy || ""
+          currState.data?.yy || "",
         );
       }
       return;
@@ -3631,7 +3631,7 @@ async function routePostback(userId, data, state) {
       await sendLiuYaoRollFlex(
         userId,
         currState.data.yaoIndex,
-        currState.data.yy
+        currState.data.yy,
       );
       return;
     }
@@ -3736,7 +3736,7 @@ async function handleBookingFlow(userId, text, state, event) {
     if (!trimmed) {
       await pushText(
         userId,
-        `好的，${text}，\n\n如果不方便留資料，也可以輸入「略過」。`
+        `好的，${text}，\n\n如果不方便留資料，也可以輸入「略過」。`,
       );
       return true;
     }
@@ -3749,7 +3749,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      `好的，${trimmed}～已幫你記錄姓名。\n\n接下來請輸入性別：男 或 女\n\n你也可以輸入「略過」`
+      `好的，${trimmed}～已幫你記錄姓名。\n\n接下來請輸入性別：男 或 女\n\n你也可以輸入「略過」`,
     );
     return true;
   }
@@ -3765,7 +3765,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
       await pushText(
         userId,
-        "OK～性別我先略過。\n\n接下來請輸入出生年月日（格式不限，怎麼打都可以）：\n例如 1992-12-05 或 1992/12/05 或 1992-12-05 08:30\n\n你也可以輸入「略過」"
+        "OK～性別我先略過。\n\n接下來請輸入出生年月日（格式不限，怎麼打都可以）：\n例如 1992-12-05 或 1992/12/05 或 1992-12-05 08:30\n\n你也可以輸入「略過」",
       );
       return true;
     }
@@ -3782,7 +3782,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      `收到～性別：${g}\n\n接下來請輸入出生年月日：\n例如 1992-12-05 或\n 1992/12/05 或 \n1992-12-05 08:30\n\n不方便也可以輸入「略過」`
+      `收到～性別：${g}\n\n接下來請輸入出生年月日：\n例如 1992-12-05 或\n 1992/12/05 或 \n1992-12-05 08:30\n\n不方便也可以輸入「略過」`,
     );
     return true;
   }
@@ -3799,7 +3799,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
       await pushText(
         userId,
-        "OK～出生資訊我先略過。\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。"
+        "OK～出生資訊我先略過。\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。",
       );
       return true;
     }
@@ -3812,7 +3812,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
     await pushText(
       userId,
-      `收到～出生資訊：${trimmed}\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。`
+      `收到～出生資訊：${trimmed}\n\n接下來請輸入「聯絡電話／聯絡方式」（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。`,
     );
     return true;
   }
@@ -3822,7 +3822,7 @@ async function handleBookingFlow(userId, text, state, event) {
     if (!trimmed) {
       await pushText(
         userId,
-        "至少留一種聯絡方式給我（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。"
+        "至少留一種聯絡方式給我（手機或 LINE ID 都可以）。\n如果不方便留資料，也可以輸入「略過」。",
       );
       return true;
     }
@@ -3835,7 +3835,7 @@ async function handleBookingFlow(userId, text, state, event) {
       userId,
       "我已經記下聯絡方式囉。\n\n" +
         "最後一步，請輸入「備註」（例如想問的重點、特殊情況）。\n" +
-        "如果沒有特別備註，可以輸入「無」。"
+        "如果沒有特別備註，可以輸入「無」。",
     );
     return true;
   }
@@ -3921,7 +3921,7 @@ async function handleBookingFlow(userId, text, state, event) {
           `時段：${bookingBody.timeSlots.join("、")}\n` +
           `姓名：${bookingBody.name}\n` +
           `聯絡方式：${bookingBody.phone}\n` +
-          `備註：${bookingBody.note}`
+          `備註：${bookingBody.note}`,
       );
     }
 
@@ -3937,11 +3937,11 @@ async function handleBookingPostback(userId, action, params, state) {
   // 1) 先確認：目前有在 booking 模式
   if (!state || state.mode !== "booking") {
     console.log(
-      "[bookingPostback] 收到 booking 類型 postback，但目前不在 booking 模式，略過。"
+      "[bookingPostback] 收到 booking 類型 postback，但目前不在 booking 模式，略過。",
     );
     await pushText(
       userId,
-      "這個按鈕目前沒有對應的預約流程，如果要重新預約，可以直接輸入「預約」。"
+      "這個按鈕目前沒有對應的預約流程，如果要重新預約，可以直接輸入「預約」。",
     );
     return;
   }
@@ -3953,7 +3953,7 @@ async function handleBookingPostback(userId, action, params, state) {
     if (!serviceId) {
       await pushText(
         userId,
-        "服務項目資訊缺失，麻煩你再輸入一次「預約」，重新選擇服務。"
+        "服務項目資訊缺失，麻煩你再輸入一次「預約」，重新選擇服務。",
       );
       return;
     }
@@ -3993,7 +3993,7 @@ async function handleBookingPostback(userId, action, params, state) {
     if (!date) {
       await pushText(
         userId,
-        "日期資訊有點怪怪的，麻煩你再選一次日期，或重新輸入「預約」。"
+        "日期資訊有點怪怪的，麻煩你再選一次日期，或重新輸入「預約」。",
       );
       return;
     }
@@ -4032,7 +4032,7 @@ async function handleBookingPostback(userId, action, params, state) {
     if (!date || !time) {
       await pushText(
         userId,
-        "時段資訊有點怪怪的，麻煩你再輸入一次「預約」重新選擇。"
+        "時段資訊有點怪怪的，麻煩你再輸入一次「預約」重新選擇。",
       );
       return;
     }
@@ -4058,7 +4058,7 @@ async function handleBookingPostback(userId, action, params, state) {
 
     await pushText(
       userId,
-      `已幫你記錄預約項目：${serviceName}\n時段：${date} ${time}\n\n接下來請先輸入你的「姓名」。`
+      `已幫你記錄預約項目：${serviceName}\n時段：${date} ${time}\n\n接下來請先輸入你的「姓名」。`,
     );
     return;
   }
@@ -4080,7 +4080,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
   if (!state || state.mode !== "mini_bazi") return false;
 
   console.log(
-    `[miniBaziFlow] from ${userId}, stage=${state.stage}, text=${text}`
+    `[miniBaziFlow] from ${userId}, stage=${state.stage}, text=${text}`,
   );
 
   // 0) 先問「男命 / 女命」
@@ -4099,7 +4099,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       await pushText(
         userId,
         "我這邊要先知道是「男命」還是「女命」。\n\n" +
-          "可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+          "可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。",
       );
       return true;
     }
@@ -4118,7 +4118,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
         "1) 1992-12-05-未知\n" +
         "2) 1992-12-05-0830\n" +
         "3) 1992-12-05-辰時 或 1992-12-05-辰\n\n" +
-        "如果不想提供時辰，可以在最後寫「未知」。"
+        "如果不想提供時辰，可以在最後寫「未知」。",
     );
 
     return true;
@@ -4139,7 +4139,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
           "1) 1992-12-05-0830\n" +
           "2) 1992-12-05-辰時\n" +
           "3) 1992-12-05-辰\n" +
-          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+          "如果不想提供時辰，可以輸入：1992-12-05-未知",
       );
       return true;
     }
@@ -4154,7 +4154,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       const { aiText, pillarsText, fiveElementsText } = await callMiniReadingAI(
         parsed, //生日
         mode, //選擇的模式 格局/流年、月、日
-        gender //姓別
+        gender, //姓別
       );
 
       // 2.5) quota扣次
@@ -4191,7 +4191,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       console.error("[miniBaziFlow] AI error:", err);
       await pushText(
         userId,
-        "八字測算目前有點塞車 😅\n你可以稍後再試一次，或直接輸入「預約」進行完整論命。"
+        "八字測算目前有點塞車 😅\n你可以稍後再試一次，或直接輸入「預約」進行完整論命。",
       );
       delete conversationStates[userId];
       return true;
@@ -4254,7 +4254,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
   if (!state || state.mode !== "bazi_match") return false;
 
   console.log(
-    `[baziMatchFlow] from ${userId}, stage=${state.stage}, text=${text}`
+    `[baziMatchFlow] from ${userId}, stage=${state.stage}, text=${text}`,
   );
 
   // 1) 等男方生日
@@ -4269,7 +4269,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
           "1) 1992-12-05-0830\n" +
           "2) 1992-12-05-辰時\n" +
           "3) 1992-12-05-辰\n" +
-          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+          "如果不想提供時辰，可以輸入：1992-12-05-未知",
       );
       return true;
     }
@@ -4284,7 +4284,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
         "1) 1992-12-05-0830\n" +
         "2) 1992-12-05-辰時\n" +
         "3) 1992-12-05-辰\n" +
-        "如果不想提供時辰，可以輸入：1992-12-05-未知"
+        "如果不想提供時辰，可以輸入：1992-12-05-未知",
     );
     return true;
   }
@@ -4301,7 +4301,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
           "1) 1992-12-05-0830\n" +
           "2) 1992-12-05-辰時\n" +
           "3) 1992-12-05-辰\n" +
-          "如果不想提供時辰，可以輸入：1992-12-05-未知"
+          "如果不想提供時辰，可以輸入：1992-12-05-未知",
       );
       return true;
     }
@@ -4359,7 +4359,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       console.error("[baziMatchFlow] AI error:", err);
       await pushText(
         userId,
-        "合婚這邊目前有點塞車 😅\n你可以晚點再試一次，或直接輸入「預約」詢問完整合婚。"
+        "合婚這邊目前有點塞車 😅\n你可以晚點再試一次，或直接輸入「預約」詢問完整合婚。",
       );
       delete conversationStates[userId];
       return true;
@@ -4450,7 +4450,7 @@ function calcFiveElements({ year, month, day, hour }) {
 async function callMiniReadingAI(
   birthObj,
   mode = "pattern",
-  gender = "unknown"
+  gender = "unknown",
 ) {
   const { raw, date, timeType, time, branch } = birthObj;
 
@@ -4560,9 +4560,8 @@ async function callMiniReadingAI(
   if (mode === "year" || mode === "month" || mode === "day") {
     try {
       const now = new Date();
-      const { yearGZ, monthGZ, dayGZ, hourGZ } = await getLiuYaoGanzhiForDate(
-        now
-      );
+      const { yearGZ, monthGZ, dayGZ, hourGZ } =
+        await getLiuYaoGanzhiForDate(now);
 
       if (mode === "year") {
         flowingGzText =
@@ -4716,12 +4715,10 @@ async function callMiniReadingAI(
  */
 async function callBaziMatchAI(maleBirthObj, femaleBirthObj) {
   // 1) 先拿兩邊的八字摘要（沿用你原本那顆 getBaziSummaryForAI）
-  const { summaryText: maleBaziSummaryText } = await getBaziSummaryForAI(
-    maleBirthObj
-  );
-  const { summaryText: femaleBaziSummaryText } = await getBaziSummaryForAI(
-    femaleBirthObj
-  );
+  const { summaryText: maleBaziSummaryText } =
+    await getBaziSummaryForAI(maleBirthObj);
+  const { summaryText: femaleBaziSummaryText } =
+    await getBaziSummaryForAI(femaleBirthObj);
 
   // 2) 拆出四柱，再取月支 + 日支
   const malePillars = extractPillars(maleBaziSummaryText); // { year, month, day, hour }
@@ -4832,7 +4829,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
   if (!state || state.mode !== "liuyao") return false;
 
   console.log(
-    `[liuYaoFlow] from ${userId}, stage=${state.stage}, text=${text}`
+    `[liuYaoFlow] from ${userId}, stage=${state.stage}, text=${text}`,
   );
 
   const trimmed = (text || "").trim();
@@ -4849,7 +4846,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
     if (!gender) {
       await pushText(
         userId,
-        "我這邊要先知道是「男占」還是「女占」。\n\n可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。"
+        "我這邊要先知道是「男占」還是「女占」。\n\n可以輸入：男 / 男生 / 男命 或 女 / 女生 / 女命。",
       );
       return true;
     }
@@ -4871,7 +4868,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         "時間格式好像怪怪的，或者沒有包含時辰。\n\n請用這種格式再輸入一次，例如：\n" +
           "- 2025-11-24-2150\n" +
           "- 2025-11-24-亥時\n" +
-          "- 2025-11-24-亥"
+          "- 2025-11-24-亥",
       );
       return true;
     }
@@ -4900,7 +4897,7 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       await pushText(
         userId,
         "請選擇「人頭數」（推薦用按鈕）。\n\n" +
-          "0=零個人頭、1=一個人頭、2=兩個人頭、3=三個人頭。"
+          "0=零個人頭、1=一個人頭、2=兩個人頭、3=三個人頭。",
       );
       // ✅ B 方案：手打錯了也拉回按鈕
       await sendLiuYaoRollFlex(userId, state.data.yaoIndex, state.data.yy);
@@ -4918,26 +4915,36 @@ async function handleLiuYaoFlow(userId, text, state, event) {
       userId,
       `第 ${nowIndex} 爻已記錄：${
         ["零", "一", "兩", "三"][Number(trimmed)]
-      } 個人頭。`
+      } 個人頭。`,
     );
-
-    // 還沒滿六爻 → ✅ B 方案：不要叫他繼續輸入，直接送下一爻按鈕
-    if (state.data.yy.length < 6) {
-      conversationStates[userId] = state;
-      await sendLiuYaoRollFlex(userId, nextIndex, state.data.yy);
-      return true;
-    }
-
-    // ✅ 已經湊滿 6 碼
+    //////////////////////////
+    // ✅ 已經湊滿 6 碼（手打版也改成走 postback：封卦→退神→pending→等送出）
     const finalCode = state.data.yy.slice(0, 6);
-    state.stage = "wait_ai_result"; // 下一步我們會串 youhualao API + AI 解卦
+
+    // ✅ 統一 stage：等使用者按「退神完成」
+    state.stage = "wait_sendoff";
     conversationStates[userId] = state;
 
-    await pushText(
-      userId,
-      `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n我這邊會先整理卦象資料，接著幫你做 AI 解卦。`
-    );
+    // 1) 先封卦（跟你 postback 版本一致）
+    if (typeof sendLiuYaoCompleteFlex === "function") {
+      await sendLiuYaoCompleteFlex(userId, finalCode);
+    } else {
+      // 沒有封卦卡就用文字頂著
+      await pushText(
+        userId,
+        `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n下一步請先「收卦退神」，完成後我會把解卦整理給你。`,
+      );
+    }
 
+    // 2) 送退神按鈕（你 postback 那套一定有這個）
+    if (typeof sendLiuYaoSendoffFlex === "function") {
+      await sendLiuYaoSendoffFlex(userId);
+    } else {
+      // 如果你沒有 sendoff flex，就至少提醒他要按退神（但建議你一定要有 sendoff flex）
+      await pushText(userId, "請按下「退神完成」後，我才會把解卦內容送出。");
+    }
+
+    /////////////////////////////
     // 👉 這裡下一步就是：
     // 1) 把起卦時間（now 或 customBirth） + finalCode 丟進 getLiuYaoHexagram(...)
     // 2) 把 API 回傳整理成你要的六爻文字
@@ -5276,12 +5283,12 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
     topic === "love"
       ? "感情"
       : topic === "career"
-      ? "事業"
-      : topic === "wealth"
-      ? "財運"
-      : topic === "health"
-      ? "健康"
-      : "這件事情";
+        ? "事業"
+        : topic === "wealth"
+          ? "財運"
+          : topic === "health"
+            ? "健康"
+            : "這件事情";
 
   // ✅ 設定流程節點：等待靜心按鈕
   state.stage = "wait_calm";
@@ -6039,8 +6046,8 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
     partKey === "past"
       ? parsed?.past
       : partKey === "now"
-      ? parsed?.now
-      : parsed?.future;
+        ? parsed?.now
+        : parsed?.future;
 
   /***************************************
    * [按鈕指令]：避免跟八字「看總覽」撞名
@@ -6205,7 +6212,7 @@ async function handleLyNav(userId, text) {
   if (!cached) {
     await pushText(
       userId,
-      "你這一卦的內容我這邊找不到了（可能已過期或你已重新起卦）。要不要重新起一卦？"
+      "你這一卦的內容我這邊找不到了（可能已過期或你已重新起卦）。要不要重新起一卦？",
     );
     return true;
   }
