@@ -4917,34 +4917,24 @@ async function handleLiuYaoFlow(userId, text, state, event) {
         ["零", "一", "兩", "三"][Number(trimmed)]
       } 個人頭。`,
     );
-    //////////////////////////
-    // ✅ 已經湊滿 6 碼（手打版也改成走 postback：封卦→退神→pending→等送出）
-    const finalCode = state.data.yy.slice(0, 6);
 
-    // ✅ 統一 stage：等使用者按「退神完成」
-    state.stage = "wait_sendoff";
+    // 還沒滿六爻 → ✅ B 方案：不要叫他繼續輸入，直接送下一爻按鈕
+    if (state.data.yy.length < 6) {
+      conversationStates[userId] = state;
+      await sendLiuYaoRollFlex(userId, nextIndex, state.data.yy);
+      return true;
+    }
+
+    // ✅ 已經湊滿 6 碼
+    const finalCode = state.data.yy.slice(0, 6);
+    state.stage = "wait_ai_result"; // 下一步我們會串 youhualao API + AI 解卦
     conversationStates[userId] = state;
 
-    // 1) 先封卦（跟你 postback 版本一致）
-    if (typeof sendLiuYaoCompleteFlex === "function") {
-      await sendLiuYaoCompleteFlex(userId, finalCode);
-    } else {
-      // 沒有封卦卡就用文字頂著
-      await pushText(
-        userId,
-        `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n下一步請先「收卦退神」，完成後我會把解卦整理給你。`,
-      );
-    }
+    await pushText(
+      userId,
+      `好的，六個爻都記錄完成了。\n\n這一卦的起卦碼是：${finalCode}。\n我這邊會先整理卦象資料，接著幫你做 AI 解卦。`,
+    );
 
-    // 2) 送退神按鈕（你 postback 那套一定有這個）
-    if (typeof sendLiuYaoSendoffFlex === "function") {
-      await sendLiuYaoSendoffFlex(userId);
-    } else {
-      // 如果你沒有 sendoff flex，就至少提醒他要按退神（但建議你一定要有 sendoff flex）
-      await pushText(userId, "請按下「退神完成」後，我才會把解卦內容送出。");
-    }
-
-    /////////////////////////////
     // 👉 這裡下一步就是：
     // 1) 把起卦時間（now 或 customBirth） + finalCode 丟進 getLiuYaoHexagram(...)
     // 2) 把 API 回傳整理成你要的六爻文字
