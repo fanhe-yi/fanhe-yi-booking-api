@@ -4186,7 +4186,8 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       await sendMiniBaziResultFlex(userId, mbPayload);
       ///這邊要把狀態清掉
       delete conversationStates[userId];
-      return;
+      console.log(`[miniBaziFlow] from ${userId}, stage=${state.stage}`);
+      return true;
     } catch (err) {
       console.error("[miniBaziFlow] AI error:", err);
       await pushText(
