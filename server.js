@@ -33,7 +33,11 @@ const { getBaziSummaryForAI } = require("./baziApiClient");
    - systemPrompt 從 JSON 讀取，改文案不用重啟/部署
    - genderHintForSystem 仍保留動態插入
    ========================================================= */
-const { getMiniBaziSystemPrompt } = require("./promptStore.file");
+const {
+  getMiniBaziSystemPrompt,
+  getMiniBaziUserTemplate,
+  getMiniBaziHowToBlock,
+} = require("./promptStore.file");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
@@ -4696,27 +4700,45 @@ async function callMiniReadingAI(
   const systemPrompt = getMiniBaziSystemPrompt(genderHintForSystem);
 
   // --- userPrompt ---
-  const userPrompt =
-    `【基本資料】\n` +
-    `${birthDesc}\n` +
-    `原始輸入格式：${raw}\n\n` +
-    `【本次解讀重點】\n${focusText}\n` +
-    (timePhraseHint ? `\n${timePhraseHint}\n\n` : "\n") +
-    "【命盤結構摘要（請以此為準）】\n" +
-    `${baziSummaryText}\n\n` +
-    (flowingGzText ? `${flowingGzText}\n\n` : "") +
-    "【請你這樣做】\n" +
-    "1. 不要再自行推算八字，以上述四柱、十神、藏干資訊為準。\n" +
-    "2. 先簡短總結這個命盤的調性（例如：偏行動 / 思考 / 感受、偏穩定或變動等），但這段不要另外獨立輸出，只要自然融入五個欄位之中。\n" +
-    "3. 在內容中自然寫出年柱、月柱、日柱、時柱與日主，以及五行數量（不用算藏干），但不要做成條列，只要融入文字。\n" +
-    "4. 依照五個面向：人格特質、人際關係、伴侶關係、家庭互動、學業/工作，分別寫 150-170 個中文字的建議與提醒。\n" +
-    "5. 若時辰未知或僅為約略時段，請在適當欄位自然提到「時柱僅供參考」或「本次以前三柱為主」。\n" +
-    "6. 語氣像在跟朋友聊天，溫和、實際，可以有點幽默但不要酸人。\n" +
-    "7. 最後在某一欄位的結尾，用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
-    "8. 非常重要：最終輸出只能是 JSON 物件本身，不要出現任何解釋文字、不要多一句話、不要加 ```json。";
+  /* =========================================================
+   Step A2：userPrompt 改成讀 .txt 模板 + placeholder 替換
+   設計理由：
+   - 你最常改的是「段落文字」「規則清單」「語氣提醒」
+   - 把這些搬到 txt 後：改檔案就即時生效，不用部署
+   - 程式只負責計算動態資料（birthDesc/focusText/summary...）
 
-  console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
-  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+   注意：
+   - 這裡用最簡單的 replaceAll 方式做模板替換
+   - 不引入任何模板套件，避免複雜化
+   ========================================================= */
+
+  /* 1) 可選區塊：timePhraseHintBlock（有就帶一段，沒有就空） */
+  const timePhraseHintBlock = timePhraseHint ? `\n${timePhraseHint}\n\n` : "\n";
+
+  /* 2) 可選區塊：flowingGzTextBlock（年/月/日模式才有；沒有就空） */
+  const flowingGzTextBlock = flowingGzText ? `${flowingGzText}\n\n` : "";
+
+  /* 3) how-to 規則：讀 prompts/minibazi.howto.txt（可熱改） */
+  const howToBlock = getMiniBaziHowToBlock();
+
+  /* 4) 讀 prompts/minibazi.userTemplate.txt（可熱改） */
+  let userTemplate = getMiniBaziUserTemplate();
+
+  /* 5) 最小模板替換：把 {{xxx}} 替換成對應字串
+      - 這樣你就能在 txt 自由調整段落
+      - 變數值仍由程式計算產生（最穩）
+*/
+  const userPrompt = userTemplate
+    .replaceAll("{{birthDesc}}", birthDesc)
+    .replaceAll("{{raw}}", raw || "")
+    .replaceAll("{{focusText}}", focusText || "")
+    .replaceAll("{{timePhraseHintBlock}}", timePhraseHintBlock)
+    .replaceAll("{{baziSummaryText}}", baziSummaryText || "")
+    .replaceAll("{{flowingGzTextBlock}}", flowingGzTextBlock)
+    .replaceAll("{{howToBlock}}", howToBlock || "");
+
+  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
   //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);

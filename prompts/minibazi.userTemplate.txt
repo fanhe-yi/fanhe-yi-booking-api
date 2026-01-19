@@ -1,0 +1,11 @@
+【基本資料】
+{{birthDesc}}
+原始輸入格式：{{raw}}
+
+【本次解讀重點】
+{{focusText}}
+{{timePhraseHintBlock}}【命盤結構摘要（請以此為準）】
+{{baziSummaryText}}
+
+{{flowingGzTextBlock}}【請你這樣做】
+{{howToBlock}}

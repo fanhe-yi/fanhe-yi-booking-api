@@ -76,6 +76,59 @@ function getMiniBaziSystemPrompt(genderHintForSystem = "") {
   return systemPrompt;
 }
 
+/* =========================================================
+   Step A2：讀取 .txt 模板（userPrompt 用）
+   目的：
+   - 讓你可以直接改 prompts/minibazi.userTemplate.txt
+   - 以及 prompts/minibazi.howto.txt
+   - 不用重啟後端就生效（靠 mtime 快取）
+
+   為什麼要拆兩個 txt：
+   - userTemplate：框架（段落順序、標題、插值位置）
+   - howto：規則清單（你常會微調 1~8 的敘述）
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   txt 快取（獨立一份，避免跟 JSON cache 混在一起）
+   key = filePath
+   value = { text, mtimeMs }
+   --------------------------------------------------------- */
+const txtCache = new Map();
+
+function readTextIfChanged(filePath) {
+  /* 用 mtimeMs 判斷檔案有沒有改動 */
+  const stat = fs.statSync(filePath);
+  const cached = txtCache.get(filePath);
+
+  if (cached && cached.mtimeMs === stat.mtimeMs) {
+    return cached.text;
+  }
+
+  const text = fs.readFileSync(filePath, "utf8");
+  txtCache.set(filePath, { text, mtimeMs: stat.mtimeMs });
+  return text;
+}
+
+/* ---------------------------------------------------------
+   取得 MiniBazi userPrompt 模板（.txt）
+   --------------------------------------------------------- */
+function getMiniBaziUserTemplate() {
+  const promptDir = process.env.PROMPT_DIR || path.join(__dirname, "prompts");
+  const filePath = path.join(promptDir, "minibazi.userTemplate.txt");
+  return readTextIfChanged(filePath);
+}
+
+/* ---------------------------------------------------------
+   取得 MiniBazi how-to 規則（.txt）
+   --------------------------------------------------------- */
+function getMiniBaziHowToBlock() {
+  const promptDir = process.env.PROMPT_DIR || path.join(__dirname, "prompts");
+  const filePath = path.join(promptDir, "minibazi.howto.txt");
+  return readTextIfChanged(filePath).trim();
+}
+
 module.exports = {
   getMiniBaziSystemPrompt,
+  getMiniBaziUserTemplate,
+  getMiniBaziHowToBlock,
 };
