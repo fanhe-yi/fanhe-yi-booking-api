@@ -570,7 +570,7 @@ async function sendBaziMenuFlex(userId) {
           type: "text",
           text: "過年前先看看：今年的節奏怎麼走 🙂",
           size: "sm",
-          color: "#4B4B4B",
+          color: "#C1121F",
           margin: "sm",
           wrap: true,
         },
