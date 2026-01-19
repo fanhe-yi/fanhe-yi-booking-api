@@ -9,7 +9,7 @@ function defaultUserRecord(userId) {
   const now = new Date().toISOString();
   return {
     userId,
-    firstFree: { liuyao: 0, bazimatch: 0, minibazi: 1 },
+    firstFree: { liuyao: 0, bazimatch: 1, minibazi: 0 },
     quota: { liuyao: 0, bazimatch: 0, minibazi: 0 },
     redeemedCoupons: {},
     meta: { createdAt: now, updatedAt: now },
@@ -24,7 +24,7 @@ async function getUser(userId) {
     `SELECT user_id, first_free, quota, redeemed_coupons, created_at, updated_at
      FROM user_access
      WHERE user_id = $1`,
-    [userId]
+    [userId],
   );
 
   if (r.rowCount === 0) {
@@ -37,7 +37,7 @@ async function getUser(userId) {
         JSON.stringify(u.firstFree),
         JSON.stringify(u.quota),
         JSON.stringify(u.redeemedCoupons),
-      ]
+      ],
     );
     return u;
   }
@@ -75,7 +75,7 @@ async function saveUser(user) {
       JSON.stringify(user.quota || {}),
       JSON.stringify(user.redeemedCoupons || {}),
       updatedAt,
-    ]
+    ],
   );
 
   user.meta = user.meta || {};
@@ -111,7 +111,7 @@ async function addQuotaAtomic(userId, feature, qty) {
     WHERE user_id = $1
     RETURNING quota
     `,
-    [userId, feature, qty]
+    [userId, feature, qty],
   );
 
   return r.rows[0]?.quota;
@@ -145,7 +145,7 @@ async function consumeQuotaAtomic(userId, feature, qty = 1) {
       AND COALESCE((quota->>$2)::int, 0) >= $3
     RETURNING quota
     `,
-    [userId, feature, qty]
+    [userId, feature, qty],
   );
 
   if (r.rowCount === 0) {
@@ -183,7 +183,7 @@ async function consumeFirstFreeAtomic(userId, feature, qty = 1) {
       AND COALESCE((first_free->>$2)::int, 0) >= $3
     RETURNING first_free
     `,
-    [userId, feature, qty]
+    [userId, feature, qty],
   );
 
   if (r.rowCount === 0) {
@@ -218,7 +218,7 @@ async function markCouponRedeemedAtomic(userId, couponCode) {
       AND COALESCE((redeemed_coupons->>$2)::boolean, false) = false
     RETURNING redeemed_coupons
     `,
-    [userId, code]
+    [userId, code],
   );
 
   if (r.rowCount === 0) {
