@@ -1624,7 +1624,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
               action: {
                 type: "message",
                 label: "想預約完整合婚諮詢",
-                text: "關於八字/紫微/占卜",
+                text: "預約諮詢",
               },
             },
           ],
