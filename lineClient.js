@@ -586,6 +586,7 @@ async function sendBaziMenuFlex(userId) {
             data: "action=bazi_mode&mode=year",
           },
         },
+        /*暫時關閉流月流日
         {
           type: "button",
           style: "primary",
@@ -597,7 +598,7 @@ async function sendBaziMenuFlex(userId) {
             displayText: "想看流月占卜",
             data: "action=bazi_mode&mode=month",
           },
-        },
+        },        
         {
           type: "button",
           style: "primary",
@@ -610,6 +611,7 @@ async function sendBaziMenuFlex(userId) {
             data: "action=bazi_mode&mode=day",
           },
         },
+        */
       ],
     },
   };
