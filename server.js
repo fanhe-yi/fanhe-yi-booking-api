@@ -27,6 +27,13 @@ const {
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
+/* =========================================================
+   引入 prompt 讀取器
+   目的：
+   - systemPrompt 從 JSON 讀取，改文案不用重啟/部署
+   - genderHintForSystem 仍保留動態插入
+   ========================================================= */
+const { getMiniBaziSystemPrompt } = require("./promptStore.file");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
@@ -4679,26 +4686,14 @@ async function callMiniReadingAI(
   }
 
   // --- 系統提示 ---
-  const systemPrompt =
-    "你是一位懂八字與紫微斗數的東方命理老師，" +
-    "講話溫和、實際，不宿命論，不嚇人。" +
-    genderHintForSystem + //systemPrompt / fallback 補上「男命 / 女命」語氣
-    "你已經拿到系統事先換算好的四柱八字、十神與部分藏干資訊，" +
-    "請一律以這些資料為準，不要自行重新計算，也不要質疑數據本身。" +
-    "重點是根據提供的結構化八字資訊，做出貼近日常生活、具體可行的提醒與說明。" +
-    "### 請務必遵守輸出格式：" +
-    "永遠只輸出 JSON，不要任何其他文字，不要加註解，不要加 ``` 等 Markdown。" +
-    "格式如下：" +
-    "{ " +
-    '"personality": "人格特質的說明150-170 個中文字", ' +
-    '"social": "人際關係的說明，150-170 個中文字", ' +
-    '"partner": "伴侶 / 親密關係的說明，150-170 個中文字", ' +
-    '"family": "家庭互動 /原生家庭或家人互動的說明，150-170 個中文字", ' +
-    '"study_work": "學業 / 工作方向與節奏的說明，150-170 個中文字"' +
-    " }" +
-    "每一段都要濃縮具體，只寫可行建議，不要廢話、不重覆、不講專業術語堆疊。" +
-    "五段合計大約 750～850 個中文字（含標點）。" +
-    "務必符合 JSON 格式，所有 key 都要用雙引號包起來。";
+  /* =========================================================
+   Step 3-2：systemPrompt 改成從 prompts/minibazi.json 讀取
+   設計理由：
+   - 讓你改 prompt 不必動 server.js、不必 git pull/restart
+   - 仍保留 genderHintForSystem（男命/女命/中性）的動態語氣提示
+   - 讀檔有 mtime 快取：檔案沒變就不重讀
+   ========================================================= */
+  const systemPrompt = getMiniBaziSystemPrompt(genderHintForSystem);
 
   // --- userPrompt ---
   const userPrompt =
