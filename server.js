@@ -4649,7 +4649,7 @@ async function callMiniReadingAI(
       if (mode === "year") {
         flowingGzText =
           "【當下流年干支資訊】\n" +
-          `今年流年年柱：${yearGZ}\n` +
+          `今年流年年柱：赤馬紅羊年的"丙午年"為流年\n` +
           `今日月柱：${monthGZ}\n` +
           `今日日柱：${dayGZ}\n` +
           `目前時柱：${hourGZ}\n` +
