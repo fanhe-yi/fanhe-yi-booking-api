@@ -565,7 +565,7 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#ef422bff",
+          color: "#C1121F",
           margin: "md",
           action: {
             type: "postback",
@@ -577,7 +577,7 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#ef422bff",
+          color: "#C1121F",
           margin: "sm",
           action: {
             type: "postback",
