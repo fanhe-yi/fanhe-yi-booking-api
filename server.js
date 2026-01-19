@@ -4726,7 +4726,7 @@ async function callMiniReadingAI(
     .replaceAll("{{howToBlock}}", howToBlock || "");
 
   //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
-  console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
+  //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
   //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
   const AI_Reading_Text = await AI_Reading(userPrompt, systemPrompt);
