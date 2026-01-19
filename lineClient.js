@@ -570,7 +570,7 @@ async function sendBaziMenuFlex(userId) {
           type: "text",
           text: "過年前先看看：今年的節奏怎麼走 🙂",
           size: "sm",
-          color: "#C1121F",
+          color: "#4B4B4B",
           margin: "sm",
           wrap: true,
         },
@@ -610,7 +610,7 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#2F6F5E", // 松綠
+          color: "#C1121F", // 松綠
           margin: "sm",
           action: {
             type: "postback",
