@@ -4715,7 +4715,7 @@ async function callMiniReadingAI(
     "7. 最後在某一欄位的結尾，用一個溫柔的句子收尾，讓對方有被支持的感覺。\n" +
     "8. 非常重要：最終輸出只能是 JSON 物件本身，不要出現任何解釋文字、不要多一句話、不要加 ```json。";
 
-  //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
+  console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
   //console.log("[callMiniReadingAI] userPrompt:\n", userPrompt);
   //console.log("[callMiniReadingAI] flowingGzText:\n", flowingGzText);
 
