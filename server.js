@@ -2862,8 +2862,8 @@ async function handleLineEvent(event) {
   // ✅ 先攔 MB 指令，避免掉到其它 flow
   if (await handleMbText(userId, text)) return;
 
-  // 取出這個使用者目前的對話狀態
-  const state = conversationStates[userId] || null;
+  /* ✅ 用 let：因為本輪可能會清狀態，避免後面還走舊流程 */
+  let state = conversationStates[userId] || null;
 
   // ==========================
   // 先處理 postback（按 Flex 按鈕）
@@ -2914,6 +2914,7 @@ async function handleLineEvent(event) {
     // --------------------------------------------------
     if (isAbortCommand(text)) {
       delete conversationStates[userId];
+      state = null;
       await pushText(
         userId,
         "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 六爻占卜",
@@ -2927,6 +2928,7 @@ async function handleLineEvent(event) {
     // --------------------------------------------------
     if (isEntryCommand(text)) {
       delete conversationStates[userId];
+      state = null;
     }
 
     /***************************************
