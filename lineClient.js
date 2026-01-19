@@ -565,7 +565,7 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#8E6CEF",
+          color: "#ef422bff",
           margin: "md",
           action: {
             type: "postback",
@@ -577,11 +577,11 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#8E6CEF",
+          color: "#ef422bff",
           margin: "sm",
           action: {
             type: "postback",
-            label: "流年分析",
+            label: "🐴流年分析",
             displayText: "想看流年分析",
             data: "action=bazi_mode&mode=year",
           },
