@@ -2862,8 +2862,8 @@ async function handleLineEvent(event) {
   // ✅ 先攔 MB 指令，避免掉到其它 flow
   if (await handleMbText(userId, text)) return;
 
-  /* ✅ 用 let：因為本輪可能會清狀態，避免後面還走舊流程 */
-  let state = conversationStates[userId] || null;
+  // 取出這個使用者目前的對話狀態
+  const state = conversationStates[userId] || null;
 
   // ==========================
   // 先處理 postback（按 Flex 按鈕）
@@ -2914,7 +2914,6 @@ async function handleLineEvent(event) {
     // --------------------------------------------------
     if (isAbortCommand(text)) {
       delete conversationStates[userId];
-      state = null;
       await pushText(
         userId,
         "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 六爻占卜",
@@ -2928,7 +2927,6 @@ async function handleLineEvent(event) {
     // --------------------------------------------------
     if (isEntryCommand(text)) {
       delete conversationStates[userId];
-      state = null;
     }
 
     /***************************************
@@ -3054,21 +3052,10 @@ async function routeByConversationState(userId, text, state, event) {
     if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
   }*/
 
-  /* -------------------------
-   * mini_bazi：八字測算
-   * ------------------------- */
   if (mode === "mini_bazi") {
-    const r = await handleMiniBaziFlow(userId, text, state, event);
-
-    /* ✅ 統一處理：若流程要求清 state */
-    if (r === "CLEAR_STATE") {
-      delete conversationStates[userId];
-      return true;
-    }
-
-    return r;
+    // 交給八字測算流程處理
+    return await handleMiniBaziFlow(userId, text, state, event);
   }
-
   //八字合婚
   if (mode === "bazi_match") {
     return await handleBaziMatchFlow(userId, text, state, event);
@@ -4197,12 +4184,10 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 
       // ✅ 現在 sendMiniBaziResultFlex 會送「總覽 + 1 張重點」
       await sendMiniBaziResultFlex(userId, mbPayload);
-      /* ✅ 這裡不用自己刪 conversationStates，交給 routeByConversationState 統一收尾
-       * 原因：避免某些地方又拿舊 state 繼續跑，造成你看到的「復活感」
-       */
-      state.stage =
-        "done"; /* ✅ 保險：就算有人還拿著 state 物件，也不會再當 wait_birth_input */
-      return "CLEAR_STATE";
+      ///這邊要把狀態清掉
+      delete conversationStates[userId];
+      console.log("[debug] exists?", !!conversationStates[userId]);
+      return;
     } catch (err) {
       console.error("[miniBaziFlow] AI error:", err);
       await pushText(
