@@ -565,24 +565,30 @@ async function sendBaziMenuFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#C1121F",
+          color:
+            "#D4AF37" /* =========================================================
+                     過年金：像金箔春聯、金元寶
+                     ========================================================= */,
           margin: "md",
           action: {
             type: "postback",
-            label: "格局分析",
-            displayText: "想看格局分析",
+            label: "🧧✨ 格局分析",
+            displayText: "🧧✨ 來看我的格局運勢",
             data: "action=bazi_mode&mode=pattern",
           },
         },
         {
           type: "button",
           style: "primary",
-          color: "#C1121F",
+          color:
+            "#C1121F" /* =========================================================
+                     過年朱紅：春聯紅、紅包紅
+                     ========================================================= */,
           margin: "sm",
           action: {
             type: "postback",
-            label: "🐴流年分析",
-            displayText: "想看流年分析",
+            label: "🐴🎊 流年分析",
+            displayText: "🐴🎊 來看今年流年走勢",
             data: "action=bazi_mode&mode=year",
           },
         },
