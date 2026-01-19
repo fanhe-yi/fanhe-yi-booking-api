@@ -2872,8 +2872,8 @@ async function handleLineEvent(event) {
     const data = event.postback.data || "";
     console.log(`📦 收到 postback：${data}`);
 
-    /* ✅ 不傳 state：避免把舊 state 帶進 router */
-    await routePostback(userId, data, null);
+    // 交給專門處理 postback 的 router
+    await routePostback(userId, data);
     return;
   }
 
@@ -3075,8 +3075,40 @@ async function routePostback(userId, data, state) {
   const action = params.get("action");
   const service = params.get("service");
 
+  /* ✅ 永遠抓最新 state（避免舊 state 被帶進來） */
+  const getState = () => conversationStates[userId] || null;
+
+  /* =========================================
+   * 共用：postback gate
+   * - 限制按鈕只能在正確流程/階段使用
+   * ========================================= */
+  const postbackGate = (state, { allowModes = [], allowStages = [] }) => {
+    if (!state) return false;
+
+    if (allowModes.length > 0 && !allowModes.includes(state.mode)) return false;
+
+    if (allowStages.length > 0 && !allowStages.includes(state.stage))
+      return false;
+
+    return true;
+  };
+
+  /* =========================================
+   * 共用：舊按鈕提示
+   * ========================================= */
+  const replyOldMenuHint = async (hintText) => {
+    await pushText(
+      userId,
+      hintText ||
+        "這個選單看起來是舊的 😅\n\n請輸入：八字測算 / 八字合婚 / 六爻占卜 重新開始。",
+    );
+  };
+
   // ✅ 使用者按下「開始」：先 gate，再進流程
   if (action === "start" && service) {
+    /* ✅ 強制清掉舊 state：避免殘留 stage 汙染新流程 */
+    delete conversationStates[userId];
+
     const labelMap = {
       minibazi: "八字格局解析",
       bazimatch: "八字合婚解析",
@@ -3237,6 +3269,21 @@ async function routePostback(userId, data, state) {
 
   // 🔮 八字測算：使用者從主選單選了「格局 / 流年 / 流月 / 流日」
   if (action === "bazi_mode") {
+    const state = getState();
+
+    /* ✅ 只允許在 mini_bazi + wait_mode 使用 */
+    const ok = postbackGate(state, {
+      allowModes: ["mini_bazi"],
+      allowStages: ["wait_mode"],
+    });
+
+    if (!ok) {
+      await replyOldMenuHint(
+        "這個八字選單是舊的 😅\n請輸入「八字測算」重新開始。",
+      );
+      return;
+    }
+
     const mode = params.get("mode"); // pattern / year / month / day
     const ALLOWED = ["pattern", "year", "month", "day"];
     if (!ALLOWED.includes(mode)) {
@@ -3323,6 +3370,21 @@ async function routePostback(userId, data, state) {
 
   // ⭐ 六爻：選主題（感情 / 事業 / 財運 / 健康）
   if (action === "liuyao_topic") {
+    const state = getState();
+
+    /* ✅ 只允許在 liuyao + wait_topic 使用 */
+    const ok = postbackGate(state, {
+      allowModes: ["liuyao"],
+      allowStages: ["wait_topic"],
+    });
+
+    if (!ok) {
+      await replyOldMenuHint(
+        "這個八字選單是舊的 😅\n請輸入「八字測算」重新開始。",
+      );
+      return;
+    }
+
     const topic = params.get("topic"); // love / career / wealth / health
     const allow = ["love", "career", "wealth", "health"];
 
@@ -4186,7 +4248,7 @@ async function handleMiniBaziFlow(userId, text, state, event) {
       await sendMiniBaziResultFlex(userId, mbPayload);
       ///這邊要把狀態清掉
       delete conversationStates[userId];
-      console.log("[debug] exists?", !!conversationStates[userId]);
+      console.log(`[miniBaziFlow] from ${userId}, stage=${state.stage}`);
       return;
     } catch (err) {
       console.error("[miniBaziFlow] AI error:", err);
