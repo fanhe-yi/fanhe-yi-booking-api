@@ -37,6 +37,7 @@ const {
   getMiniBaziSystemPrompt,
   getMiniBaziUserTemplate,
   getMiniBaziHowToBlock,
+  getMiniBaziModeCopy,
 } = require("./promptStore.file");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
@@ -4559,34 +4560,21 @@ async function callMiniReadingAI(
     birthDesc += `（未提供時辰）`;
   }
 
-  // --- focus 語氣設定 ----
+  /* =========================================================
+   Step A3：focusText / timePhraseHint 改成從檔案讀取（可熱改）
+   你原本的 if/else 邏輯只是在「依 mode 選文案」
+   現在把文案搬到 prompts/minibazi.modeCopy.json
+   好處：
+   - 你以後想改 year/month/day/pattern 的文案，改 JSON 立刻生效
+   - code 不用再改、也不用部署
+   ========================================================= */
   let focusText = "";
   let timePhraseHint = "";
 
-  if (mode === "pattern") {
-    focusText =
-      "本次以「格局 / 命盤基礎性格與人生主調」為主，不特別細拆流年流月。";
-    timePhraseHint =
-      "在描述時可以多用「整體來說」「長期來看」這類字眼，少用「今年」「這個月」「今天」。";
-  } else if (mode === "year") {
-    focusText =
-      "本次以「今年的流年變化與提醒」為主，重點放在流年年柱與命主八字之間的五行生剋制化、刑沖合害。格局只簡單帶過。";
-    timePhraseHint =
-      "請在內容中多用「今年」「這一年」「這一年當中」等字眼，讓讀者明顯感覺到是年度層級。";
-  } else if (mode === "month") {
-    focusText =
-      "本次以「這個月的運勢節奏與起伏」為主，重點放在本月月柱與命主八字之間的五行互動與刑沖合害。格局只簡單帶過。";
-    timePhraseHint =
-      "請多用「這幾個月」「本月」「近期一兩個月」等字眼，讓讀者感覺是 1～3 個月的節奏。";
-  } else if (mode === "day") {
-    focusText =
-      "本次以「今日 / 最近幾日的狀態提醒」為主，重點放在今日日柱對命主八字的觸發與起伏。格局只簡單帶過。";
-    timePhraseHint =
-      "請多用「今天」「這幾天」「這陣子」等字眼，讓讀者感覺是當下幾天的提醒。";
-  } else {
-    focusText = "本次以整體命格與最近一年提醒為主。";
-    timePhraseHint = "";
-  }
+  /* 依 mode 取得對應文案（找不到就回 default） */
+  const modeCopy = getMiniBaziModeCopy(mode);
+  focusText = modeCopy.focusText || "";
+  timePhraseHint = modeCopy.timePhraseHint || "";
 
   // --- 性別補充說明 ---
   let genderHintForSystem = "";

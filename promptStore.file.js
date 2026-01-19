@@ -127,8 +127,56 @@ function getMiniBaziHowToBlock() {
   return readTextIfChanged(filePath).trim();
 }
 
+/* =========================================================
+   Step A3：讀取 modeCopy.json（focusText / timePhraseHint 用）
+   目的：
+   - 把「不同模式的文案」從 code 搬出去
+   - 你以後想改年度/月份/今日的敘述，改 JSON 就即時生效
+
+   為什麼用 JSON：
+   - 這是一個 mode -> 文案 的 mapping
+   - 用 JSON 最直覺，且不容易改到破壞段落結構
+   ========================================================= */
+
+const modeCopyCache = {
+  mtimeMs: null,
+  json: null,
+};
+
+function loadModeCopyIfChanged(filePath) {
+  const stat = fs.statSync(filePath);
+  if (modeCopyCache.json && modeCopyCache.mtimeMs === stat.mtimeMs) {
+    return modeCopyCache.json;
+  }
+
+  const raw = fs.readFileSync(filePath, "utf8");
+  const parsed = JSON.parse(raw);
+
+  modeCopyCache.mtimeMs = stat.mtimeMs;
+  modeCopyCache.json = parsed;
+
+  return parsed;
+}
+
+function getMiniBaziModeCopy(mode = "pattern") {
+  const promptDir = process.env.PROMPT_DIR || path.join(__dirname, "prompts");
+  const filePath = path.join(promptDir, "minibazi.modeCopy.json");
+
+  const json = loadModeCopyIfChanged(filePath);
+
+  /* 防呆：找不到 mode 就回 default */
+  const picked = (json && json[mode]) || (json && json.default) || null;
+
+  /* 再防呆一次：避免 JSON 被改壞回 undefined */
+  return {
+    focusText: (picked && picked.focusText) || "",
+    timePhraseHint: (picked && picked.timePhraseHint) || "",
+  };
+}
+
 module.exports = {
   getMiniBaziSystemPrompt,
   getMiniBaziUserTemplate,
   getMiniBaziHowToBlock,
+  getMiniBaziModeCopy,
 };
