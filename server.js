@@ -3052,10 +3052,21 @@ async function routeByConversationState(userId, text, state, event) {
     if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
   }*/
 
+  /* -------------------------
+   * mini_bazi：八字測算
+   * ------------------------- */
   if (mode === "mini_bazi") {
-    // 交給八字測算流程處理
-    return await handleMiniBaziFlow(userId, text, state, event);
+    const r = await handleMiniBaziFlow(userId, text, state, event);
+
+    /* ✅ 統一處理：若流程要求清 state */
+    if (r === "CLEAR_STATE") {
+      delete conversationStates[userId];
+      return true;
+    }
+
+    return r;
   }
+
   //八字合婚
   if (mode === "bazi_match") {
     return await handleBaziMatchFlow(userId, text, state, event);
@@ -4184,10 +4195,12 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 
       // ✅ 現在 sendMiniBaziResultFlex 會送「總覽 + 1 張重點」
       await sendMiniBaziResultFlex(userId, mbPayload);
-      ///這邊要把狀態清掉
-      delete conversationStates[userId];
-      console.log(`[miniBaziFlow] from ${userId}, stage=${state.stage}`);
-      return true;
+      /* ✅ 這裡不用自己刪 conversationStates，交給 routeByConversationState 統一收尾
+       * 原因：避免某些地方又拿舊 state 繼續跑，造成你看到的「復活感」
+       */
+      state.stage =
+        "done"; /* ✅ 保險：就算有人還拿著 state 物件，也不會再當 wait_birth_input */
+      return "CLEAR_STATE";
     } catch (err) {
       console.error("[miniBaziFlow] AI error:", err);
       await pushText(
