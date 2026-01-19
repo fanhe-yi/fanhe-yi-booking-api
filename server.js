@@ -4184,9 +4184,9 @@ async function handleMiniBaziFlow(userId, text, state, event) {
 
       // ✅ 現在 sendMiniBaziResultFlex 會送「總覽 + 1 張重點」
       await sendMiniBaziResultFlex(userId, mbPayload);
-
+      ///這邊要把狀態清掉
       delete conversationStates[userId];
-      return true;
+      return;
     } catch (err) {
       console.error("[miniBaziFlow] AI error:", err);
       await pushText(
