@@ -3330,16 +3330,27 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  // ✅ 八字測算：選擇男命 / 女命（按鈕）
+  /* =========================================
+   * ✅ 八字測算：選擇男命 / 女命（按鈕）
+   * action=minibazi_gender&gender=male|female
+   * ========================================= */
   if (action === "minibazi_gender") {
-    const gender = params.get("gender"); // male / female
-    const currState = state || conversationStates[userId];
+    const state = getState();
 
-    if (!currState || currState.mode !== "mini_bazi") {
-      await pushText(userId, "目前沒有八字測算流程，請從選單重新開始。");
+    /* ✅ 只允許在 mini_bazi + wait_gender 使用（避免舊按鈕或亂序點擊） */
+    const ok = postbackGate(state, {
+      allowModes: ["mini_bazi"],
+      allowStages: ["wait_gender"],
+    });
+
+    if (!ok) {
+      await replyOldMenuHint(
+        "這個性別選單是舊的 😅\n請輸入「八字測算」重新開始。",
+      );
       return;
     }
 
+    const gender = params.get("gender"); // male / female
     if (!["male", "female"].includes(gender)) {
       await pushText(userId, "性別選擇怪怪的，請再選一次～");
       await sendGenderSelectFlex(userId, {
@@ -3349,10 +3360,11 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    currState.data = currState.data || {};
-    currState.data.gender = gender;
-    currState.stage = "wait_birth_input";
-    conversationStates[userId] = currState;
+    /* ✅ 正常推進 */
+    state.data = state.data || {};
+    state.data.gender = gender;
+    state.stage = "wait_birth_input";
+    conversationStates[userId] = state;
 
     const genderLabel = gender === "male" ? "男命" : "女命";
 
@@ -3380,7 +3392,7 @@ async function routePostback(userId, data, state) {
 
     if (!ok) {
       await replyOldMenuHint(
-        "這個八字選單是舊的 😅\n請輸入「八字測算」重新開始。",
+        "這個占卜選單是舊的 😅\n請輸入「六爻占卜」重新開始。",
       );
       return;
     }
@@ -3407,19 +3419,27 @@ async function routePostback(userId, data, state) {
     return;
   }
 
-  // ✅ 六爻占卜：選擇男占 / 女占（按鈕）
+  /* =========================================
+   * ✅ 六爻占卜：選擇男占 / 女占（按鈕）
+   * action=liuyao_gender&gender=male|female
+   * ========================================= */
   if (action === "liuyao_gender") {
-    const gender = params.get("gender"); // male / female
-    const currState = state || conversationStates[userId];
+    const state = getState();
 
-    if (!currState || currState.mode !== "liuyao") {
-      await pushText(
-        userId,
-        "目前沒有正在進行的六爻占卜流程，想開始請輸入「六爻占卜」。",
+    /* ✅ 只允許在 liuyao + wait_gender 使用（避免舊按鈕或亂序點擊） */
+    const ok = postbackGate(state, {
+      allowModes: ["liuyao"],
+      allowStages: ["wait_gender"],
+    });
+
+    if (!ok) {
+      await replyOldMenuHint(
+        "這個性別選單是舊的 😅\n請輸入「六爻占卜」重新開始。",
       );
       return;
     }
 
+    const gender = params.get("gender"); // male / female
     if (!["male", "female"].includes(gender)) {
       await pushText(userId, "性別選擇怪怪的，請再選一次～");
       await sendGenderSelectFlex(userId, {
@@ -3429,10 +3449,11 @@ async function routePostback(userId, data, state) {
       return;
     }
 
-    currState.data = currState.data || {};
-    currState.data.gender = gender;
-    currState.stage = "wait_time_mode";
-    conversationStates[userId] = currState;
+    /* ✅ 正常推進 */
+    state.data = state.data || {};
+    state.data.gender = gender;
+    state.stage = "wait_time_mode";
+    conversationStates[userId] = state;
 
     await sendLiuYaoTimeModeFlex(userId);
     return;
