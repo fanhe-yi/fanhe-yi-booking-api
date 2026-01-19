@@ -3071,8 +3071,6 @@ async function routeByConversationState(userId, text, state, event) {
 
 // routePostback：按 Flex 按鈕時怎麼分派
 async function routePostback(userId, data, state) {
-  /* ✅ router 內部永遠用最新的 state */
-  const state = conversationStates[userId] || null;
   const params = new URLSearchParams(data);
   const action = params.get("action");
   const service = params.get("service");
