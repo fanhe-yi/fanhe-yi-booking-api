@@ -17,7 +17,7 @@ const ADMIN_USER_ID = process.env.LINE_ADMIN_USER_ID;
 // 啟動前檢查（避免部署錯誤）
 if (!CHANNEL_ACCESS_TOKEN || !ADMIN_USER_ID) {
   console.warn(
-    "[LINE] ⚠️ 尚未設定 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_ADMIN_USER_ID，將無法發送 LINE 訊息"
+    "[LINE] ⚠️ 尚未設定 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_ADMIN_USER_ID，將無法發送 LINE 訊息",
   );
 }
 
@@ -70,7 +70,7 @@ async function pushText(to, text) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
         },
-      }
+      },
     );
 
     console.log("[LINE] pushText 發送成功");
@@ -103,14 +103,14 @@ async function pushFlex(to, altText, contents) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
         },
-      }
+      },
     );
 
     console.log("[LINE] pushFlex 發送成功");
   } catch (err) {
     console.error(
       "[LINE] pushFlex 發送失敗：",
-      err.response?.data || err.message
+      err.response?.data || err.message,
     );
   }
 }
@@ -223,14 +223,14 @@ async function notifyCustomerBooking(booking) {
     } catch (err) {
       console.error(
         "[LINE] findUserIdByLineId 發生錯誤：",
-        err?.message || err
+        err?.message || err,
       );
       return;
     }
 
     if (!userId) {
       console.log(
-        `[LINE] 找不到 lineId「${trimmedLineId}」對應的 LINE userId，略過客戶通知`
+        `[LINE] 找不到 lineId「${trimmedLineId}」對應的 LINE userId，略過客戶通知`,
       );
       return;
     }
@@ -238,7 +238,7 @@ async function notifyCustomerBooking(booking) {
     console.log(`[LINE] 使用 lineId 映射到的 userId 推播：${userId}`);
   } else {
     console.log(
-      "[LINE] notifyCustomerBooking：沒有 lineUserId 或 lineId，略過客戶通知"
+      "[LINE] notifyCustomerBooking：沒有 lineUserId 或 lineId，略過客戶通知",
     );
     return;
   }
@@ -469,7 +469,7 @@ async function sendBookingSuccessHero(userId, booking) {
 // actionName 例： "liuyao_gender" 或 "minibazi_gender"
 async function sendGenderSelectFlex(
   userId,
-  { title = "性別選擇", actionName }
+  { title = "性別選擇", actionName },
 ) {
   if (!actionName) throw new Error("sendGenderSelectFlex 缺少 actionName");
 
@@ -985,7 +985,11 @@ async function mbFallback(userId, payload, modeLabel) {
           type: "button",
           style: "link",
           height: "sm",
-          action: { type: "message", label: "想預約完整論命", text: "預約" },
+          action: {
+            type: "message",
+            label: "想預約完整論命",
+            text: "關於八字/紫微/占卜",
+          },
         },
       ],
     },
@@ -1137,7 +1141,11 @@ async function mbMenu(userId, payload) {
           type: "button",
           style: "link",
           height: "sm",
-          action: { type: "message", label: "想預約完整論命", text: "預約" },
+          action: {
+            type: "message",
+            label: "想預約完整論命",
+            text: "關於八字/紫微/占卜",
+          },
         },
       ],
     },
@@ -1273,7 +1281,7 @@ async function mbAll(userId, payload) {
       secTitle: s.title,
       text: String(data[s.key] || "").trim(),
       footer: null,
-    })
+    }),
   );
 
   const flexPayload =
@@ -1317,14 +1325,14 @@ async function pushImage(to, originalContentUrl, previewImageUrl) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
         },
-      }
+      },
     );
 
     console.log("[LINE] pushImage 發送成功");
   } catch (err) {
     console.error(
       "[LINE] pushImage 發送失敗：",
-      err.response?.data || err.message
+      err.response?.data || err.message,
     );
   }
 }
@@ -1595,7 +1603,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
               action: {
                 type: "message",
                 label: "想預約完整合婚諮詢",
-                text: "預約",
+                text: "關於八字/紫微/占卜",
               },
             },
           ],
@@ -1609,7 +1617,7 @@ async function sendBaziMatchResultFlex(userId, payload) {
     await pushImage(
       userId,
       "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
-      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg"
+      "https://chen-yi.tw/bazimatch/bazimatch-scores.jpg",
     );
   }
 }

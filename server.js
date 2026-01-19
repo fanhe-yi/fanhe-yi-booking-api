@@ -6055,18 +6055,24 @@ async function lyMenuFlex(userId, meta, parsed) {
       layout: "vertical",
       spacing: "sm",
       contents: [
+        /*
         {
           type: "button",
           style: "secondary",
           height: "sm",
           action: { type: "message", label: "回到流程", text: "回到流程" },
         },
+        */
         {
           type: "button",
           style: "primary",
           height: "sm",
           color: "#8E6CEF",
-          action: { type: "message", label: "請老師解卦", text: "預約" },
+          action: {
+            type: "message",
+            label: "請老師解卦",
+            text: "關於八字/紫微/占卜",
+          },
         },
       ],
     },
