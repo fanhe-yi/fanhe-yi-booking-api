@@ -1062,6 +1062,10 @@ async function mbMenu(userId, payload) {
           wrap: true,
           margin: "sm",
         },
+        {
+          type: "separator",
+          margin: "md",
+        },
       ],
     },
     body: {
