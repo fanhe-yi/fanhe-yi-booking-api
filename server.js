@@ -2228,7 +2228,7 @@ app.post("/api/admin/user-access", requireAdmin, async (req, res) => {
   /* 
     ✅ 預設資料（符合你說的預設值）
   */
-  const firstFreeDefault = { liuyao: 1, minibazi: 1, bazimatch: 1 };
+  const firstFreeDefault = { liuyao: 0, minibazi: 0, bazimatch: 1 };
   const quotaDefault = { liuyao: 0, minibazi: 0, bazimatch: 0 };
   const redeemedDefault = {};
 
@@ -2269,6 +2269,116 @@ app.post("/api/admin/user-access", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[Admin user_access create] error:", err);
     return res.status(500).json({ error: "Failed to create user_access" });
+  }
+});
+
+/* =========================================================
+   Step A4：Prompt 後台管理 API
+   - 依賴 requireAdmin（x-admin-token）
+   ========================================================= */
+const {
+  readPromptFile,
+  savePromptFile,
+  exportMiniBaziBundle,
+  listBackups,
+  getBackupPath,
+} = require("./adminPrompts");
+
+/* =========================================================
+   ✅ 讀 minibazi prompt 全套（目前 4 檔）
+   ========================================================= */
+app.get("/api/admin/prompts/minibazi", requireAdmin, (req, res) => {
+  try {
+    const files = [
+      "minibazi.json",
+      "minibazi.userTemplate.txt",
+      "minibazi.howto.txt",
+      "minibazi.modeCopy.json",
+    ];
+
+    const out = { files: {} };
+    for (const filename of files) {
+      out.files[filename] = readPromptFile(filename);
+    }
+
+    res.json(out);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+/* =========================================================
+   ✅ 保存單一檔案（保存前自動備份）
+   body:
+   - filename: "minibazi.modeCopy.json" | ...
+   - content: object | string
+   - note: "改年度文案"（可選）
+   ========================================================= */
+app.put("/api/admin/prompts/minibazi", requireAdmin, (req, res) => {
+  try {
+    const { filename, content, note } = req.body || {};
+    const result = savePromptFile({ filename, content, note });
+    res.json(result);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+/* =========================================================
+   ✅ 匯出整包（下載 JSON）
+   - Content-Disposition 讓瀏覽器直接下載檔案
+   ========================================================= */
+app.get("/api/admin/prompts/minibazi/export", requireAdmin, (req, res) => {
+  try {
+    const bundle = exportMiniBaziBundle();
+
+    const ts = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .replace("T", "_")
+      .replace("Z", "");
+
+    const filename = `minibazi_prompts__${ts}.json`;
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    res.send(JSON.stringify(bundle, null, 2));
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+/* =========================================================
+   ✅ 列出備份版本
+   query:
+   - filename=minibazi.modeCopy.json
+   ========================================================= */
+app.get("/api/admin/prompts/backups", requireAdmin, (req, res) => {
+  try {
+    const { filename } = req.query || {};
+    const items = listBackups(String(filename || ""));
+    res.json({ items });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+/* =========================================================
+   ✅ 下載某份備份
+   query:
+   - filename=minibazi.modeCopy.json
+   - id=2026-01-20_...__.json
+   ========================================================= */
+app.get("/api/admin/prompts/backups/download", requireAdmin, (req, res) => {
+  try {
+    const { filename, id } = req.query || {};
+    const fullPath = getBackupPath(String(filename || ""), String(id || ""));
+
+    res.setHeader("Content-Disposition", `attachment; filename="${id}"`);
+    res.sendFile(fullPath);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "error" });
   }
 });
 
