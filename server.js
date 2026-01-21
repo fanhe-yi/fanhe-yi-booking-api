@@ -3192,7 +3192,7 @@ async function routeByConversationState(userId, text, state, event) {
 }
 
 // routePostback：按 Flex 按鈕時怎麼分派
-async function routePostback(userId, data, state) {
+async function routePostback(userId, data) {
   const params = new URLSearchParams(data);
   const action = params.get("action");
   const service = params.get("service");
@@ -3228,13 +3228,22 @@ async function routePostback(userId, data, state) {
 
   // ✅ 使用者按下「開始」：先 gate，再進流程
   if (action === "start" && service) {
-    /* ✅ 強制清掉舊 state：避免殘留 stage 汙染新流程 */
+    /* ✅ 只處理你支援的 service，避免亂清 state */
+    const SUPPORTED = ["minibazi", "bazimatch", "liuyao", "booking"];
+
+    if (!SUPPORTED.includes(service)) {
+      await pushText(userId, "這個服務代碼我不認識欸，請從選單再點一次 🙏");
+      return;
+    }
+
+    /* ✅ 確認是支援的服務後，才清舊 state */
     delete conversationStates[userId];
 
     const labelMap = {
       minibazi: "八字格局解析",
       bazimatch: "八字合婚解析",
       liuyao: "六爻卦象解析",
+      booking: "預約服務",
     };
 
     const gate = await gateFeature(
@@ -3283,6 +3292,20 @@ async function routePostback(userId, data, state) {
       return;
     }
 
+    /* ✅ booking：你要對齊 handleBookingFlow 的第一關 stage */
+    if (service === "booking") {
+      conversationStates[userId] = {
+        mode: "booking",
+        stage: "waiting_name",
+        data: {},
+      };
+      await pushText(
+        userId,
+        "好的～我先幫你開啟預約流程 ✅\n\n請先輸入你的姓名（或輸入「略過」）",
+      );
+      return;
+    }
+
     await pushText(userId, "這個服務代碼我不認識欸，請從選單再點一次 🙏");
     return;
   }
@@ -3293,6 +3316,8 @@ async function routePostback(userId, data, state) {
     action === "choose_date" ||
     action === "choose_slot"
   ) {
+    /* ✅ 用最新 state，避免 postback 帶到舊/空狀態 */
+    const state = getState();
     return await handleBookingPostback(userId, action, params, state);
   }
 
