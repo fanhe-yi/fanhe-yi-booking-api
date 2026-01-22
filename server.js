@@ -3627,7 +3627,12 @@ async function routePostback(userId, data) {
   if (action === "liuyao_time_mode") {
     const mode = params.get("mode"); // now / custom
 
-    const currState = state || conversationStates[userId];
+    //永遠抓最新狀態
+    const currState = getState();
+
+    //
+    //const currState = state || conversationStates[userId];
+
     if (!currState || currState.mode !== "liuyao") {
       await pushText(
         userId,
