@@ -3200,6 +3200,9 @@ async function routePostback(userId, data) {
   /* ✅ 永遠抓最新 state（避免舊 state 被帶進來） */
   const getState = () => conversationStates[userId] || null;
 
+  /* ✅【最小改動】補上 state 變數：避免 ReferenceError: state is not defined */
+  let state = getState();
+
   /* =========================================
    * 共用：postback gate
    * - 限制按鈕只能在正確流程/階段使用
@@ -3238,6 +3241,7 @@ async function routePostback(userId, data) {
 
     /* ✅ 確認是支援的服務後，才清舊 state */
     delete conversationStates[userId];
+    state = getState(); // ✅【最小改動】同步更新本地 state
 
     const labelMap = {
       minibazi: "八字格局解析",
