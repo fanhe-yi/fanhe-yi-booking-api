@@ -114,9 +114,9 @@ const paymentOrders = require("./paymentOrdersStore.pg");
 // ⚠️ getEligibility 是你原本就有的那個 function（在哪裡就從哪裡 require/使用）
 
 const PRICE_MAP = {
-  liuyao: 100,
-  minibazi: 100,
-  bazimatch: 200,
+  liuyao: 99,
+  minibazi: 99,
+  bazimatch: 199,
 };
 
 function genMerchantTradeNo() {
@@ -1240,17 +1240,21 @@ async function sendServiceIntroFlex(userId, serviceKey) {
   const map = {
     minibazi: {
       title: "📊 八字格局解析(LINE線上)",
-      price: "NT$ 100",
+      // ✅ 促銷顯示用：原價 / 特價（記得金流價格也要一致）
+      originalPrice: "NT$ 199",
+      salePrice: "NT$ 99",
       desc: "使用者完成付費並提供生辰資料後，系統將進行八字格局結構與整體命理配置之文字解析，並回傳解析結果。",
     },
     bazimatch: {
       title: "💑 八字合婚解析(LINE線上)",
-      price: "NT$ 200",
+      originalPrice: "NT$ 299",
+      salePrice: "NT$ 199",
       desc: "使用者完成付費並提供雙方生辰資料後，系統將進行命盤結構比對與關係互動層面之文字解析說明，並回傳解析結果。",
     },
     liuyao: {
       title: "🔮 六爻卦象解析(LINE線上)",
-      price: "NT$ 100",
+      originalPrice: "NT$ 199",
+      salePrice: "NT$ 99",
       desc: "使用者完成付費並提供提問內容後，系統將依卦象模型進行解析，回傳過去狀態、當前情況與可能發展趨勢之文字說明。",
     },
   };
@@ -1266,7 +1270,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
 
   // ==========================
   // ✅ 主按鈕（最小改動）
-  // - 首免：顯示「🎁 首次免費」→ 仍走 action=start（讓儀式感更直覺）
+  // - 首免：顯示「🎁 首次免費」→ 仍走 action=start
   // - 有 quota：顯示「開始解析」→ 走 action=start
   // - 無權限：顯示「前往付款」→ 導到 /pay 建單付款
   // ==========================
@@ -1282,10 +1286,6 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         type: "postback",
         label: isFirstFree ? "🎁 首次免費" : "開始解析",
         data: `action=start&service=${serviceKey}`,
-        // 有些 client 會顯示按下後的文字，順便加儀式感（可刪）
-        //displayText: isFirstFree
-        //  ? `我要用首次免費開始：${meta.title}`
-        //  : `開始解析：${meta.title}`,
       },
     };
   } else {
@@ -1340,6 +1340,10 @@ async function sendServiceIntroFlex(userId, serviceKey) {
             color: "#333333",
             wrap: true,
           },
+
+          // ==========================
+          // ✅ 費用區塊（促銷版：原價刪節線 + 特價大字）
+          // ==========================
           {
             type: "box",
             layout: "baseline",
@@ -1351,16 +1355,31 @@ async function sendServiceIntroFlex(userId, serviceKey) {
                 color: "#666666",
                 flex: 1,
               },
+
+              // 原價（灰色 + 刪節線）
               {
                 type: "text",
-                text: meta.price,
+                text: meta.originalPrice,
+                size: "sm",
+                color: "#999999",
+                decoration: "line-through",
+                flex: 1,
+                align: "end",
+              },
+
+              // 特價（大字）
+              {
+                type: "text",
+                text: meta.salePrice,
                 size: "xl",
                 weight: "bold",
-                color: "#111111",
+                color: "#E53935",
                 flex: 2,
+                align: "end",
               },
             ],
           },
+
           { type: "separator" },
           {
             type: "text",
@@ -1378,7 +1397,6 @@ async function sendServiceIntroFlex(userId, serviceKey) {
         layout: "vertical",
         spacing: "sm",
         contents: [
-          // ✅ 只留一顆主按鈕，避免「前往付款 + 開始」互打
           primaryButton,
           {
             type: "button",
