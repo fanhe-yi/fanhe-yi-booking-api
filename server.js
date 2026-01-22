@@ -1360,7 +1360,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
               {
                 type: "text",
                 text: meta.originalPrice,
-                size: "xl",
+                size: "sm",
                 color: "#999999",
                 decoration: "line-through",
                 flex: 1,
