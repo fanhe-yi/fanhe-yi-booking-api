@@ -1360,7 +1360,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
               {
                 type: "text",
                 text: meta.originalPrice,
-                size: "sm",
+                size: "xl",
                 color: "#999999",
                 decoration: "line-through",
                 flex: 1,
@@ -6251,7 +6251,7 @@ async function lyMenuFlex(userId, meta, parsed) {
           action: {
             type: "message",
             label: "請老師解卦",
-            text: "關於八字/紫微/占卜",
+            text: "預約諮詢",
           },
         },
       ],
@@ -6348,7 +6348,7 @@ async function lyPartFlex(userId, meta, parsed, partKey) {
       action: {
         type: "message",
         label: "請老師解卦",
-        text: "預約",
+        text: "預約諮詢",
       },
     });
   }
