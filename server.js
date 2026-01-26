@@ -1531,7 +1531,7 @@ async function sendServiceIntroFlex(userId, serviceKey) {
           {
             type: "text",
             text:
-              "⚠️ 僅供娛樂與參考，非結果保證\n" +
+              "⚠️ 僅供參考，非結果保證\n" +
               "📌 付款完成並送出資料後即開始解析，恕不提供取消或退款\n",
             size: "xs",
             color: "#777777",
@@ -2881,6 +2881,200 @@ app.post("/api/admin/articles", requireAdmin, express.json(), (req, res) => {
     });
   }
 });
+
+//==========================================================
+// ✅ Articles 後台管理 API：更新文章（編輯內容/改狀態）
+// PATCH /api/admin/articles/:slug
+// 權限：requireAdmin
+//
+// body（可選欄位，帶什麼改什麼）：
+// - title
+// - description
+// - date（YYYY-MM-DD）
+// - tags（陣列）
+// - status（draft|published）
+// - content_json（Tiptap JSON）
+// - content_html（HTML）
+//
+// 行為：
+// 1) slug 不存在 → 404
+// 2) 寫入前備份：meta/json/html/index
+// 3) 更新 meta.updatedAt
+// 4) 若 status 改變：同步 robots（published => index,follow；draft => noindex,nofollow）
+// 5) 同步更新 index.json 對應 item（找 slug）
+//==========================================================
+app.patch(
+  "/api/admin/articles/:slug",
+  requireAdmin,
+  express.json(),
+  (req, res) => {
+    try {
+      /* =========================
+      【1】取 slug + 防呆
+    ========================== */
+      const slug = String(req.params.slug || "").trim();
+      if (!slug || !/^[a-z0-9\-_]+$/.test(slug)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "INVALID_SLUG" });
+      }
+
+      /* =========================
+      【2】檢查文章是否存在（以 meta.json 為主）
+    ========================== */
+      const metaPath = getArticleMetaPath(slug);
+      const jsonPath = getArticleJsonPath(slug);
+      const htmlPath = getArticleHtmlPath(slug);
+
+      if (!fs.existsSync(metaPath)) {
+        return res.status(404).json({ success: false, message: "NOT_FOUND" });
+      }
+
+      /* =========================
+      【3】讀取舊資料
+    ========================== */
+      const meta = readJsonSafe(metaPath, null) || {};
+      const oldJson = readJsonSafe(jsonPath, null);
+      const oldHtml = fs.existsSync(htmlPath)
+        ? fs.readFileSync(htmlPath, "utf-8")
+        : null;
+
+      /* =========================
+      【4】準備「允許更新」的欄位（白名單）
+    ========================== */
+      const nextTitle =
+        typeof req.body?.title === "string"
+          ? String(req.body.title).trim()
+          : meta.title;
+
+      const nextDescription =
+        typeof req.body?.description === "string"
+          ? String(req.body.description).trim()
+          : meta.description;
+
+      const nextDate =
+        typeof req.body?.date === "string" && req.body.date.trim()
+          ? req.body.date.trim()
+          : meta.date;
+
+      const nextTags = Array.isArray(req.body?.tags)
+        ? req.body.tags.map((t) => String(t).trim()).filter(Boolean)
+        : Array.isArray(meta.tags)
+          ? meta.tags
+          : [];
+
+      const nextStatusRaw =
+        typeof req.body?.status === "string"
+          ? req.body.status.trim()
+          : meta.status;
+
+      const nextStatus = nextStatusRaw === "published" ? "published" : "draft";
+
+      const nextContentJson =
+        req.body?.content_json && typeof req.body.content_json === "object"
+          ? req.body.content_json
+          : oldJson;
+
+      const nextContentHtml =
+        typeof req.body?.content_html === "string"
+          ? req.body.content_html
+          : oldHtml;
+
+      /* =========================
+      【5】最基本驗證
+    ========================== */
+      if (!nextTitle) {
+        return res
+          .status(400)
+          .json({ success: false, message: "TITLE_REQUIRED" });
+      }
+
+      /* =========================
+      【6】寫入前備份（讓你敢改）
+      - meta/json/html/index 都先備份
+    ========================== */
+      backupFileIfExists(metaPath, `patch_${slug}_meta`);
+      if (fs.existsSync(jsonPath))
+        backupFileIfExists(jsonPath, `patch_${slug}_json`);
+      if (fs.existsSync(htmlPath))
+        backupFileIfExists(htmlPath, `patch_${slug}_html`);
+      backupFileIfExists(ARTICLES_INDEX_PATH, `patch_${slug}_index`);
+
+      /* =========================
+      【7】更新 meta（含 SEO 欄位同步）
+    ========================== */
+      const nowIso = new Date().toISOString();
+
+      const nextMeta = {
+        ...meta,
+        title: nextTitle,
+        description: nextDescription,
+        date: nextDate,
+        tags: nextTags,
+        status: nextStatus,
+        updatedAt: nowIso,
+
+        // ✅ status 影響 robots（草稿避免被收錄）
+        robots:
+          nextStatus === "published" ? "index,follow" : "noindex,nofollow",
+
+        // ✅ OG 預設跟著 title/description 走（你之後可客製）
+        ogTitle: meta.ogTitle ? meta.ogTitle : nextTitle,
+        ogDescription: meta.ogDescription
+          ? meta.ogDescription
+          : nextDescription,
+
+        // ✅ canonical 若沒填過，就補預設
+        canonical: meta.canonical || `https://chen-yi.tw/articles/${slug}/`,
+      };
+
+      writeJsonPretty(metaPath, nextMeta);
+
+      /* =========================
+      【8】更新內容檔案（有帶才寫；沒帶就維持原狀）
+      - 這樣你可以只改 meta，不必每次都傳 content
+    ========================== */
+      if (nextContentJson && typeof nextContentJson === "object") {
+        writeJsonPretty(jsonPath, nextContentJson);
+      }
+      if (typeof nextContentHtml === "string") {
+        fs.writeFileSync(htmlPath, nextContentHtml, "utf-8");
+      }
+
+      /* =========================
+      【9】同步更新 index.json 對應那筆
+    ========================== */
+      const idx = loadArticlesIndex();
+      const items = Array.isArray(idx.items) ? [...idx.items] : [];
+
+      const nextItems = items.map((it) => {
+        if (it.slug !== slug) return it;
+        return {
+          ...it,
+          title: nextTitle,
+          description: nextDescription,
+          date: nextDate,
+          updatedAt: nowIso,
+          status: nextStatus,
+          tags: nextTags,
+          coverImage: nextMeta.coverImage || it.coverImage || "",
+        };
+      });
+
+      saveArticlesIndex({ items: nextItems }, `patch_${slug}`);
+
+      /* =========================
+      【10】回傳成功
+    ========================== */
+      return res.json({ success: true, slug });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: "PATCH_ARTICLE_FAILED",
+      });
+    }
+  },
+);
 
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
