@@ -3168,6 +3168,145 @@ app.delete("/api/admin/articles/:slug", requireAdmin, (req, res) => {
   }
 });
 
+/* ==========================================================
+  ✅ Public Articles API（前台用 / SEO 用）
+  目的：
+  - 前台文章列表 / 單篇文章「讀得到」你後台新增的文章
+  - 安全：只輸出 status=published 的文章
+  - 未來可擴充：tag 篩選、搜尋、sitemap、prerender 拉資料
+========================================================== */
+
+/* =========================
+  GET /api/articles
+  功能：
+  - 回傳文章索引（只含 published）
+  - 支援 query：tag / q（可選）
+  回傳：
+  - { items, total }
+========================= */
+app.get("/api/articles", async (req, res) => {
+  try {
+    /* =========================
+      【1】讀取索引檔 articles/index.json
+      - 來源：你現在已經在 VPS 生成的 articles/index.json
+    ========================== */
+    const fs = require("fs");
+    const path = require("path");
+
+    const ARTICLES_DIR = path.join(__dirname, "articles");
+    const indexPath = path.join(ARTICLES_DIR, "index.json");
+
+    if (!fs.existsSync(indexPath)) {
+      return res.json({ items: [], total: 0 });
+    }
+
+    const index = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    let items = Array.isArray(index.items) ? index.items : [];
+
+    /* =========================
+      【2】只給 published（關鍵）
+    ========================== */
+    items = items.filter((a) => a.status === "published");
+
+    /* =========================
+      【3】可選：tag 篩選
+    ========================== */
+    const tag = String(req.query.tag || "").trim();
+    if (tag) {
+      items = items.filter(
+        (a) => Array.isArray(a.tags) && a.tags.includes(tag),
+      );
+    }
+
+    /* =========================
+      【4】可選：q 搜尋（slug/title/description）
+    ========================== */
+    const q = String(req.query.q || "")
+      .trim()
+      .toLowerCase();
+    if (q) {
+      items = items.filter((a) => {
+        const s1 = String(a.slug || "").toLowerCase();
+        const s2 = String(a.title || "").toLowerCase();
+        const s3 = String(a.description || "").toLowerCase();
+        return s1.includes(q) || s2.includes(q) || s3.includes(q);
+      });
+    }
+
+    /* =========================
+      【5】回傳（列表頁只需要這些）
+    ========================== */
+    return res.json({
+      items,
+      total: items.length,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: String(err?.message || err || "ARTICLES_LIST_FAILED"),
+    });
+  }
+});
+
+/* =========================
+  GET /api/articles/:slug
+  功能：
+  - 回傳單篇文章（published 才給）
+  回傳：
+  - { meta, content_html, content_json }
+========================= */
+app.get("/api/articles/:slug", async (req, res) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+
+    const slug = String(req.params.slug || "").trim();
+    if (!slug) {
+      return res.status(400).json({ success: false, message: "BAD_SLUG" });
+    }
+
+    const ARTICLES_DIR = path.join(__dirname, "articles");
+    const articleDir = path.join(ARTICLES_DIR, slug);
+    const metaPath = path.join(articleDir, "meta.json");
+    const htmlPath = path.join(articleDir, "article.html");
+    const jsonPath = path.join(articleDir, "article.json");
+
+    /* =========================
+      【1】必須存在 meta.json 才算文章
+    ========================== */
+    if (!fs.existsSync(metaPath)) {
+      return res.status(404).json({ success: false, message: "NOT_FOUND" });
+    }
+
+    const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+
+    /* =========================
+      【2】只給 published（關鍵）
+    ========================== */
+    if (meta.status !== "published") {
+      return res.status(404).json({ success: false, message: "NOT_FOUND" });
+    }
+
+    /* =========================
+      【3】讀 HTML/JSON（沒有就給 fallback）
+    ========================== */
+    const content_html = fs.existsSync(htmlPath)
+      ? fs.readFileSync(htmlPath, "utf-8")
+      : "<p></p>";
+
+    const content_json = fs.existsSync(jsonPath)
+      ? JSON.parse(fs.readFileSync(jsonPath, "utf-8"))
+      : { type: "doc", content: [{ type: "paragraph" }] };
+
+    return res.json({ meta, content_html, content_json });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: String(err?.message || err || "ARTICLE_GET_FAILED"),
+    });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
