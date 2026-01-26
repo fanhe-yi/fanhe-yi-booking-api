@@ -3001,10 +3001,37 @@ app.patch(
       backupFileIfExists(ARTICLES_INDEX_PATH, `patch_${slug}_index`);
 
       /* =========================
-      【7】更新 meta（含 SEO 欄位同步）
-    ========================== */
+        【7】更新 meta（含 SEO 欄位同步）
+      ========================== */
       const nowIso = new Date().toISOString();
 
+      /* =========================
+        【7-1】published_at 自動補值（關鍵）
+        需求：
+        - PATCH 支援 status
+        - 當 status 變成 published 時，自動寫 published_at
+        策略：
+        - 只在「第一次發布」時寫入
+        - 若本來就有 published_at，就沿用（避免每次 PATCH 都洗時間）
+        - 若改回 draft，先不清掉 published_at（保留曾經發布過的時間）
+          ※ 之後你想做「下架就清空」也能再加
+      ========================== */
+      const prevPublishedAt =
+        meta?.published_at && typeof meta.published_at === "string"
+          ? meta.published_at
+          : null;
+
+      const nextPublishedAt =
+        nextStatus === "published"
+          ? prevPublishedAt || nowIso
+          : prevPublishedAt;
+
+      /* =========================
+        【7-2】組 nextMeta
+        - updatedAt：每次 PATCH 都更新
+        - published_at：只有在發布時補一次（上面算好的 nextPublishedAt）
+        - robots：依 status 同步（你原本就有）
+      ========================== */
       const nextMeta = {
         ...meta,
         title: nextTitle,
@@ -3017,6 +3044,9 @@ app.patch(
         // ✅ status 影響 robots（草稿避免被收錄）
         robots:
           nextStatus === "published" ? "index,follow" : "noindex,nofollow",
+
+        // ✅ 自動寫入 published_at（只補一次）
+        published_at: nextPublishedAt,
 
         // ✅ OG 預設跟著 title/description 走（你之後可客製）
         ogTitle: meta.ogTitle ? meta.ogTitle : nextTitle,
@@ -3058,6 +3088,11 @@ app.patch(
           status: nextStatus,
           tags: nextTags,
           coverImage: nextMeta.coverImage || it.coverImage || "",
+          /* =========================
+            【同步】列表也要有 published_at
+            - 不然你之後列表排序/篩選會缺欄位
+          ========================== */
+          published_at: nextMeta.published_at || it.published_at || null,
         };
       });
 
