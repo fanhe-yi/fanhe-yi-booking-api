@@ -2713,6 +2713,175 @@ app.get("/api/admin/articles/:slug", requireAdmin, (req, res) => {
   }
 });
 
+//==========================================================
+// ✅ Articles 後台管理 API：新增文章（建立草稿）
+// POST /api/admin/articles
+// 權限：requireAdmin
+//
+// body（JSON）：
+// - slug（必填）：英文小寫/數字/-/_
+// - title（必填）
+// - description（選填）
+// - date（選填，YYYY-MM-DD；不帶就用今天）
+// - tags（選填，陣列）
+// - status（選填，draft|published；預設 draft）
+// - content_json（選填，Tiptap JSON；預設空 doc）
+// - content_html（選填，HTML；預設空字串）
+//
+// 行為：
+// 1) 若 slug 已存在 → 409
+// 2) 建立 articles/<slug>/
+// 3) 寫 meta.json + article.json + article.html
+// 4) 更新 articles/index.json（新增一筆）
+// 5) 全程寫入前備份（index / 既有檔）
+//==========================================================
+app.post("/api/admin/articles", requireAdmin, express.json(), (req, res) => {
+  try {
+    /* =========================
+      【1】取 body 欄位
+    ========================== */
+    const slug = String(req.body?.slug || "").trim();
+    const title = String(req.body?.title || "").trim();
+    const description = String(req.body?.description || "").trim();
+
+    const date = String(req.body?.date || "").trim(); // optional
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const statusRaw = String(req.body?.status || "draft").trim();
+    const status = statusRaw === "published" ? "published" : "draft";
+
+    const content_json =
+      req.body?.content_json && typeof req.body.content_json === "object"
+        ? req.body.content_json
+        : {
+            /* =========================
+              【預設】空的 Tiptap doc
+            ========================== */
+            type: "doc",
+            content: [],
+          };
+
+    const content_html =
+      typeof req.body?.content_html === "string" ? req.body.content_html : "";
+
+    /* =========================
+      【2】基本驗證
+    ========================== */
+    if (!slug || !/^[a-z0-9\-_]+$/.test(slug)) {
+      return res.status(400).json({ success: false, message: "INVALID_SLUG" });
+    }
+    if (!title) {
+      return res
+        .status(400)
+        .json({ success: false, message: "TITLE_REQUIRED" });
+    }
+
+    /* =========================
+      【3】日期處理
+      - 不帶 date 就用今天（台灣時區用你目前策略：先用本機時間字串）
+      - 你若想嚴格用 Asia/Taipei，我們之後再統一（先讓功能跑）
+    ========================== */
+    const today = new Date().toISOString().slice(0, 10);
+    const finalDate = date || today;
+
+    /* =========================
+      【4】檢查是否已存在（以資料夾或 meta.json 是否存在為準）
+    ========================== */
+    const articleDir = getArticleDir(slug);
+    const metaPath = getArticleMetaPath(slug);
+    if (fs.existsSync(articleDir) || fs.existsSync(metaPath)) {
+      return res
+        .status(409)
+        .json({ success: false, message: "ALREADY_EXISTS" });
+    }
+
+    /* =========================
+      【5】建立資料夾結構
+    ========================== */
+    ensureDir(articleDir);
+    ensureDir(getArticleAssetsDir(slug));
+
+    /* =========================
+      【6】準備 meta（含 SEO 預留欄位）
+    ========================== */
+    const nowIso = new Date().toISOString();
+
+    const meta = {
+      /* =========================
+        基本欄位
+      ========================== */
+      slug,
+      title,
+      description,
+      date: finalDate,
+      updatedAt: nowIso,
+      status,
+      tags: tags.map((t) => String(t).trim()).filter(Boolean),
+
+      /* =========================
+        SEO 預留（先存著，之後再正式用）
+      ========================== */
+      canonical: `https://chen-yi.tw/articles/${slug}/`,
+      robots: status === "published" ? "index,follow" : "noindex,nofollow",
+      ogTitle: title,
+      ogDescription: description || "",
+      ogImage: "", // 之後若有封面圖可填
+      twitterCard: "summary_large_image",
+      lang: "zh-Hant",
+      schemaType: "Article",
+      authorName: "梵和易學",
+      publisherName: "梵和易學",
+      coverImage: "", // 之後可用
+    };
+
+    /* =========================
+      【7】寫入檔案（寫入前備份：雖然是新檔，這裡備份不會做事）
+    ========================== */
+    const jsonPath = getArticleJsonPath(slug);
+    const htmlPath = getArticleHtmlPath(slug);
+
+    // ✅ 寫 meta.json / article.json / article.html
+    writeJsonPretty(metaPath, meta);
+    writeJsonPretty(jsonPath, content_json);
+    fs.writeFileSync(htmlPath, content_html, "utf-8");
+
+    /* =========================
+      【8】更新 index.json（新增一筆）
+      - 只放「列表需要的欄位」，保持輕量
+    ========================== */
+    const idx = loadArticlesIndex();
+
+    const indexItem = {
+      slug,
+      title,
+      description,
+      date: finalDate,
+      updatedAt: nowIso,
+      status,
+      tags: meta.tags,
+      coverImage: meta.coverImage || "",
+    };
+
+    const nextIndex = {
+      items: [indexItem, ...(idx.items || [])],
+    };
+
+    saveArticlesIndex(nextIndex, `create_${slug}`);
+
+    /* =========================
+      【9】回傳成功
+    ========================== */
+    return res.json({
+      success: true,
+      slug,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "CREATE_ARTICLE_FAILED",
+    });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
