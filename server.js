@@ -3076,6 +3076,98 @@ app.patch(
   },
 );
 
+//==========================================================
+// ✅ Articles 後台管理 API：刪除文章（含備份）
+// DELETE /api/admin/articles/:slug
+// 權限：requireAdmin
+//
+// 行為：
+// 1) slug 不存在 → 404
+// 2) 刪除前先把 articles/<slug>/ 整包備份到 articles/_backups/
+// 3) 從 articles/index.json 移除該筆
+// 4) 刪除 articles/<slug>/ 資料夾
+//==========================================================
+app.delete("/api/admin/articles/:slug", requireAdmin, (req, res) => {
+  try {
+    /* =========================
+      【1】取 slug + 防呆
+    ========================== */
+    const slug = String(req.params.slug || "").trim();
+    if (!slug || !/^[a-z0-9\-_]+$/.test(slug)) {
+      return res.status(400).json({ success: false, message: "INVALID_SLUG" });
+    }
+
+    /* =========================
+      【2】確認文章資料夾存在
+    ========================== */
+    const articleDir = getArticleDir(slug);
+    const metaPath = getArticleMetaPath(slug);
+
+    if (!fs.existsSync(articleDir) && !fs.existsSync(metaPath)) {
+      return res.status(404).json({ success: false, message: "NOT_FOUND" });
+    }
+
+    /* =========================
+      【3】刪除前：整包備份（tar.gz）
+      - 目的：誤刪可救回
+      - 位置：articles/_backups/
+    ========================== */
+    ensureDir(ARTICLES_BACKUP_DIR);
+
+    const ts = getTs();
+    const backupTar = path.join(
+      ARTICLES_BACKUP_DIR,
+      `${ts}__article__${slug}.tgz`,
+    );
+
+    /* =========================
+      這裡用系統 tar 指令打包（Linux 上通常都有）
+      -C 進入 articles/ 再打包 slug 資料夾
+    ========================== */
+    try {
+      const { execSync } = require("child_process");
+      execSync(`tar -C "${ARTICLES_DIR}" -czf "${backupTar}" "${slug}"`);
+    } catch (e) {
+      // 若打包失敗，不繼續刪（避免你連備份都沒有）
+      return res.status(500).json({
+        success: false,
+        message: "BACKUP_BEFORE_DELETE_FAILED",
+      });
+    }
+
+    /* =========================
+      【4】更新 index.json（移除該筆）
+      - 寫入前先備份 index.json
+    ========================== */
+    const idx = loadArticlesIndex();
+    const items = Array.isArray(idx.items) ? idx.items : [];
+    const nextItems = items.filter((it) => it.slug !== slug);
+
+    // ✅ 備份 index
+    backupFileIfExists(ARTICLES_INDEX_PATH, `delete_${slug}_index`);
+    writeJsonPretty(ARTICLES_INDEX_PATH, { items: nextItems });
+
+    /* =========================
+      【5】刪除資料夾（遞迴）
+    ========================== */
+    fs.rmSync(articleDir, { recursive: true, force: true });
+
+    /* =========================
+      【6】回傳成功
+    ========================== */
+    return res.json({
+      success: true,
+      slug,
+      backup: path.basename(backupTar),
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "DELETE_ARTICLE_FAILED",
+    });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
