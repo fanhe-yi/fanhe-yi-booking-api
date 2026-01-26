@@ -1,5 +1,10 @@
 const express = require("express");
 const cors = require("cors");
+/* =========================
+  【Node 內建模組】
+  - fs：讀寫檔
+  - path：組路徑（避免 OS 差異）
+========================== */
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config(); //LINE env
@@ -22,6 +27,148 @@ const {
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
 } = require("./lineClient");
+
+/* ==========================================================
+  ✅ Articles - 檔案路徑與工具函式（先做工具，不先開 API）
+  目的：
+  1) articles 放在專案根目錄：./articles
+  2) index.json 維護文章列表（給前台列表 / prerender / sitemap 用）
+  3) 每次寫入前自動備份（跟 prompts 同一套思路：敢改、可回滾）
+  【articles 根目錄】
+  - process.cwd()：以「執行 server.js 的專案根」為基準
+  - 你要求：articles 與 prompts 同層、放根目錄
+========================== */
+const ARTICLES_DIR = path.join(process.cwd(), "articles");
+const ARTICLES_BACKUP_DIR = path.join(ARTICLES_DIR, "_backups");
+const ARTICLES_INDEX_PATH = path.join(ARTICLES_DIR, "index.json");
+
+/* =========================
+  【工具】確保資料夾存在
+========================== */
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+/* =========================
+  【工具】安全讀 JSON（檔案不存在就回 fallback）
+========================== */
+function readJsonSafe(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    // ⚠️ 讀檔/JSON 壞掉時，回 fallback，避免整個 API 掛掉
+    return fallback;
+  }
+}
+
+/* =========================
+  【工具】寫 JSON（格式化，方便你 git diff / 讀檔）
+========================== */
+function writeJsonPretty(filePath, data) {
+  const raw = JSON.stringify(data, null, 2);
+  fs.writeFileSync(filePath, raw, "utf-8");
+}
+
+/* =========================
+  【工具】產生時間戳（用於備份檔名）
+  格式：YYYYMMDD_HHMMSS
+========================== */
+function getTs() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    d.getFullYear() +
+    pad(d.getMonth() + 1) +
+    pad(d.getDate()) +
+    "_" +
+    pad(d.getHours()) +
+    pad(d.getMinutes()) +
+    pad(d.getSeconds())
+  );
+}
+
+/* =========================
+  【工具】備份檔案（寫入前先備份）
+  - 目的：任何更新都可回滾
+  - 存放：articles/_backups/
+========================== */
+function backupFileIfExists(filePath, note = "") {
+  if (!fs.existsSync(filePath)) return;
+
+  ensureDir(ARTICLES_BACKUP_DIR);
+
+  const ts = getTs();
+  const base = path.basename(filePath);
+
+  // ✅ 備份檔名：<ts>__<base>__<note>.bak
+  const safeNote = String(note || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_\-\.]/g, "")
+    .slice(0, 40);
+
+  const backupName = safeNote
+    ? `${ts}__${base}__${safeNote}.bak`
+    : `${ts}__${base}.bak`;
+
+  const backupPath = path.join(ARTICLES_BACKUP_DIR, backupName);
+
+  fs.copyFileSync(filePath, backupPath);
+}
+
+/* =========================
+  【工具】讀取文章索引 index.json
+  - 統一回傳格式：{ items: [] }
+========================== */
+function loadArticlesIndex() {
+  ensureDir(ARTICLES_DIR);
+
+  const idx = readJsonSafe(ARTICLES_INDEX_PATH, { items: [] });
+
+  // ✅ 防呆：確保 items 一定是陣列
+  if (!idx || !Array.isArray(idx.items)) return { items: [] };
+  return idx;
+}
+
+/* =========================
+  【工具】保存文章索引 index.json（保存前先備份）
+========================== */
+function saveArticlesIndex(nextIndex, note = "index_save") {
+  ensureDir(ARTICLES_DIR);
+
+  // ✅ 寫入前備份，避免手滑改爆
+  backupFileIfExists(ARTICLES_INDEX_PATH, note);
+
+  writeJsonPretty(ARTICLES_INDEX_PATH, nextIndex);
+}
+
+/* =========================
+  【工具】取得單篇文章路徑（每篇一個資料夾）
+  articles/<slug>/
+    - meta.json
+    - article.json
+    - article.html
+    - assets/（圖片）
+========================== */
+function getArticleDir(slug) {
+  return path.join(ARTICLES_DIR, slug);
+}
+function getArticleMetaPath(slug) {
+  return path.join(getArticleDir(slug), "meta.json");
+}
+function getArticleJsonPath(slug) {
+  return path.join(getArticleDir(slug), "article.json");
+}
+function getArticleHtmlPath(slug) {
+  return path.join(getArticleDir(slug), "article.html");
+}
+function getArticleAssetsDir(slug) {
+  return path.join(getArticleDir(slug), "assets");
+}
 
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
@@ -2397,6 +2544,102 @@ app.get("/api/admin/prompts/backups/download", requireAdmin, (req, res) => {
     res.sendFile(fullPath);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+//==========================================================
+// ✅ Articles 後台管理 API：文章列表（含 tag 篩選 / 關鍵字搜尋 / 狀態篩選）
+// GET /api/admin/articles
+// 權限：requireAdmin
+//
+// Query（可選）：
+// - q=關鍵字（搜尋 title / description / slug）
+// - tag=單一 tag（例如：紫微 / 八字 / 姓名學 / 風水 / 隨筆 / 觀念）
+// - status=draft|published（不帶就全列）
+//
+// 回傳：{ items, total }
+// - items 會是 index.json 的 items（再經過篩選/排序）
+//==========================================================
+app.get("/api/admin/articles", requireAdmin, (req, res) => {
+  try {
+    /* =========================
+      【1】讀取文章索引
+      - 來源：articles/index.json
+      - 格式：{ items: [...] }
+    ========================== */
+    const idx = loadArticlesIndex();
+
+    /* =========================
+      【2】取 query（都當字串處理）
+    ========================== */
+    const q = String(req.query.q || "").trim();
+    const tag = String(req.query.tag || "").trim();
+    const status = String(req.query.status || "").trim(); // draft / published
+
+    /* =========================
+      【3】開始篩選
+      - 先複製陣列，避免直接改到原始資料
+    ========================== */
+    let items = Array.isArray(idx.items) ? [...idx.items] : [];
+
+    /* =========================
+      【3-1】status 篩選（可選）
+    ========================== */
+    if (status === "draft" || status === "published") {
+      items = items.filter((it) => it.status === status);
+    }
+
+    /* =========================
+      【3-2】tag 篩選（可選）
+      - 你未來要「只看紫微」就是用這個
+      - tag 以「完全相等」為準（避免模糊命中）
+    ========================== */
+    if (tag) {
+      items = items.filter(
+        (it) => Array.isArray(it.tags) && it.tags.includes(tag),
+      );
+    }
+
+    /* =========================
+      【3-3】q 關鍵字搜尋（可選）
+      - 搜 slug/title/description
+      - 全部轉小寫做 contains
+    ========================== */
+    if (q) {
+      const qq = q.toLowerCase();
+      items = items.filter((it) => {
+        const slug = String(it.slug || "").toLowerCase();
+        const title = String(it.title || "").toLowerCase();
+        const desc = String(it.description || "").toLowerCase();
+        return slug.includes(qq) || title.includes(qq) || desc.includes(qq);
+      });
+    }
+
+    /* =========================
+      【4】排序（預設：最新在前）
+      - 優先用 updatedAt，再退回 date
+    ========================== */
+    items.sort((a, b) => {
+      const at = Date.parse(a.updatedAt || a.date || 0) || 0;
+      const bt = Date.parse(b.updatedAt || b.date || 0) || 0;
+      return bt - at;
+    });
+
+    /* =========================
+      【5】回傳
+    ========================== */
+    return res.json({
+      items,
+      total: items.length,
+    });
+  } catch (err) {
+    /* =========================
+      【錯誤處理】避免把內部細節直接噴給前端
+    ========================== */
+    return res.status(500).json({
+      success: false,
+      message: "LIST_ARTICLES_FAILED",
+    });
   }
 });
 

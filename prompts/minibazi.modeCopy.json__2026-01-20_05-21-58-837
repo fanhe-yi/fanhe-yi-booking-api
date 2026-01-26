@@ -1,0 +1,10 @@
+{
+  "year": {
+    "focusText": "（你改的）",
+    "timePhraseHint": "（你改的）"
+  },
+  "default": {
+    "focusText": "",
+    "timePhraseHint": ""
+  }
+}
