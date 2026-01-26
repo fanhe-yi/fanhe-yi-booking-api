@@ -2643,6 +2643,76 @@ app.get("/api/admin/articles", requireAdmin, (req, res) => {
   }
 });
 
+//==========================================================
+// ✅ Articles 後台管理 API：讀取單篇文章（meta + json + html）
+// GET /api/admin/articles/:slug
+// 權限：requireAdmin
+//
+// 回傳：{ meta, content_json, content_html }
+// - meta：articles/<slug>/meta.json
+// - content_json：articles/<slug>/article.json（Tiptap 原文）
+// - content_html：articles/<slug>/article.html（快照）
+//==========================================================
+app.get("/api/admin/articles/:slug", requireAdmin, (req, res) => {
+  try {
+    /* =========================
+      【1】取 slug（必要）
+    ========================== */
+    const slug = String(req.params.slug || "").trim();
+
+    /* =========================
+      【2】基本防呆：slug 不允許奇怪字元（避免路徑穿越）
+      - 允許：英數、小寫、-、_
+    ========================== */
+    if (!/^[a-z0-9\-_]+$/.test(slug)) {
+      return res.status(400).json({
+        success: false,
+        message: "INVALID_SLUG",
+      });
+    }
+
+    /* =========================
+      【3】組檔案路徑
+    ========================== */
+    const metaPath = getArticleMetaPath(slug);
+    const jsonPath = getArticleJsonPath(slug);
+    const htmlPath = getArticleHtmlPath(slug);
+
+    /* =========================
+      【4】讀檔（不存在就回 null / fallback）
+    ========================== */
+    const meta = readJsonSafe(metaPath, null);
+    const content_json = readJsonSafe(jsonPath, null);
+    const content_html = fs.existsSync(htmlPath)
+      ? fs.readFileSync(htmlPath, "utf-8")
+      : null;
+
+    /* =========================
+      【5】若三個都不存在，視為找不到文章
+    ========================== */
+    if (!meta && !content_json && !content_html) {
+      return res.status(404).json({
+        success: false,
+        message: "NOT_FOUND",
+      });
+    }
+
+    /* =========================
+      【6】回傳
+    ========================== */
+    return res.json({
+      meta,
+      content_json,
+      content_html,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "GET_ARTICLE_FAILED",
+    });
+  }
+});
+
 // ✅ LIFF 分享頁：用來跳 Threads 分享（Flex 只能用 https，所以先進 LIFF 再跳外部）
 app.get("/liff/share", (req, res) => {
   const liffId = process.env.LIFF_ID_SHARE || "";
