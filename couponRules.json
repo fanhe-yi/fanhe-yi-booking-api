@@ -18,5 +18,15 @@
     "feature": "minibazi",
     "add": 3,
     "expireAt": "2026-12-31"
+  },
+  "HAPPY2026": {
+    "feature": "minibazi",
+    "add": 1,
+    "expireAt": "2026-12-31"
+  },
+  "HAPPY105": {
+    "feature": "liuyao",
+    "add": 1,
+    "expireAt": "2026-12-31"
   }
 }
