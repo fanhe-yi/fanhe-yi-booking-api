@@ -7061,11 +7061,13 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
   const sixLinesText = describeSixLines(hexData);
 
   // 4) Prompt（不提用神，讓 AI 自己抓重點）
-  const systemPrompt =
+  /*   const systemPrompt =
     "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。\n" +
     "請用一般人聽得懂的方式解讀，不要塞六爻術語。\n" +
     "結論分段輸出①過去 ②現在 ③未來（可加一句總結）。\n" +
-    "整體不要超過1000中文字。";
+    "整體不要超過1000中文字。"; */
+  const systemPrompt =
+    "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。\n" + "";
 
   const userPrompt =
     `你是一個六爻解卦大師\n` +
