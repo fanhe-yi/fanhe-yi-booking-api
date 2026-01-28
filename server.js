@@ -252,6 +252,15 @@ async function adminLogDB(level, tag, message, options = {}) {
   }
 }
 
+/***************************************
+ * ✅ 管理員（解卦結果只送這裡）
+ * - 優先讀環境變數 ADMIN_LIUYAO_USER_ID
+ * - 沒設定就退回預設值（避免你忘了設就整個爆）
+ ***************************************/
+const ADMIN_LIUYAO_USER_ID =
+  (process.env.ADMIN_LIUYAO_USER_ID || "").trim() ||
+  "Ufa29cf2bdc617cc676d7900907dbfe1b";
+
 // ==========================
 // ✅ 綠界：工具（單號 + CheckMacValue）
 // 用途：導轉付款需要簽章；ReturnURL 也要驗證簽章
