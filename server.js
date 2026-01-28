@@ -4246,13 +4246,23 @@ async function routePostback(userId, data) {
       return;
     }
 
+    /***************************************
+     * ✅ 六爻：開始後先收「主題文字」
+     * - 不給選單
+     * - 客戶輸入的 text 就是 topicLabel
+     ***************************************/
     if (service === "liuyao") {
       conversationStates[userId] = {
         mode: "liuyao",
-        stage: "wait_topic",
+        stage: "wait_topic_input",
         data: {},
       };
-      await sendLiuYaoMenuFlex(userId);
+
+      await pushText(
+        userId,
+        "好，開始起卦。\n\n請你用一句話輸入「這次想問的主題/問題」\n例如：\n- 這段曖昧會不會成？\n- 我該不該換工作？\n- 這筆合作能不能談成？\n\n⚠️ 一卦只問一件事，越清楚越準。",
+      );
+
       return;
     }
 
@@ -4505,6 +4515,7 @@ async function routePostback(userId, data) {
   }
 
   // ⭐ 六爻：選主題（感情 / 事業 / 財運 / 健康）
+  //此功能已改版，請直接輸入主題
   if (action === "liuyao_topic") {
     const state = getState();
 
@@ -4652,14 +4663,18 @@ async function routePostback(userId, data) {
       // collect_yao_notice 是你既有的 stage 名稱，保留兼容
     }
 
-    const topicLabel =
+    /* const topicLabel =
       currState.data.topic === "love"
         ? "感情"
         : currState.data.topic === "career"
           ? "事業"
           : currState.data.topic === "wealth"
             ? "財運"
-            : "健康";
+            : "健康"; */
+    /***************************************
+     * ✅ 改：主題直接用客戶輸入 topicLabel
+     ***************************************/
+    const topicLabel = (currState.data?.topicLabel || "這件事情").trim();
 
     currState.stage = "wait_spelled";
     conversationStates[userId] = currState;
@@ -4723,31 +4738,36 @@ async function routePostback(userId, data) {
       return;
     }
 
+    /***************************************
+     * ✅ 退神完成：不送解卦內容給客戶
+     * - AI 還沒回來：請稍後再按
+     * - AI 已回來：告知已送老師、結束流程
+     ***************************************/
     const aiText = currState.data?.pendingAiText;
+
     if (!aiText) {
-      await pushText(
-        userId,
-        "我這邊還在整理內容，稍等3分鐘再按一次「退神完成」也可以～在等待期間請別使用其他服務，以免卦飛走～",
-      );
+      /* 收束落款 */
+      await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
       return;
     }
 
-    /* 1) 解析 AI 文本 -> past/now/future/summary */
-    const parsed = lyParse(aiText);
+    // ✅ 如果因故尚未送到管理員，這裡補送一次
+    if (!currState.data?.adminSent) {
+      const topicLabel = (currState.data?.topicLabel || "這件事情").trim();
+      const genderLabel = currState.data?.gender === "female" ? "女命" : "男命";
 
-    /* 2) 存 cache：讓使用者可以點章節 */
-    const meta = {
-      topicLabel: LIU_YAO_TOPIC_LABEL?.[currState.data?.topic] || "感情",
-      genderLabel: currState.data?.gender === "female" ? "女命" : "男命",
-      bengua: currState.data?.hexData?.bengua || "",
-      biangua: currState.data?.hexData?.biangua || "",
-    };
-    lySave(userId, { meta, parsed });
+      const adminMsg =
+        `【六爻新單（補送）】\n` +
+        `userId：${userId}\n` +
+        `提問：${topicLabel}\n` +
+        `性別：${genderLabel}\n` +
+        `本卦：${currState.data?.hexData?.bengua || "（缺）"}\n` +
+        `變卦：${currState.data?.hexData?.biangua || "（缺）"}\n\n` +
+        `【AI 解卦】\n${aiText}`;
 
-    /* 3) 丟總覽頁 */
-    await lyMenuFlex(userId, meta, parsed);
+      await pushText(ADMIN_LIUYAO_USER_ID, adminMsg);
+    }
 
-    /* 4) 收束落款 */
     await pushText(userId, "卦已立，神已退。\n言盡於此，願你心定路明。");
 
     delete conversationStates[userId];
@@ -4908,9 +4928,37 @@ async function routePostback(userId, data) {
 
       const { aiText } = await callLiuYaoAI({
         genderText: currState.data.gender === "female" ? "女命" : "男命",
-        topicText: LIU_YAO_TOPIC_LABEL[currState.data.topic] || "感情",
+        topicText: (currState.data?.topicLabel || "這件事情").trim(),
         hexData: currState.data.hexData,
       });
+
+      /***************************************
+       * ✅ 結果只送管理員，不回客戶
+       ***************************************/
+      const topicLabel = (currState.data?.topicLabel || "這件事情").trim();
+      const genderLabel = currState.data?.gender === "female" ? "女命" : "男命";
+
+      const adminMsg =
+        `【六爻新單】\n` +
+        `userId：${userId}\n` +
+        `提問：${topicLabel}\n` +
+        `性別：${genderLabel}\n` +
+        `本卦：${currState.data?.hexData?.bengua || "（缺）"}\n` +
+        `變卦：${currState.data?.hexData?.biangua || "（缺）"}\n\n` +
+        `【AI 解卦】\n${aiText}`;
+
+      await pushText(ADMIN_LIUYAO_USER_ID, adminMsg);
+
+      /* ✅ 標記已送出，避免重複送 */
+      currState.data.adminSent = true;
+      currState.data.pendingAiText = aiText; // 你要保險可留著（以防重送）
+      conversationStates[userId] = currState;
+
+      /* ✅ 客戶只收到確認，不給內容 */
+      await pushText(
+        userId,
+        "好，卦已成。\n我已把這卦的內容送到老師那邊了。\n你可以完成退神流程，老師會再回覆你後續安排。",
+      );
 
       // ✅ 結果先存起來，等退神完成再送
       currState.data.pendingAiText = aiText;
@@ -6040,6 +6088,33 @@ async function handleLiuYaoFlow(userId, text, state, event) {
 
   const trimmed = (text || "").trim();
 
+  /***************************************
+   * ✅ 六爻：等待使用者輸入「主題文字」
+   ***************************************/
+  if (state.stage === "wait_topic_input") {
+    if (!trimmed) {
+      await pushText(
+        userId,
+        "主題不要空白啦 😅\n請用一句話描述你要問的事（越具體越好）。",
+      );
+      return true;
+    }
+
+    // ✅ 客戶輸入的文字就是主題
+    state.data.topicLabel = trimmed;
+
+    // ✅ 下一步：走你原本的性別流程（用按鈕）
+    state.stage = "wait_gender";
+    conversationStates[userId] = state;
+
+    await sendGenderSelectFlex(userId, {
+      title: "六爻占卜 · 性別選擇",
+      actionName: "liuyao_gender",
+    });
+
+    return true;
+  }
+
   // 0) 問「男占 / 女占」
   if (state.stage === "wait_gender") {
     let gender = null;
@@ -6474,7 +6549,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
 // 目的：不再 pushText 長篇，改成送「使用說明 Bubble」
 // ============================
 async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
-  const topic = state?.data?.topic || "general";
+  /*   const topic = state?.data?.topic || "general";
   const topicLabel =
     topic === "love"
       ? "感情"
@@ -6484,7 +6559,12 @@ async function sendLiuYaoNoticeAndAskFirstYao(userId, state) {
           ? "財運"
           : topic === "health"
             ? "健康"
-            : "這件事情";
+            : "這件事情"; */
+
+  /***************************************
+   * ✅ 改：主題直接用客戶輸入 topicLabel
+   ***************************************/
+  const topicLabel = (state?.data?.topicLabel || "這件事情").trim();
 
   // ✅ 設定流程節點：等待靜心按鈕
   state.stage = "wait_calm";
@@ -6940,11 +7020,10 @@ function inferUseGod({ topicText, genderText }) {
   return "";
 }
 
-////呼叫AI收六爻
-async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
-  // 0) 用神（有傳就用；沒傳就推導）
-  const finalUseGodText =
-    useGodText || inferUseGod({ topicText, genderText }) || "用神";
+/***************************************
+ * ✅ 呼叫AI收六爻（改版：不推用神，交給AI自行判斷）
+ ***************************************/
+async function callLiuYaoAI({ genderText, topicText, hexData }) {
   // 1) 基本資料
   const gzArr = (hexData && hexData.ganzhi) || [];
   const gzLabels = ["年", "月", "日", "時"];
@@ -6956,8 +7035,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
           .join("，")
       : "（干支資料缺失）";
 
-  // 2) 旺相休囚死 + 月破（你現在做的函式）
-  // 期望回傳例如：{ text: "木相，火死，土囚，金休，水旺，巳，月破" }
+  // 2) 旺相休囚死 + 月破
   let phaseText = "";
   try {
     const phase = buildElementPhase(gzArr);
@@ -6966,44 +7044,34 @@ async function callLiuYaoAI({ genderText, topicText, hexData, useGodText }) {
     phaseText = "";
   }
 
-  // 2.5) 旬空（你規則：只取第三個）
+  // 2.5) 旬空（只取第三個）
   const xk = Array.isArray(hexData?.xunkong) ? hexData.xunkong[2] : "";
   const xkText = xk ? `旬空：${xk}空` : "";
 
   // 3) 六爻六條逐行
-  const sixLinesText = describeSixLines(hexData); // 你已經做好了
+  const sixLinesText = describeSixLines(hexData);
 
-  // 4) System / User prompt
+  // 4) Prompt（不提用神，讓 AI 自己抓重點）
   const systemPrompt =
     "你是一個六爻解卦大師，講話要務實、清楚、有條理，不宿命論、不恐嚇。\n" +
-    //"解讀時要先抓用神與世應、動爻、空亡、回頭生剋、伏藏等重點，再回到提問主題給建議。\n" +
-    //"可以分段輸出：①卦象總評 ②用神狀態 ③趨勢與時間感 ④具體建議。";
-    "結論分段輸出①過去 ②現在 ③未來\n" +
-    "並拿掉六爻的專業術語，可以比較嘴炮風又帶親切的回覆\n" +
-    "整體不要超過1000中文字";
+    "請用一般人聽得懂的方式解讀，不要塞六爻術語。\n" +
+    "結論分段輸出①過去 ②現在 ③未來（可加一句總結）。\n" +
+    "整體不要超過1000中文字。";
 
   const userPrompt =
     `你是一個六爻解卦大師\n` +
     `今天有${genderText}\n` +
-    `主題：${topicText}\n` +
+    `提問：${topicText}\n` +
     `本卦：${hexData?.bengua || "（缺）"}\n` +
     `變卦：${hexData?.biangua || "（缺）"}\n` +
     `${gzText}\n` +
     (phaseText ? `${phaseText}\n` : "") +
     (xkText ? `${xkText}\n` : "") +
     `\n` +
-    //`六爻逐行說明如下：\n` +
     `${sixLinesText}\n` +
     `\n` +
-    `${genderText}${topicText}\n` +
-    `以${finalUseGodText}為用神\n` +
-    `請你解卦,最後請以繁體中文回覆`;
+    `請直接根據提問與卦象給出建議，最後以繁體中文回覆。`;
 
-  // ✅ 想先人工檢查 prompt 就打開這兩行
-  //console.log("[liuyao] systemPrompt:\n", systemPrompt);
-  //console.log("[liuyao] userPrompt:\n", userPrompt);
-
-  // 5) Call AI
   const aiText = await AI_Reading(userPrompt, systemPrompt);
 
   return { aiText, userPrompt, systemPrompt };
