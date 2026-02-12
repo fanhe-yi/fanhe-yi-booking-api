@@ -381,56 +381,6 @@ function getDoorByQuestionType(type) {
 
 /* 
 ==========================================================
-✅ 工具：建立 AI Prompt（只組字串，不呼叫 AI）
-==========================================================
-*/
-function buildAiPrompt({
-  userQuestion,
-  qType,
-  useDoor,
-  doorInfo,
-  obsSummary,
-  obsHasVoid,
-  qimen,
-  voidPalaces,
-}) {
-  const doorPalace = doorInfo?.["宮位"];
-  const doorHasVoid = doorPalace ? voidPalaces.includes(doorPalace) : false;
-
-  return `
-你是一位擅長用白話解釋的奇門遁甲老師。
-請根據以下盤面資料，回答使用者問題。回答必須：
-1) 只用白話，不要教科書術語堆疊
-2) 直接給結論 + 2~4 個理由
-3) 給 2 個可執行建議
-4) 全文不要超過 180 字
-5) 若出現「旬空」，請解釋成：變數、延遲、容易落空、需要再確認
-
-【使用者問題】
-${userQuestion}
-
-【自動判定】
-類型：${qType}
-用神門：${useDoor}
-
-【值符觀測宮摘要】
-${obsSummary}
-（值符觀測宮旬空：${obsHasVoid ? "是" : "否"}）
-
-【用神門落宮資訊】
-${doorInfo ? `${doorInfo["八神"]}+${doorInfo["九星"]}+${doorInfo["八門"]}｜落${doorInfo["宮位"]}` : "找不到用神門落宮資訊"}
-（用神宮旬空：${doorHasVoid ? "是" : "否"}）
-
-【旬首與空亡】
-旬首：${qimen["旬首"]}
-空亡宮位：${voidPalaces.join("、") || "無"}
-
-請開始回答：
-`.trim();
-}
-
-/* 
-==========================================================
 ✅ 對外主函式：輸入問題 → 回傳「給 AI/給 LINE 用」的 payload
 目的：
 - server.js 不要碰細節，只要拿這包就能做後續動作
@@ -472,17 +422,26 @@ function buildQimenPayloadFromQuestion(userQuestion) {
     voidPalaces,
   });
 
+  /* ✅ 回傳 payload（不組 prompt，prompt 交給 qimenPrompts） */
   return {
     userQuestion,
     qType,
     useDoor,
+
+    /* ✅ 盤資料 */
+    qimen, // 讓 prompt builder 取旬首等資料
+
+    /* ✅ 核心與摘要 */
     core,
     obsSummary,
     obsHasVoid,
+
+    /* ✅ 空亡 */
     voidBranches,
     voidPalaces,
+
+    /* ✅ 用神門落宮 */
     doorInfo,
-    prompt,
   };
 }
 
