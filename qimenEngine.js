@@ -214,6 +214,7 @@ function classifyQuestion(text) {
         "感情",
         "婚姻",
         "結婚",
+        "喜歡",
         "離婚",
         "桃花",
         "對的人",
@@ -366,14 +367,14 @@ function classifyQuestion(text) {
 */
 function getDoorByQuestionType(type) {
   const map = {
-    感情: "休門",
-    工作: "開門",
-    財運: "生門",
-    運勢: "景門",
-    家庭: "休門",
-    不動產: "開門",
-    命名: "景門",
-    健康: "死門",
+    感情: ["休門"],
+    工作: ["開門"],
+    財運: ["生門"],
+    運勢: ["景門", "開門", "杜門"], // ✅ 只有運勢三門
+    家庭: ["休門"],
+    不動產: ["開門"],
+    命名: ["景門"],
+    健康: ["死門"],
   };
 
   return map[type] || "開門";
@@ -407,14 +408,43 @@ function buildQimenPayloadFromQuestion(userQuestion) {
 
   /* ✅ 自動分類 → 用神門 → 用神門落宮資訊 */
   const qType = classifyQuestion(userQuestion);
-  const useDoor = getDoorByQuestionType(qType);
-  const doorInfo = findDoorPalace(qimen, useDoor);
+  /* 
+  ----------------------------------------------------------
+  ✅ 用神門：支援陣列（只有運勢會有三門）
+  目的：
+  - useDoors：永遠是陣列
+  - doorInfos：把每一門的落宮資訊都找出來
+  ----------------------------------------------------------
+  */
+  const useDoors = getDoorByQuestionType(qType);
+
+  /* 
+  ----------------------------------------------------------
+  ✅ 逐門找落宮資訊
+  注意：
+  - findDoorPalace 回傳 null 表示找不到（理論上不該發生，但防呆）
+  ----------------------------------------------------------
+  */
+  const doorInfos = useDoors
+    .map((doorName) => {
+      const info = findDoorPalace(qimen, doorName);
+      return info
+        ? {
+            門: doorName,
+            ...info,
+          }
+        : null;
+    })
+    .filter(Boolean);
+
+  /* 
 
   /* ✅ 回傳 payload（不組 prompt，prompt 交給 qimenPrompts） */
   return {
     userQuestion,
     qType,
-    useDoor,
+    useDoors,
+    doorInfos,
 
     /* ✅ 盤資料 */
     qimen, // 讓 prompt builder 取旬首等資料
@@ -427,9 +457,6 @@ function buildQimenPayloadFromQuestion(userQuestion) {
     /* ✅ 空亡 */
     voidBranches,
     voidPalaces,
-
-    /* ✅ 用神門落宮 */
-    doorInfo,
   };
 }
 
