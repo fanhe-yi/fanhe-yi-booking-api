@@ -200,6 +200,7 @@ function classifyQuestion(text) {
       keywords: [
         "復合",
         "前任",
+        "回來",
         "重新聯絡",
         "聯絡我",
         "曖昧",
