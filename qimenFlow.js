@@ -86,7 +86,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
       `用神門落宮：${payload.doorInfo?.["宮位"] || "?"}\n` +
       `盤面摘要：${payload.obsSummary}`;
 
-    await pushText(userId, msg);
+    //await pushText(userId, msg);
 
     /* 
     ----------------------------------------------------------
@@ -101,7 +101,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
 
     await pushText(
       userId,
-      "如果要我直接解盤回覆，輸入：開始解盤\n（或輸入「取消」退出）",
+      "如果要我直接解盤\n輸入：開始解盤\n（或輸入「取消」退出）",
     );
     return true;
   }
@@ -189,7 +189,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
       delete conversationStates[userId];
 
       /* ✅ 可選：丟一句收尾 */
-      await pushText(userId, "如果你想再問一題，直接輸入：奇門問事");
+      //await pushText(userId, "如果你想再問一題，直接輸入：奇門問事");
 
       return true;
     }
