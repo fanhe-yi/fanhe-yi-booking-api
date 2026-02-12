@@ -410,18 +410,6 @@ function buildQimenPayloadFromQuestion(userQuestion) {
   const useDoor = getDoorByQuestionType(qType);
   const doorInfo = findDoorPalace(qimen, useDoor);
 
-  /* ✅ Prompt（先不呼叫 AI） */
-  const prompt = buildAiPrompt({
-    userQuestion,
-    qType,
-    useDoor,
-    doorInfo,
-    obsSummary,
-    obsHasVoid,
-    qimen,
-    voidPalaces,
-  });
-
   /* ✅ 回傳 payload（不組 prompt，prompt 交給 qimenPrompts） */
   return {
     userQuestion,
