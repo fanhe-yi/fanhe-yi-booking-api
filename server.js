@@ -195,7 +195,7 @@ const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 ✅ Qimen Flow（奇門問事）
 ==========================================================
 */
-const { handleQimenFlow } = require("./flows/qimenFlow.js");
+const { handleQimenFlow } = require("./qimenFlow.js");
 
 /* 
   ✅ 後台 Admin API 也需要查 Postgres
