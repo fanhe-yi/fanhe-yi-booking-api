@@ -191,6 +191,13 @@ const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
 const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
 
 /* 
+==========================================================
+✅ Qimen Flow（奇門問事）
+==========================================================
+*/
+const { handleQimenFlow } = require("./flows/qimenFlow.js");
+
+/* 
   ✅ 後台 Admin API 也需要查 Postgres
   - 你專案已經把 pg Pool 集中在 ./db（accessStore.pg.js 也這樣用）
   - 所以 server.js 也用同一個 pool，不要再 require("pg") / new Pool
@@ -4083,7 +4090,7 @@ async function routeGeneralCommands(userId, text) {
 
   // 2) 八字格局解析（原本「八字測算 / 小占卜」）
   // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
-  if (text === "八字測算" || text === "小占卜" || text === "八字格局解析") {
+  if (text === "八字測算" || text === "八字格局解析") {
     await sendServiceIntroFlex(userId, "minibazi");
     return;
   }
@@ -4101,6 +4108,28 @@ async function routeGeneralCommands(userId, text) {
     await sendServiceIntroFlex(userId, "liuyao");
     return;
   }
+
+  /* 
+  ==========================================================
+  ✅ 5) 奇門問事解析
+  目的：
+  - 使用者輸入「奇門問事」→ 進入 qimen 模式
+  ==========================================================
+  */
+  if (text === "奇門問事" || text === "奇門" || text === "qimen") {
+    conversationStates[userId] = {
+      mode: "qimen",
+      stage: "waiting_question",
+      data: {},
+    };
+
+    await pushText(
+      userId,
+      "好，開始奇門問事。\n\n請直接輸入你想問的一句話：\n例如：\n- 換工作好嗎\n- 他會回來找我嗎\n- 身體健康嗎\n\n（輸入「取消」可退出）",
+    );
+    return;
+  }
+
   /* 
   ==========================================================
   ✅ 使用者輸入文字：記錄到 admin_logs
@@ -4155,6 +4184,23 @@ async function routeByConversationState(userId, text, state, event) {
   // 新增：六爻占卜
   if (mode === "liuyao") {
     return await handleLiuYaoFlow(userId, text, state, event);
+  }
+
+  /* 
+  ==========================================================
+  ✅ 新增：奇門遁甲流程 115.02.12
+  目的：
+  - 使用者進入 qimen 模式後，所有文字輸入都交給 handleQimenFlow
+  ==========================================================
+  */
+  if (mode === "qimen") {
+    return await handleQimenFlow(
+      userId,
+      text,
+      state,
+      event,
+      conversationStates,
+    );
   }
   // 其他未支援的 mode
   return false;
@@ -4885,6 +4931,8 @@ async function routePostback(userId, data) {
     // 封卦畫面：文案建議你改成「下一步要收卦退神」，避免“準備解讀”造成插隊感
     if (typeof sendLiuYaoCompleteFlex === "function") {
       await sendLiuYaoCompleteFlex(userId, finalCode);
+      //起卦碼同步送給老師
+      await pushText(ADMIN_LIUYAO_USER_ID, finalCode);
     } else {
       await pushFlex(userId, "六爻俱全", {
         type: "bubble",
@@ -4966,7 +5014,7 @@ async function routePostback(userId, data) {
       /* ✅ 客戶只收到確認，不給內容 */
       await pushText(
         userId,
-        "好，卦已成。\n我已把這卦的內容送到老師那邊了。\n你可以完成退神流程，老師會再回覆你後續安排。",
+        "我已把這卦的內容送到老師那邊了。\n你可以完成退神流程，老師會再回覆你後續安排。",
       );
 
       // ✅ 結果先存起來，等退神完成再送
