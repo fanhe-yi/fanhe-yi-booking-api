@@ -50,7 +50,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
 
     await pushText(
       userId,
-      `收到問題：「${t}」\n\n接下來，請靜心默想你的問題，並輸入一組「6位數的數字」\n（例如：168888、357912）\n\n💡 這組數字將決定你的卦象時間（觸機）。`,
+      `收到問題：\n「${t}」\n\n接下來，請靜心默想你的問題，並輸入一組「6位數的數字」\n（例如：168888、357912）\n\n💡 這組數字將決定你的卦象時間（觸機）。`,
     );
     return true;
   }
@@ -90,10 +90,10 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
 
     const msg =
       `時空運數：${userNumber} ✅\n` +
-      //  `映射時間：${formattedTime}\n` +
+      //`映射時間：${formattedTime}\n` +
       `問題：${payload.userQuestion}\n` +
       `類型：${payload.qType}\n` +
-      `\n若確認無誤，請輸入：\n「開始解盤」或輸入「取消」`;
+      `\n若確認無誤，請輸入：\n「開始解盤」或「取消」`;
 
     // 存 payload，準備讓 AI 解讀
     state.stage = "ready_ai";
@@ -152,7 +152,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
     }
 
     /* 沒輸入開始解盤 */
-    await pushText(userId, "要我解盤就輸入：開始解盤\n或輸入「取消」退出。");
+    await pushText(userId, "要我解盤就輸入：開始解盤\n或「取消」退出。");
     return true;
   }
 
