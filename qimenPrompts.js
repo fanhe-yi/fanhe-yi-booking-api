@@ -1,6 +1,6 @@
 /* 
 ==========================================================
-✅ src/qimen/qimenPrompts.js
+✅ qimenPrompts.js
 目的：
 - 集中管理奇門解盤「systemPrompt」與「userPrompt」
 - 之後要調口吻/長度/格式 → 只改這支
