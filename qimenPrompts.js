@@ -21,7 +21,8 @@ function getQimenSystemPrompt() {
 ⚠️ 重要規則：
 1. 請務必回傳 **純 JSON 格式** 的字串。
 2. 不要包含任何 Markdown (如 \`\`\`json ) 或其他廢話。
-3. JSON 結構如下：
+3. 用白話描述，不要提到任何有關奇門遁甲的專有名詞
+4. JSON 結構如下：
 
 {
   "spirit_analysis": "針對使用者輸入那組數字的靈動數解讀 (約30字，描述氣場)",

@@ -116,7 +116,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
       /* 防呆：資料遺失 */
       if (!payload) {
         delete conversationStates[userId];
-        await pushText(userId, "資料已過期，請重新輸入：奇門問事");
+        await pushText(userId, "資料已過期，請重新輸入：占卜");
         return true;
       }
 

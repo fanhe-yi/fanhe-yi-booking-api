@@ -1674,7 +1674,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
       contents: [
         {
           type: "text",
-          text: "奇門時空靈籤",
+          text: "時空靈籤",
           color: "#D4AF37", // 金色文字
           size: "md", // 改大一點比較好看
           weight: "bold",
@@ -1800,7 +1800,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           action: {
             type: "uri",
             label: "分享好運",
-            uri: `https://line.me/R/msg/text/?${encodeURIComponent("我剛剛抽到了一支奇門靈籤，還蠻準的！\n你也來試試：https://line.me/R/ti/p/@你的LineID")}`,
+            uri: `https://line.me/R/msg/text/?${encodeURIComponent("我剛剛抽到了一時空靈籤，還蠻準的！\n你也來試試：https://line.me/R/ti/p/@415kfyus")}`,
           },
         },
         {
@@ -1810,7 +1810,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           action: {
             type: "message",
             label: "再問一題",
-            text: "奇門問事",
+            text: "占卜",
           },
         },
       ],

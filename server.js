@@ -4125,7 +4125,7 @@ async function routeGeneralCommands(userId, text) {
 
     await pushText(
       userId,
-      "好，開始奇門問事。\n\n請直接輸入你想問的一句話：\n例如：\n- 換工作好嗎\n- 他會回來找我嗎\n- 身體健康嗎\n\n（輸入「取消」可退出）",
+      "好，開始時空占卜。\n\n請直接輸入你想問的一句話：\n例如：\n- 換工作好嗎\n- 他會回來找我嗎\n- 身體健康嗎\n\n（輸入「取消」可退出）",
     );
     return;
   }
