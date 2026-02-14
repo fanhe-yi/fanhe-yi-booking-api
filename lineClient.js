@@ -1648,7 +1648,8 @@ async function sendBaziMatchResultFlex(userId, payload) {
 }
 
 /* ==========================================================
-✅ 奇門時空靈籤 Flex Message
+✅ 奇門時空靈籤 Flex Message (修正版)
+🔴 修正：移除不支援的 letterSpacing 屬性
 ========================================================= */
 async function sendQimenResultFlex(userId, userNumber, question, aiData) {
   // 防呆：如果 AI 沒回傳好的 JSON，給預設值
@@ -1662,7 +1663,6 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
   // 組合成建議清單文字
   const suggestionsText = suggestions.map((s, i) => `• ${s}`).join("\n");
 
-  // Flex Message 結構
   const bubble = {
     type: "bubble",
     size: "mega",
@@ -1676,10 +1676,10 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           type: "text",
           text: "奇門時空靈籤",
           color: "#D4AF37", // 金色文字
-          size: "xs",
+          size: "md", // 改大一點比較好看
           weight: "bold",
           align: "center",
-          letterSpacing: "1px",
+          // 🔴 已移除 letterSpacing
         },
         {
           type: "text",
@@ -1689,7 +1689,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           weight: "bold",
           align: "center",
           margin: "md",
-          letterSpacing: "2px",
+          // 🔴 已移除 letterSpacing
         },
         {
           type: "text",
@@ -1757,7 +1757,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           size: "sm",
           color: "#444444",
           wrap: true,
-          lineSpacing: "4px",
+          lineSpacing: "4px", // lineSpacing 是支援的，保留
         },
         /* 3. 建議 (如果有) */
         ...(suggestionsText
