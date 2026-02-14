@@ -1647,6 +1647,179 @@ async function sendBaziMatchResultFlex(userId, payload) {
   }
 }
 
+/* ==========================================================
+✅ 奇門時空靈籤 Flex Message
+========================================================= */
+async function sendQimenResultFlex(userId, userNumber, question, aiData) {
+  // 防呆：如果 AI 沒回傳好的 JSON，給預設值
+  const spirit = aiData?.spirit_analysis || "氣場運轉中...";
+  const conclusion = aiData?.main_conclusion || "正在解析天機...";
+  const poem = aiData?.lucky_poem || "心誠則靈，靜待花開。";
+  const suggestions = Array.isArray(aiData?.suggestions)
+    ? aiData.suggestions
+    : [];
+
+  // 組合成建議清單文字
+  const suggestionsText = suggestions.map((s, i) => `• ${s}`).join("\n");
+
+  // Flex Message 結構
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#2B2338", // 神秘紫黑底色
+      paddingAll: "xl",
+      contents: [
+        {
+          type: "text",
+          text: "奇門時空靈籤",
+          color: "#D4AF37", // 金色文字
+          size: "xs",
+          weight: "bold",
+          align: "center",
+          letterSpacing: "1px",
+        },
+        {
+          type: "text",
+          text: userNumber || "888888", // 顯示觸機靈數
+          color: "#FFFFFF",
+          size: "3xl",
+          weight: "bold",
+          align: "center",
+          margin: "md",
+          letterSpacing: "2px",
+        },
+        {
+          type: "text",
+          text: "━━━━━━━━",
+          color: "#665C70",
+          size: "xs",
+          align: "center",
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: poem, // 籤詩
+          color: "#FFD700", // 亮金
+          size: "md",
+          weight: "bold",
+          align: "center",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "lg",
+      spacing: "md",
+      contents: [
+        /* 1. 用戶問題與靈數解析 */
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#F7F8FA",
+          cornerRadius: "md",
+          paddingAll: "md",
+          contents: [
+            {
+              type: "text",
+              text: "💡 靈數氣場",
+              size: "sm",
+              weight: "bold",
+              color: "#555555",
+            },
+            {
+              type: "text",
+              text: spirit,
+              size: "sm",
+              color: "#666666",
+              wrap: true,
+              margin: "sm",
+            },
+          ],
+        },
+        /* 2. 核心解析 */
+        {
+          type: "text",
+          text: "🔮 盤面指引",
+          weight: "bold",
+          size: "md",
+          color: "#333333",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: conclusion,
+          size: "sm",
+          color: "#444444",
+          wrap: true,
+          lineSpacing: "4px",
+        },
+        /* 3. 建議 (如果有) */
+        ...(suggestionsText
+          ? [
+              {
+                type: "separator",
+                margin: "lg",
+                color: "#EEEEEE",
+              },
+              {
+                type: "text",
+                text: "✍️ 行動建議",
+                weight: "bold",
+                size: "sm",
+                color: "#333333",
+                margin: "md",
+              },
+              {
+                type: "text",
+                text: suggestionsText,
+                size: "sm",
+                color: "#555555",
+                wrap: true,
+                margin: "sm",
+                lineSpacing: "4px",
+              },
+            ]
+          : []),
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#2B2338",
+          action: {
+            type: "uri",
+            label: "分享好運",
+            uri: `https://line.me/R/msg/text/?${encodeURIComponent("我剛剛抽到了一支奇門靈籤，還蠻準的！\n你也來試試：https://line.me/R/ti/p/@你的LineID")}`,
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "再問一題",
+            text: "奇門問事",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, `【靈籤】${poem}`, bubble);
+}
+
 // ------------------------------------------------------------
 // 導出方法（給 server.js 用）
 // ------------------------------------------------------------
@@ -1666,4 +1839,5 @@ module.exports = {
   sendBaziMatchResultFlex,
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
+  sendQimenResultFlex,
 };

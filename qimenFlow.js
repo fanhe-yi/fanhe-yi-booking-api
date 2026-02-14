@@ -138,13 +138,17 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
         return true;
       }
 
-      /* ✅ 回傳結果並結束
-       */
-      const out = String(aiText || "").trim();
-      if (!out) {
-        await pushText(userId, "AI 回傳了空白內容，請重試。");
+      const aiData = parseAiJson(aiText);
+
+      if (aiData) {
+        // 成功解析 JSON -> 送卡片
+        const userNumber = payload.userNumber;
+        const question = payload.userQuestion;
+
+        await sendQimenResultFlex(userId, userNumber, question, aiData);
       } else {
-        await pushText(userId, out);
+        // 解析失敗 (AI 可能講廢話) -> 直接送純文字 (Fallback)
+        await pushText(userId, aiText);
       }
 
       delete conversationStates[userId];
@@ -157,6 +161,21 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
   }
 
   return false;
+}
+
+// 簡易 JSON 解析器 (貼在 qimenFlow.js 檔案最下方即可)
+function parseAiJson(text) {
+  try {
+    // 移除 markdown 符號
+    const clean = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error("JSON Parse Error:", e);
+    return null;
+  }
 }
 
 module.exports = { handleQimenFlow };
