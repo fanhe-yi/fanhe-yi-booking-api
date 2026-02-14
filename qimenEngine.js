@@ -229,6 +229,7 @@ function classifyQuestion(text) {
         "六合",
         "四星",
         "三星",
+        "刮刮樂",
       ],
     },
     {
