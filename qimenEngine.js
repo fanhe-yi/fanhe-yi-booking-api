@@ -1,12 +1,11 @@
 /* ==========================================================
 ✅ qimenEngine.js
 目的：
-- 把「奇門排盤 + 規則分類 + 用神門 + 空亡 + 摘要 + Prompt」集中管理
-- server.js 只呼叫這裡拿結果，避免 server.js 變屎山
+- 核心運算引擎
+- 負責：數字轉時間 -> 起盤 -> 取用神 -> 產出資料給 AI
 ==========================================================
 */
 
-/* 🔴 修改點 1：改用 generateChartByDatetime */
 const { generateChartByDatetime, chartToObject } = require("qimen-dunjia");
 
 /* ==========================================================
@@ -29,17 +28,34 @@ const BRANCH_TO_PALACE = {
 };
 
 /* ==========================================================
-✅ 工具：產生隨機時間（隨機占卜核心）
-目的：
-- 為了讓不同人、同時間問卜能得到不同結果
-- 我們隨機抓取 2024~2030 年之間的任一時刻來起盤
+✅ 工具：將數字映射到指定年份範圍內的時間 (時空數核心)
+原理：
+- 設定時間範圍 (2024~2030)
+- 將用戶數字 (例如 888888) 換算成時間軸上的百分比位置
+- 確保同一組數字永遠對應同一個盤
 ==========================================================
 */
-function getRandomDate() {
+function mapNumberToDate(numStr) {
+  // 1. 設定範圍 (可自行調整)
   const start = new Date("2024-01-01T00:00:00").getTime();
   const end = new Date("2030-12-31T23:59:59").getTime();
-  const randomTimestamp = start + Math.random() * (end - start);
-  return new Date(randomTimestamp);
+  const totalSpan = end - start;
+
+  // 2. 處理數字 (防呆：轉成整數，若非數字則隨機)
+  let n = parseInt(numStr, 10);
+  if (isNaN(n)) {
+    n = Math.floor(Math.random() * 1000000); // 若亂打字，就隨機給一個
+  }
+
+  // 3. 歸一化：假設最大值是 999999 (6位數)
+  // 用 % 1000000 確保只取後6位，避免爆掉
+  // 這樣 1 和 1000001 會是一樣的結果 (循環)
+  const ratio = (n % 1000000) / 999999;
+
+  // 4. 算出時間戳
+  const targetTimestamp = start + Math.floor(totalSpan * ratio);
+
+  return new Date(targetTimestamp);
 }
 
 /* ==========================================================
@@ -261,39 +277,46 @@ function getDoorByQuestionType(type) {
 }
 
 /* ==========================================================
-✅ 對外主函式：輸入問題 → 回傳「給 AI/給 LINE 用」的 payload
+✅ 對外主函式：輸入問題 + 數字 → 回傳 payload
+🔴 修改：新增 userNumber 參數，用來決定起盤時間
 ==========================================================
 */
-function buildQimenPayloadFromQuestion(userQuestion) {
-  /* 🔴 修改點 2：產生隨機時間 -> 轉字串 -> 呼叫 generateChartByDatetime */
-  const randomDate = getRandomDate();
-  const timeStr = formatDateToQimenStr(randomDate);
+function buildQimenPayloadFromQuestion(userQuestion, userNumber) {
+  /* 1. 決定起盤時間 (時空數邏輯) */
+  let targetDate;
+  if (userNumber) {
+    // 有數字 -> 映射
+    targetDate = mapNumberToDate(userNumber);
+  } else {
+    // 沒數字(防呆) -> 純隨機
+    const start = new Date("2024-01-01T00:00:00").getTime();
+    const end = new Date("2030-12-31T23:59:59").getTime();
+    targetDate = new Date(start + Math.random() * (end - start));
+  }
 
-  // 呼叫函式
+  /* 2. 轉成 yyyyMMddHH 格式 */
+  const timeStr = formatDateToQimenStr(targetDate);
+
+  /* 3. 呼叫套件起盤 */
   const chart = generateChartByDatetime(timeStr);
 
   // 轉 object
   const qimen = chartToObject(chart);
 
-  /* ✅ 核心資料 */
+  /* 4. 核心資料分析 */
   const core = extractCore(qimen);
 
-  /* ✅ 空亡（地支/宮位） */
+  /* 5. 空亡判斷 */
   const voidBranches = getVoidBranches(qimen["旬首"]);
   const voidPalaces = getVoidPalaces(voidBranches);
-
-  /* ✅ 觀測宮旬空 */
   const obsPalace = core["觀測宮資訊"]["宮位"];
   const obsHasVoid = voidPalaces.includes(obsPalace);
-
-  /* ✅ 觀測宮摘要 */
   const obsSummary = buildObservationSummary(core, obsHasVoid);
 
-  /* ✅ 自動分類 → 用神門 */
+  /* 6. 自動分類與取用神 */
   const qType = classifyQuestion(userQuestion);
   const useDoors = getDoorByQuestionType(qType);
 
-  /* ✅ 逐門找落宮資訊 */
   const doorInfos = useDoors
     .map((doorName) => {
       const info = findDoorPalace(qimen, doorName);
@@ -301,14 +324,15 @@ function buildQimenPayloadFromQuestion(userQuestion) {
     })
     .filter(Boolean);
 
-  /* ✅ 回傳 payload */
+  /* 7. 回傳結果 */
   return {
     userQuestion,
+    userNumber,
     qType,
     useDoors,
     doorInfos,
 
-    // 🔴 記錄起盤時間字串，方便除錯或顯示
+    // 記錄時間給前端顯示用
     chartTimeStr: timeStr,
 
     qimen,
