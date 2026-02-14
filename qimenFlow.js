@@ -6,7 +6,7 @@
 ==========================================================
 */
 
-const { pushText } = require("./lineClient.js");
+const { pushText, sendQimenResultFlex } = require("./lineClient.js");
 const { buildQimenPayloadFromQuestion } = require("./qimenEngine.js");
 const {
   getQimenSystemPrompt,
