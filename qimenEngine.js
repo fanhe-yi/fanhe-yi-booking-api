@@ -1,8 +1,8 @@
 /* ==========================================================
-✅ qimenEngine.js
+✅ qimenEngine.js (Bug Fix 版)
 目的：
-- 核心運算引擎
-- 負責：數字轉時間 -> 起盤 -> 取用神 -> 產出資料給 AI
+- 奇門排盤核心引擎
+- 🔴 修正：加入 safeGenerateChart 機制，解決「未知的節氣：小满」報錯問題
 ==========================================================
 */
 
@@ -29,30 +29,20 @@ const BRANCH_TO_PALACE = {
 
 /* ==========================================================
 ✅ 工具：將數字映射到指定年份範圍內的時間 (時空數核心)
-原理：
-- 設定時間範圍 (2024~2030)
-- 將用戶數字 (例如 888888) 換算成時間軸上的百分比位置
-- 確保同一組數字永遠對應同一個盤
 ==========================================================
 */
 function mapNumberToDate(numStr) {
-  // 1. 設定範圍 (可自行調整)
   const start = new Date("2024-01-01T00:00:00").getTime();
   const end = new Date("2030-12-31T23:59:59").getTime();
   const totalSpan = end - start;
 
-  // 2. 處理數字 (防呆：轉成整數，若非數字則隨機)
   let n = parseInt(numStr, 10);
   if (isNaN(n)) {
-    n = Math.floor(Math.random() * 1000000); // 若亂打字，就隨機給一個
+    n = Math.floor(Math.random() * 1000000);
   }
 
-  // 3. 歸一化：假設最大值是 999999 (6位數)
-  // 用 % 1000000 確保只取後6位，避免爆掉
-  // 這樣 1 和 1000001 會是一樣的結果 (循環)
+  // 歸一化
   const ratio = (n % 1000000) / 999999;
-
-  // 4. 算出時間戳
   const targetTimestamp = start + Math.floor(totalSpan * ratio);
 
   return new Date(targetTimestamp);
@@ -60,13 +50,10 @@ function mapNumberToDate(numStr) {
 
 /* ==========================================================
 ✅ 工具：日期轉字串 (yyyyMMddHH)
-目的：
-- 配合 generateChartByDatetime 格式要求
 ==========================================================
 */
 function formatDateToQimenStr(date) {
   const y = date.getFullYear();
-  // 月份從 0 開始，所以要 +1；padStart 補零確保兩位數
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   const h = String(date.getHours()).padStart(2, "0");
@@ -74,7 +61,46 @@ function formatDateToQimenStr(date) {
 }
 
 /* ==========================================================
-✅ 工具：旬首 → 空亡地支（固定規則）
+✅ 工具：安全起盤 (Safe Generate)
+🔴 核心修正邏輯：
+- 當 generateChartByDatetime 拋出錯誤（如：未知的節氣）時
+- 自動將時間往後推 24 小時，再次嘗試
+- 最多重試 10 次，確保不會無限迴圈
+==========================================================
+*/
+function safeGenerateChart(targetDate) {
+  let attempt = 0;
+  // 複製一份時間物件，避免汙染原始變數
+  let currentDate = new Date(targetDate.getTime());
+  const MAX_ATTEMPTS = 10;
+
+  while (attempt < MAX_ATTEMPTS) {
+    try {
+      // 1. 轉字串
+      const timeStr = formatDateToQimenStr(currentDate);
+
+      // 2. 嘗試起盤 (這裡可能會報錯)
+      const chart = generateChartByDatetime(timeStr);
+
+      // 3. 如果成功，回傳圖表與最終使用的時間字串
+      return { chart, usedTimeStr: timeStr };
+    } catch (err) {
+      console.warn(
+        `[QIMEN] 起盤遇到 Bug (嘗試 ${attempt + 1}/${MAX_ATTEMPTS})，原因：${err.message}`,
+      );
+
+      // 4. 失敗處理：把時間往後推 24 小時 (避開那個有 Bug 的節氣點)
+      currentDate.setTime(currentDate.getTime() + 24 * 60 * 60 * 1000);
+      attempt++;
+    }
+  }
+
+  // 如果試了 10 次都失敗 (機率極低)，丟出錯誤
+  throw new Error("起盤失敗：無法避開節氣錯誤，請稍後再試。");
+}
+
+/* ==========================================================
+✅ 工具：相關 Helper (維持不變)
 ==========================================================
 */
 function getVoidBranches(xunshou) {
@@ -89,18 +115,10 @@ function getVoidBranches(xunshou) {
   return map[xunshou] || [];
 }
 
-/* ==========================================================
-✅ 工具：空亡地支 → 空亡宮位
-==========================================================
-*/
 function getVoidPalaces(voidBranches) {
   return voidBranches.map((b) => BRANCH_TO_PALACE[b]).filter(Boolean);
 }
 
-/* ==========================================================
-✅ 工具：抽取核心資料（值符宮為觀測宮）
-==========================================================
-*/
 function extractCore(q) {
   const zhifuPalace = q["值符落宮"];
   const zhishiPalace = q["值使落宮"];
@@ -116,13 +134,10 @@ function extractCore(q) {
     節氣: q["節氣"],
     局數: q["局數"],
     陰陽: q["陰陽"],
-
     值符星: q["值符"],
     值符宮: zhifuPalace,
-
     值使門: q["值使"],
     值使宮: zhishiPalace,
-
     觀測宮資訊: {
       宮位: zhifuPalace,
       八神: q["八神"][obsIndex],
@@ -134,10 +149,6 @@ function extractCore(q) {
   };
 }
 
-/* ==========================================================
-✅ 工具：組一行「值符觀測宮摘要」
-==========================================================
-*/
 function buildObservationSummary(core, obsHasVoid) {
   const obs = core["觀測宮資訊"];
   const part = `${obs["八神"]}+${obs["九星"]}+${obs["八門"]}`;
@@ -145,14 +156,9 @@ function buildObservationSummary(core, obsHasVoid) {
   return `值符觀測｜${part}｜落${obs["宮位"]}｜${voidText}`;
 }
 
-/* ==========================================================
-✅ 工具：找某門落在哪一宮（例如：開門、死門）
-==========================================================
-*/
 function findDoorPalace(q, doorName) {
   const idx = q["天門"].findIndex((d) => d === doorName);
   if (idx === -1) return null;
-
   return {
     宮位: q["方位"][idx],
     八神: q["八神"][idx],
@@ -163,15 +169,10 @@ function findDoorPalace(q, doorName) {
   };
 }
 
-/* ==========================================================
-✅ 工具：問題文字 → 類型（題庫導向，可維護）
-==========================================================
-*/
 function classifyQuestion(text) {
   const t = String(text || "")
     .trim()
     .toLowerCase();
-
   const CATEGORIES = [
     {
       type: "命名",
@@ -217,20 +218,7 @@ function classifyQuestion(text) {
     {
       type: "財運",
       priority: 90,
-      keywords: [
-        "財運",
-        "偏財",
-        "收入",
-        "賺錢",
-        "股票",
-        "投資",
-        "樂透",
-        "威力",
-        "六合",
-        "四星",
-        "三星",
-        "刮刮樂",
-      ],
+      keywords: ["財運", "偏財", "收入", "賺錢", "股票", "投資"],
     },
     {
       type: "工作",
@@ -257,9 +245,7 @@ function classifyQuestion(text) {
       keywords: ["運勢", "流年", "今年", "明年", "今日", "運氣"],
     },
   ];
-
   const sorted = [...CATEGORIES].sort((a, b) => b.priority - a.priority);
-
   for (const c of sorted) {
     const hit = c.keywords.some((k) => t.includes(k));
     if (!hit) continue;
@@ -267,14 +253,9 @@ function classifyQuestion(text) {
     if (excluded) continue;
     return c.type;
   }
-
   return "工作";
 }
 
-/* ==========================================================
-✅ 工具：類型 → 用神門
-==========================================================
-*/
 function getDoorByQuestionType(type) {
   const map = {
     感情: ["休門"],
@@ -291,42 +272,37 @@ function getDoorByQuestionType(type) {
 
 /* ==========================================================
 ✅ 對外主函式：輸入問題 + 數字 → 回傳 payload
-🔴 修改：新增 userNumber 參數，用來決定起盤時間
+🔴 修改：改用 safeGenerateChart 替代原本的直接呼叫
 ==========================================================
 */
 function buildQimenPayloadFromQuestion(userQuestion, userNumber) {
-  /* 1. 決定起盤時間 (時空數邏輯) */
+  /* 1. 決定起盤初始時間 */
   let targetDate;
   if (userNumber) {
-    // 有數字 -> 映射
     targetDate = mapNumberToDate(userNumber);
   } else {
-    // 沒數字(防呆) -> 純隨機
+    // 防呆：如果沒數字，隨機給一個
     const start = new Date("2024-01-01T00:00:00").getTime();
     const end = new Date("2030-12-31T23:59:59").getTime();
     targetDate = new Date(start + Math.random() * (end - start));
   }
 
-  /* 2. 轉成 yyyyMMddHH 格式 */
-  const timeStr = formatDateToQimenStr(targetDate);
+  /* 🔴 2. 安全起盤 (失敗會自動 retry) 
+  解構取出 chart (盤物件) 和 usedTimeStr (最終使用的時間字串)
+  */
+  const { chart, usedTimeStr } = safeGenerateChart(targetDate);
 
-  /* 3. 呼叫套件起盤 */
-  const chart = generateChartByDatetime(timeStr);
-
-  // 轉 object
+  /* 3. 轉 object */
   const qimen = chartToObject(chart);
 
-  /* 4. 核心資料分析 */
+  /* 4. 後續邏輯不變 */
   const core = extractCore(qimen);
-
-  /* 5. 空亡判斷 */
   const voidBranches = getVoidBranches(qimen["旬首"]);
   const voidPalaces = getVoidPalaces(voidBranches);
   const obsPalace = core["觀測宮資訊"]["宮位"];
   const obsHasVoid = voidPalaces.includes(obsPalace);
   const obsSummary = buildObservationSummary(core, obsHasVoid);
 
-  /* 6. 自動分類與取用神 */
   const qType = classifyQuestion(userQuestion);
   const useDoors = getDoorByQuestionType(qType);
 
@@ -337,7 +313,6 @@ function buildQimenPayloadFromQuestion(userQuestion, userNumber) {
     })
     .filter(Boolean);
 
-  /* 7. 回傳結果 */
   return {
     userQuestion,
     userNumber,
@@ -345,8 +320,8 @@ function buildQimenPayloadFromQuestion(userQuestion, userNumber) {
     useDoors,
     doorInfos,
 
-    // 記錄時間給前端顯示用
-    chartTimeStr: timeStr,
+    // 🔴 回傳實際成功起盤的時間 (若有修正，這裡會顯示修正後的時間)
+    chartTimeStr: usedTimeStr,
 
     qimen,
     core,
