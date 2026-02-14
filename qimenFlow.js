@@ -81,12 +81,19 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
 
     /* ✅ 回覆摘要 + 引導下一步
      */
+    //const msg =
+    //  `數字起卦：${userNumber} ✅\n` +
+    //  `映射時間：${formattedTime}\n` +
+    //  `問題：${payload.userQuestion}\n` +
+    //  `類型：${payload.qType} (用神：${payload.useDoors.join("/")})\n` +
+    //  `\n若確認無誤，請輸入：開始解盤\n（或輸入「取消」退出）`;
+
     const msg =
-      `數字起卦：${userNumber} ✅\n` +
-      `映射時間：${formattedTime}\n` +
+      `時空運數：${userNumber} ✅\n` +
+      //  `映射時間：${formattedTime}\n` +
       `問題：${payload.userQuestion}\n` +
-      `類型：${payload.qType} (用神：${payload.useDoors.join("/")})\n` +
-      `\n若確認無誤，請輸入：開始解盤\n（或輸入「取消」退出）`;
+      `類型：${payload.qType}\n` +
+      `\n若確認無誤，請輸入：\n「開始解盤」或輸入「取消」`;
 
     // 存 payload，準備讓 AI 解讀
     state.stage = "ready_ai";
