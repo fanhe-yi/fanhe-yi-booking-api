@@ -6,12 +6,8 @@
 ==========================================================
 */
 
-// 🔴 修改點 1：多引入 generateChart (指定時間排盤用)
-const {
-  generateChartNow,
-  generateChart,
-  chartToObject,
-} = require("qimen-dunjia");
+/* 🔴 修改點 1：改用 generateChartByDatetime */
+const { generateChartByDatetime, chartToObject } = require("qimen-dunjia");
 
 /* ==========================================================
 ✅ 常數：地支 → 宮位（洛書九宮固定對照）
@@ -40,15 +36,25 @@ const BRANCH_TO_PALACE = {
 ==========================================================
 */
 function getRandomDate() {
-  // 設定隨機範圍：2024/01/01 ~ 2030/12/31
-  // 保持在近代，確保節氣計算準確
   const start = new Date("2024-01-01T00:00:00").getTime();
   const end = new Date("2030-12-31T23:59:59").getTime();
-
-  // 亂數取一個時間戳記
   const randomTimestamp = start + Math.random() * (end - start);
-
   return new Date(randomTimestamp);
+}
+
+/* ==========================================================
+✅ 工具：日期轉字串 (yyyyMMddHH)
+目的：
+- 配合 generateChartByDatetime 格式要求
+==========================================================
+*/
+function formatDateToQimenStr(date) {
+  const y = date.getFullYear();
+  // 月份從 0 開始，所以要 +1；padStart 補零確保兩位數
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  return `${y}${m}${d}${h}`;
 }
 
 /* ==========================================================
@@ -154,58 +160,17 @@ function classifyQuestion(text) {
     {
       type: "命名",
       priority: 120,
-      keywords: [
-        "名字",
-        "姓名",
-        "改名",
-        "取名",
-        "命名",
-        "這個名字",
-        "名字對我",
-        "名字好嗎",
-      ],
-      excludes: [],
+      keywords: ["名字", "姓名", "改名", "取名", "命名", "名字好嗎"],
     },
     {
       type: "不動產",
       priority: 110,
-      keywords: [
-        "房子",
-        "房屋",
-        "買房",
-        "看房",
-        "這間房子",
-        "能買嗎",
-        "賣掉",
-        "出售",
-        "賣房",
-        "換屋",
-      ],
-      excludes: [],
+      keywords: ["房子", "房屋", "買房", "看房", "賣房", "搬家"],
     },
     {
       type: "健康",
       priority: 105,
-      keywords: [
-        "健康",
-        "身體",
-        "身體健康",
-        "疾病",
-        "生病",
-        "病情",
-        "手術",
-        "住院",
-        "症狀",
-        "診斷",
-        "恢復",
-        "疼痛",
-        "失眠",
-        "健康狀況",
-        "家人的疾病",
-        "家人疾病",
-        "疾病狀況",
-      ],
-      excludes: [],
+      keywords: ["健康", "身體", "疾病", "生病", "手術", "住院", "痛"],
     },
     {
       type: "感情",
@@ -213,154 +178,54 @@ function classifyQuestion(text) {
       keywords: [
         "復合",
         "前任",
-        "回來",
-        "重新聯絡",
-        "聯絡我",
         "曖昧",
-        "往下一步",
-        "主動表達",
-        "等待",
-        "第三者",
-        "小三",
-        "外遇",
-        "關係",
         "感情",
         "婚姻",
         "結婚",
         "喜歡",
         "離婚",
         "桃花",
-        "對的人",
-        "放下",
         "伴侶",
-        "老公",
-        "老婆",
         "男友",
         "女友",
-        "另一半",
         "對象",
-        "情人",
-        "換男人",
-        "換女人",
-        "換對象",
-        "約會",
         "追",
-        "被追",
       ],
-      excludes: [
-        "換工作",
-        "轉職",
-        "離職",
-        "升遷",
-        "加薪",
-        "offer",
-        "面試",
-        "公司",
-      ],
+      excludes: ["換工作", "面試"],
     },
     {
       type: "家庭",
       priority: 95,
-      keywords: [
-        "父母",
-        "媽媽",
-        "爸爸",
-        "家人",
-        "孩子",
-        "小孩",
-        "學業",
-        "矛盾",
-        "相處",
-        "衝突",
-        "親子",
-        "家庭關係",
-      ],
-      excludes: ["疾病", "生病", "手術", "住院"],
+      keywords: ["父母", "媽媽", "爸爸", "家人", "孩子", "小孩", "學業"],
     },
     {
       type: "財運",
       priority: 90,
-      keywords: [
-        "財運",
-        "偏財",
-        "收入",
-        "額外收入",
-        "破財",
-        "賺錢",
-        "賠錢",
-        "威力彩",
-        "樂透",
-        "會不會賠",
-        "股票",
-        "買股票",
-        "買股",
-        "投資",
-        "進場",
-        "出場",
-        "套牢",
-        "停損",
-      ],
-      excludes: [],
+      keywords: ["財運", "偏財", "收入", "賺錢", "股票", "投資"],
     },
     {
       type: "工作",
       priority: 80,
       keywords: [
         "公司",
-        "這間公司",
-        "還待嗎",
-        "被重視",
         "升遷",
         "加薪",
         "換工作",
-        "該不該換",
         "轉職",
         "離職",
-        "跑道",
-        "出國進修",
-        "進修",
         "事業",
-        "方向",
-        "潛力",
         "創業",
         "職業",
-        "五行",
-        "天賦",
-        "潛能",
-        "職場",
-        "小人",
+        "工作",
         "offer",
         "面試",
       ],
-      excludes: [
-        "換男人",
-        "換女人",
-        "換對象",
-        "復合",
-        "前任",
-        "曖昧",
-        "桃花",
-        "離婚",
-        "結婚",
-      ],
+      excludes: ["復合", "前任", "結婚"],
     },
     {
       type: "運勢",
       priority: 70,
-      keywords: [
-        "整體運勢",
-        "運勢如何",
-        "流年",
-        "今年運勢",
-        "2026",
-        "明年",
-        "今年",
-        "這個月",
-        "這半年",
-        "今日",
-        "今天",
-      ],
-      excludes: [],
+      keywords: ["運勢", "流年", "今年", "明年", "今日", "運氣"],
     },
   ];
 
@@ -369,10 +234,8 @@ function classifyQuestion(text) {
   for (const c of sorted) {
     const hit = c.keywords.some((k) => t.includes(k));
     if (!hit) continue;
-
     const excluded = (c.excludes || []).some((x) => t.includes(x));
     if (excluded) continue;
-
     return c.type;
   }
 
@@ -380,7 +243,7 @@ function classifyQuestion(text) {
 }
 
 /* ==========================================================
-✅ 工具：類型 → 用神門（第一版穩定可用）
+✅ 工具：類型 → 用神門
 ==========================================================
 */
 function getDoorByQuestionType(type) {
@@ -394,33 +257,22 @@ function getDoorByQuestionType(type) {
     命名: ["景門"],
     健康: ["死門"],
   };
-
-  return map[type] || "開門";
+  return map[type] || ["開門"];
 }
 
 /* ==========================================================
 ✅ 對外主函式：輸入問題 → 回傳「給 AI/給 LINE 用」的 payload
-目的：
-- 🔴 修改：使用隨機時間起盤，不再用現在時間
 ==========================================================
 */
 function buildQimenPayloadFromQuestion(userQuestion) {
-  /* ----------------------------------------------------------
-  ✅ 🔴 修改點 2：產生隨機時間並起盤
-  ----------------------------------------------------------
-  */
+  /* 🔴 修改點 2：產生隨機時間 -> 轉字串 -> 呼叫 generateChartByDatetime */
   const randomDate = getRandomDate();
+  const timeStr = formatDateToQimenStr(randomDate);
 
-  // 拆解時間給套件用
-  const year = randomDate.getFullYear();
-  const month = randomDate.getMonth() + 1; // ⚠️ 注意：JS 月份 0-11，套件要 1-12
-  const day = randomDate.getDate();
-  const hour = randomDate.getHours();
+  // 呼叫函式
+  const chart = generateChartByDatetime(timeStr);
 
-  // 呼叫指定時間起盤
-  const chart = generateChart(year, month, day, hour);
-
-  // 轉 object (套件內建功能)
+  // 轉 object
   const qimen = chartToObject(chart);
 
   /* ✅ 核心資料 */
@@ -437,24 +289,15 @@ function buildQimenPayloadFromQuestion(userQuestion) {
   /* ✅ 觀測宮摘要 */
   const obsSummary = buildObservationSummary(core, obsHasVoid);
 
-  /* ✅ 自動分類 → 用神門 → 用神門落宮資訊 */
+  /* ✅ 自動分類 → 用神門 */
   const qType = classifyQuestion(userQuestion);
-
   const useDoors = getDoorByQuestionType(qType);
 
-  /* ----------------------------------------------------------
-  ✅ 逐門找落宮資訊
-  ----------------------------------------------------------
-  */
+  /* ✅ 逐門找落宮資訊 */
   const doorInfos = useDoors
     .map((doorName) => {
       const info = findDoorPalace(qimen, doorName);
-      return info
-        ? {
-            門: doorName,
-            ...info,
-          }
-        : null;
+      return info ? { 門: doorName, ...info } : null;
     })
     .filter(Boolean);
 
@@ -465,23 +308,13 @@ function buildQimenPayloadFromQuestion(userQuestion) {
     useDoors,
     doorInfos,
 
-    /* 🔴 新增：回傳起盤時間給前端顯示（讓用戶知道這是「隨機取樣」的盤） */
-    chartTime: {
-      year,
-      month,
-      day,
-      hour,
-    },
+    // 🔴 記錄起盤時間字串，方便除錯或顯示
+    chartTimeStr: timeStr,
 
-    /* ✅ 盤資料 */
     qimen,
-
-    /* ✅ 核心與摘要 */
     core,
     obsSummary,
     obsHasVoid,
-
-    /* ✅ 空亡 */
     voidBranches,
     voidPalaces,
   };
