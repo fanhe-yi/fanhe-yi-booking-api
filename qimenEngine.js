@@ -72,7 +72,7 @@ function safeGenerateChart(targetDate) {
   let attempt = 0;
   // 複製一份時間物件，避免汙染原始變數
   let currentDate = new Date(targetDate.getTime());
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 5;
 
   while (attempt < MAX_ATTEMPTS) {
     try {
@@ -90,7 +90,7 @@ function safeGenerateChart(targetDate) {
       );
 
       // 4. 失敗處理：把時間往後推 24 小時 (避開那個有 Bug 的節氣點)
-      currentDate.setTime(currentDate.getTime() + 24 * 60 * 60 * 1000);
+      currentDate.setTime(currentDate.getTime() + 16 * 24 * 60 * 60 * 1000);
       attempt++;
     }
   }
