@@ -1054,11 +1054,11 @@ const QUESTION_BANK = {
     { qid: "familyhealth", full: "我家人的疾病狀況？" },
   ],
 
-  name: [
-    { qid: "name_check", full: "這個名字對我好嗎？" },
-    { qid: "kid_name", full: "想幫小孩子取名？" },
-    { qid: "shop_name", full: "店名用什麼名字好？" },
-  ],
+  //name: [
+  //  { qid: "name_check", full: "這個名字對我好嗎？" },
+  //  { qid: "kid_name", full: "想幫小孩子取名？" },
+  //  { qid: "shop_name", full: "店名用什麼名字好？" },
+  //],
 
   house: [
     { qid: "buy", full: "這間房子能買嗎？" },
@@ -1178,7 +1178,6 @@ async function sendServiceSelectFlex(userId) {
       "• 我的名字適合當老闆嗎？",
       "• 我想幫新生兒取名？",
       "• 我要如何讓工作更順利？",
-      "• 不知道八字能算命嗎？",
     ],
 
     // 八字諮詢（偏「趨勢/節點」）
@@ -1239,22 +1238,6 @@ async function sendServiceSelectFlex(userId) {
    * - cta：依服務類型配最像「先聊聊」的一句（功能不變）
    ***************************************/
   const services = [
-    // ✅ 六爻第 1 頁 (感情現況/復合/前任)
-    {
-      pageKey: "liuyao_1",
-      serviceId: "liuyao",
-      label: "六爻占卜(感情現況/復合/前任)",
-      badges: ["🏷️ 想知道會不會回頭", "🏷️ 我想問這個"],
-      cta: "我想問這個",
-    },
-    // ✅ 六爻第 2 頁
-    {
-      pageKey: "liuyao_2",
-      serviceId: "liuyao",
-      label: "六爻占卜(財運/事業/疾病)",
-      badges: ["🏷️ 針對單一事件快狠準", "🏷️ 財運/事業/疾病/買房/官司"],
-      cta: "我想問這個",
-    },
     {
       pageKey: "name",
       serviceId: "name",
@@ -1275,6 +1258,22 @@ async function sendServiceSelectFlex(userId) {
       label: "八字諮詢",
       badges: ["🏷️ 先抓人生大方向", "🏷️ 我想從這裡開始"],
       cta: "從這裡開始",
+    },
+    // ✅ 六爻第 1 頁 (感情現況/復合/前任)
+    {
+      pageKey: "liuyao_1",
+      serviceId: "liuyao",
+      label: "六爻占卜(感情現況/復合/前任)",
+      badges: ["🏷️ 想知道會不會回頭", "🏷️ 我想問這個"],
+      cta: "我想問這個",
+    },
+    // ✅ 六爻第 2 頁
+    {
+      pageKey: "liuyao_2",
+      serviceId: "liuyao",
+      label: "六爻占卜(財運/事業/疾病)",
+      badges: ["🏷️ 針對單一事件快狠準", "🏷️ 財運/事業/疾病/買房/官司"],
+      cta: "我想問這個",
     },
   ];
 
