@@ -50,7 +50,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
 
     await pushText(
       userId,
-      `收到問題：\n「${t}」\n\n接下來，請靜心默想你的問題，並輸入一組「6位數的數字」\n（例如：168888、357912）\n\n💡 這組數字將決定你的卦象時間（觸機）。`,
+      `收到問題：\n「${t}」\n\n接下來，請靜心默想你的問題，並輸入一組「6位數的數字」\n（例如：168888、357912）\n\n或「取消」退出。`,
     );
     return true;
   }

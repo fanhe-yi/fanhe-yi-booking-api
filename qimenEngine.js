@@ -198,6 +198,8 @@ function classifyQuestion(text) {
         "曖昧",
         "感情",
         "婚姻",
+        "老公",
+        "老婆",
         "結婚",
         "喜歡",
         "離婚",
@@ -253,7 +255,7 @@ function classifyQuestion(text) {
     if (excluded) continue;
     return c.type;
   }
-  return "工作";
+  return "運勢";
 }
 
 function getDoorByQuestionType(type) {
