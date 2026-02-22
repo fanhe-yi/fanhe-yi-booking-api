@@ -4432,7 +4432,7 @@ async function routePostback(userId, data) {
       /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
       await pushText(
         userId,
-        `收到～你想問的是：\n「${q.full}」\n\n命理諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`,
+        `收到～你想問的是：\n「${q.full}」\n\n姓名諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`,
       );
 
       /* ✅ 直接丟日期 Carousel（用 chat_line） */
