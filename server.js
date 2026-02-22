@@ -4115,7 +4115,7 @@ async function routeGeneralCommands(userId, text) {
   - 使用者輸入「奇門問事」→ 進入 qimen 模式
   ==========================================================
   */
-  if (text === "奇門問事" || text === "奇門" || text === "占卜") {
+  if (text === "奇門問事" || text === "奇門" || text === "時空占卜") {
     conversationStates[userId] = {
       mode: "qimen",
       stage: "waiting_question",
