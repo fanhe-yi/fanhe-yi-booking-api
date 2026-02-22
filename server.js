@@ -1242,21 +1242,21 @@ async function sendServiceSelectFlex(userId) {
       pageKey: "name",
       serviceId: "name",
       label: "姓名學",
-      badges: ["🏷️ 最推薦", "🏷️ 想先看名字適不適合我"],
+      badges: ["🏷️ 2000元/小時", "🏷️ 想先看名字適不適合我"],
       cta: "先幫我看一下",
     },
     {
       pageKey: "ziwei",
       serviceId: "ziwei",
       label: "紫微斗數",
-      badges: ["🏷️ 看關係互動＆節點", "🏷️ 我想釐清一下狀態"],
+      badges: ["🏷️ 2400元/小時", "🏷️ 看關係互動＆事件"],
       cta: "我比較需要這個",
     },
     {
       pageKey: "bazi",
       serviceId: "bazi",
       label: "八字諮詢",
-      badges: ["🏷️ 先抓人生大方向", "🏷️ 我想從這裡開始"],
+      badges: ["🏷️ 2400元/小時", "🏷️ 先抓人生大方向"],
       cta: "從這裡開始",
     },
     // ✅ 六爻第 1 頁 (感情現況/復合/前任)
@@ -1264,7 +1264,7 @@ async function sendServiceSelectFlex(userId) {
       pageKey: "liuyao_1",
       serviceId: "liuyao",
       label: "六爻占卜(感情現況/復合/前任)",
-      badges: ["🏷️ 想知道會不會回頭", "🏷️ 我想問這個"],
+      badges: ["🏷️ 600元/小時", "🏷️ 我想知道會不會回頭"],
       cta: "我想問這個",
     },
     // ✅ 六爻第 2 頁
@@ -1272,7 +1272,7 @@ async function sendServiceSelectFlex(userId) {
       pageKey: "liuyao_2",
       serviceId: "liuyao",
       label: "六爻占卜(財運/事業/疾病)",
-      badges: ["🏷️ 針對單一事件快狠準", "🏷️ 財運/事業/疾病/買房/官司"],
+      badges: ["🏷️ 600元/小時", "🏷️ 財運/事業/疾病/買房/官司"],
       cta: "我想問這個",
     },
   ];
