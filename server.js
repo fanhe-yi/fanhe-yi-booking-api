@@ -1242,7 +1242,7 @@ async function sendServiceSelectFlex(userId) {
       pageKey: "name",
       serviceId: "name",
       label: "姓名學",
-      badges: ["🏷️ 2000元/小時", "🏷️ 想先看名字適不適合我"],
+      badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
       cta: "先幫我看一下",
     },
     {
