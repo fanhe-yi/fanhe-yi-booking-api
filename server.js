@@ -4013,7 +4013,7 @@ async function handleLineEvent(event) {
       delete conversationStates[userId];
       await pushText(
         userId,
-        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 六爻占卜",
+        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 占卜",
       );
       return;
     }
@@ -4103,7 +4103,7 @@ async function routeGeneralCommands(userId, text) {
 
   // 4) 六爻卦象解析（原本「六爻占卜」）
   // ✅ 改成：先給服務說明卡 +「開始」按鈕（postback），不先 gate
-  if (text === "六爻占卜" || text === "六爻卦象解析") {
+  if (text === "老師解卦") {
     await sendServiceIntroFlex(userId, "liuyao");
     return;
   }
