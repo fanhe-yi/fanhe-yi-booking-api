@@ -4013,7 +4013,7 @@ async function handleLineEvent(event) {
       delete conversationStates[userId];
       await pushText(
         userId,
-        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 占卜",
+        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 時空占卜",
       );
       return;
     }
@@ -4239,7 +4239,7 @@ async function routePostback(userId, data) {
     await pushText(
       userId,
       hintText ||
-        "這個選單看起來是舊的 😅\n\n請輸入：八字測算 / 八字合婚 / 六爻占卜 重新開始。",
+        "這個選單看起來是舊的 😅\n\n請輸入：八字測算 / 八字合婚 / 時空占卜 重新開始。",
     );
   };
 
