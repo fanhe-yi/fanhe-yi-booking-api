@@ -527,7 +527,7 @@ const QUESTION_CATEGORIES = [
     id: "money",
     emoji: "💰",
     title: "財運",
-    desc: "今年財運、破財風險、偏財與額外收入、創業",
+    desc: "財運、破財風險、偏財與額外收入、創業",
   },
   {
     id: "career",
@@ -539,7 +539,7 @@ const QUESTION_CATEGORIES = [
     id: "house",
     emoji: "🏠",
     title: "房屋買賣",
-    desc: "房子能不能買、適不適合入手、風險點在哪",
+    desc: "房子能不能買、風險點在哪",
   },
   {
     id: "life",
@@ -557,7 +557,7 @@ const QUESTION_CATEGORIES = [
     id: "helper",
     emoji: "🙋‍♀️",
     title: "呼叫小幫手",
-    desc: "不知道怎麼選",
+    desc: "不知道怎麼選就找小幫手",
   },
 ];
 
@@ -1017,38 +1017,38 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名論斷" },
-    { qid: "ex_contact", full: "改名諮詢" },
-    { qid: "amb_next", full: "新生兒取名諮詢" },
+    { qid: "reconcile", full: "姓名論斷 600元/小時" },
+    { qid: "ex_contact", full: "改名諮詢 2000元/次" },
+    { qid: "amb_next", full: "新生兒取名 1600元/次" },
   ],
 
   love: [
-    { qid: "reconcile", full: "文王卦占卜" },
-    { qid: "ex_contact", full: "紫微斗數(合婚)" },
+    { qid: "reconcile", full: "文王卦占卜 600元/小時" },
+    { qid: "ex_contact", full: "紫微斗數(合婚) 2400元/小時" },
   ],
 
   money: [
-    { qid: "fortune", full: "文王卦占卜" },
-    { qid: "loss", full: "紫微斗數" },
-    { qid: "side", full: "生肖姓名學" },
+    { qid: "fortune", full: "文王卦占卜 600元/小時" },
+    { qid: "loss", full: "紫微斗數 1200元/小時" },
+    { qid: "side", full: "生肖姓名學 600元/小時" },
   ],
 
   career: [
-    { qid: "stay", full: "文王卦占卜" },
-    { qid: "valued", full: "紫微斗數" },
-    { qid: "raise", full: "生肖姓名學" },
+    { qid: "stay", full: "文王卦占卜 600元/小時" },
+    { qid: "valued", full: "紫微斗數 1200元/小時" },
+    { qid: "raise", full: "生肖姓名學 600元/小時" },
   ],
 
-  house: [{ qid: "buy", full: "文王卦占卜" }],
+  house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
 
   life: [
-    { qid: "parents", full: "四柱八字" },
-    { qid: "kid", full: "紫微斗數" },
+    { qid: "parents", full: "四柱八字 1200元/小時" },
+    { qid: "kid", full: "紫微斗數 1200元/小時" },
   ],
 
   year: [
-    { qid: "zim_2026", full: "生肖姓名學" },
-    { qid: "name_2026", full: "紫微斗數" },
+    { qid: "zim_2026", full: "生肖姓名學 600元/小時" },
+    { qid: "name_2026", full: "紫微斗數 1200元/小時" },
   ],
 
   //name: [
@@ -1089,7 +1089,7 @@ async function sendQuestionListCarouselFlex(userId, catId) {
       contents: [
         {
           type: "text",
-          text: "梵和易學｜選一個最貼近的問題",
+          text: "梵和易學｜選一個你想論的工具",
           size: "sm",
           color: "#888888",
         },
@@ -1134,12 +1134,12 @@ async function sendQuestionListCarouselFlex(userId, catId) {
             type: "postback",
             label: "換類別",
             data: "action=show_qcats",
-            displayText: "我想換一個問題分類",
+            displayText: "我想換一個分類",
           },
         },
         {
           type: "text",
-          text: "選完題目後，我會直接帶你進預約流程。",
+          text: "選完類別後，會直接進入預約流程。",
           size: "xs",
           color: "#888888",
           wrap: true,
@@ -1149,7 +1149,7 @@ async function sendQuestionListCarouselFlex(userId, catId) {
   }));
 
   const carousel = { type: "carousel", contents: bubbles };
-  await pushFlex(userId, "選一個最貼近的問題", carousel);
+  await pushFlex(userId, "選一個你想問的類別", carousel);
 }
 
 // 🔹 第一步：服務選擇 Flex（Carousel：八字 / 紫微 / 姓名 / 六爻(兩頁)）
@@ -1391,7 +1391,7 @@ async function sendServiceSelectFlex(userId) {
   await pushFlex(userId, "請選擇預約服務", flexPayload);
 }
 
-//服務選擇說明卡 Flex（八字 / 紫微 / 姓名）
+//AI服務選擇說明卡 Flex（八字 / 紫微 / 姓名）
 async function sendServiceIntroFlex(userId, serviceKey) {
   const map = {
     minibazi: {
@@ -5157,6 +5157,10 @@ async function handleBookingFlow(userId, text, state, event) {
     /* 【4-2】如果是從常見問題流程進來，state.data.questionText 會存在
      * - 沒有的話就不寫（避免一般預約流程也被硬塞）
      */
+
+    const pickedTitle =
+      state.data && state.data.qCategoryTitle ? state.data.qCategoryTitle : "";
+
     const pickedQuestion =
       state.data && state.data.questionText ? state.data.questionText : "";
 
@@ -5164,8 +5168,13 @@ async function handleBookingFlow(userId, text, state, event) {
     let finalNote = "";
 
     /* 先放「常見問題」 */
-    if (pickedQuestion) {
-      finalNote += `• 諮詢內容：${pickedQuestion}`;
+    if (pickedTitle || pickedQuestion) {
+      finalNote += `• 諮詢內容：${pickedTitle}`;
+
+      /* ✅ 目的：有問題才換行接上去（避免多出空白行） */
+      if (pickedQuestion) {
+        finalNote += `\n${pickedQuestion}`;
+      }
     }
 
     /* 再放使用者補充（有填才放） */
