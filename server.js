@@ -512,22 +512,40 @@ const LIU_YAO_TOPIC_LABEL = {
  */
 const QUESTION_CATEGORIES = [
   {
-    id: "love",
-    emoji: "❤️",
-    title: "感情 / 桃花 / 復合",
-    desc: "復合、曖昧、對方心意、婚姻去留、真愛時間點",
+    id: "name",
+    emoji: "🪪",
+    title: "名字學服務",
+    desc: "名字運勢、感情、財運",
   },
   {
-    id: "career",
-    emoji: "💼",
-    title: "工作 / 職涯 / 事業 / 小人",
-    desc: "留不留公司、換工作、升遷加薪、創業方向、天賦",
+    id: "love",
+    emoji: "❤️",
+    title: "感情",
+    desc: "現況、曖昧、復合、合婚",
   },
   {
     id: "money",
     emoji: "💰",
-    title: "財運 / 破財 / 偏財",
-    desc: "今年財運、破財風險、偏財與額外收入、創業會不會賠",
+    title: "財運",
+    desc: "今年財運、破財風險、偏財與額外收入、創業",
+  },
+  {
+    id: "career",
+    emoji: "💼",
+    title: "事業/課業",
+    desc: "科系選擇、換工作、升遷加薪、創業方向",
+  },
+  {
+    id: "house",
+    emoji: "🏠",
+    title: "房屋買賣",
+    desc: "房子能不能買、適不適合入手、風險點在哪",
+  },
+  {
+    id: "life",
+    emoji: "👨🏻‍🎓",
+    title: "生涯規劃",
+    desc: "職場天賦定位、人生規劃",
   },
   {
     id: "year",
@@ -536,22 +554,10 @@ const QUESTION_CATEGORIES = [
     desc: "年度趨勢、關鍵月份、要注意的坑與機會",
   },
   {
-    id: "family",
-    emoji: "👪",
-    title: "家庭 / 親子",
-    desc: "父母伴侶磨合、孩子學業、人際小人與阻礙",
-  },
-  {
-    id: "name",
-    emoji: "🪪",
-    title: "名字 / 形象 / 定位",
-    desc: "名字給人的第一印象、需要調整嗎、走專業或親和",
-  },
-  {
-    id: "house",
-    emoji: "🏠",
-    title: "房產 / 置產決策",
-    desc: "房子能不能買、適不適合入手、風險點在哪",
+    id: "helper",
+    emoji: "🙋‍♀️",
+    title: "呼叫小幫手",
+    desc: "不知道怎麼選",
   },
 ];
 
@@ -1010,48 +1016,39 @@ if (typeof chunkArray !== "function") {
  * - full：完整題目（你後續寫入 note 或顯示用）
  */
 const QUESTION_BANK = {
-  love: [
-    { qid: "reconcile", full: "我們會復合嗎？" },
-    { qid: "ex_contact", full: "前任會重新聯絡我嗎？" },
-    { qid: "amb_next", full: "曖昧關係會往下一步發展嗎？" },
-    { qid: "initiative", full: "我該主動表達還是等待？" },
-    { qid: "third", full: "是否有潛在第三者需要注意？" },
-    { qid: "continue", full: "這段關係該不該繼續走下去？" },
-    { qid: "fix", full: "這段感情目前的問題該怎麼調整？" },
-    { qid: "marry", full: "我們適合走向婚姻嗎？" },
-    { qid: "peach", full: "我今年有沒有桃花？" },
-    { qid: "meet", full: "什麼時候會遇到對的人？" },
-    { qid: "letgo", full: "我應該如何放下過去的感情？" },
-    { qid: "divorce", full: "這段婚姻該不該離？" },
+  name: [
+    { qid: "reconcile", full: "姓名論斷" },
+    { qid: "ex_contact", full: "改名諮詢" },
+    { qid: "amb_next", full: "新生兒取名諮詢" },
   ],
 
-  career: [
-    { qid: "stay", full: "這間公司還待嗎？" },
-    { qid: "valued", full: "我在公司會被重視嗎？" },
-    { qid: "raise", full: "是否有升遷或加薪的機會？" },
-    { qid: "change", full: "該不該換工作？" },
-    { qid: "better", full: "換工作會比現在更好嗎？" },
-    { qid: "study", full: "出國進修轉換跑道會順利嗎？" },
-    { qid: "direction", full: "哪個方向的事業最有潛力？" },
-    { qid: "startup", full: "我適合創業嗎？" },
-    { qid: "five", full: "適合我的職業五行是什麼？" },
-    { qid: "talent", full: "我的天賦與潛能在哪方面？" },
-    { qid: "villain", full: "我在職場上容易有小人嗎？" },
+  love: [
+    { qid: "reconcile", full: "文王卦占卜" },
+    { qid: "ex_contact", full: "紫微斗數(合婚)" },
   ],
 
   money: [
-    { qid: "fortune", full: "今年的財運如何？" },
-    { qid: "loss", full: "有破財風險需要留意嗎？" },
-    { qid: "side", full: "是否有偏財運或額外收入？" },
-    { qid: "startup_loss", full: "我適合創業嗎？會不會賠錢？" },
+    { qid: "fortune", full: "文王卦占卜" },
+    { qid: "loss", full: "紫微斗數" },
+    { qid: "side", full: "生肖姓名學" },
   ],
 
-  year: [{ qid: "overall_2026", full: "我 2026 年的整體運勢如何？" }],
+  career: [
+    { qid: "stay", full: "文王卦占卜" },
+    { qid: "valued", full: "紫微斗數" },
+    { qid: "raise", full: "生肖姓名學" },
+  ],
 
-  family: [
-    { qid: "parents", full: "如何化解與父母或伴侶間的矛盾？" },
-    { qid: "kid", full: "我的孩子在學業狀況如何？" },
-    { qid: "familyhealth", full: "我家人的疾病狀況？" },
+  house: [{ qid: "buy", full: "文王卦占卜" }],
+
+  life: [
+    { qid: "parents", full: "四柱八字" },
+    { qid: "kid", full: "紫微斗數" },
+  ],
+
+  year: [
+    { qid: "zim_2026", full: "生肖姓名學" },
+    { qid: "name_2026", full: "紫微斗數" },
   ],
 
   //name: [
@@ -1060,10 +1057,7 @@ const QUESTION_BANK = {
   //  { qid: "shop_name", full: "店名用什麼名字好？" },
   //],
 
-  house: [
-    { qid: "buy", full: "這間房子能買嗎？" },
-    { qid: "sell", full: "賣掉這間房子好嗎？" },
-  ],
+  helper: [{ qid: "buy", full: "呼叫小幫手" }],
 };
 
 /* 【2-2】丟出「題目清單」Carousel//回朔2
@@ -4163,13 +4157,6 @@ async function routeByConversationState(userId, text, state, event) {
     // 交給預約流程處理
     return await handleBookingFlow(userId, text, state, event);
   }
-  /*
-  // 在「付費功能流程」內攔截優惠碼
-  if (mode === "mini_bazi" || mode === "bazi_match" || mode === "liuyao") {
-    console.log("有進到攔截優惠碼的流程\n");
-    const hit = await tryRedeemCouponFromText(userId, text);
-    if (hit.handled) return true; // ✅ 已處理優惠碼（成功/失敗都回覆了），不要再往下跑
-  }*/
 
   if (mode === "mini_bazi") {
     // 交給八字測算流程處理
@@ -4187,7 +4174,7 @@ async function routeByConversationState(userId, text, state, event) {
 
   /* 
   ==========================================================
-  ✅ 新增：奇門遁甲流程 115.02.12
+  ✅ 奇門遁甲流程 115.02.12
   目的：
   - 使用者進入 qimen 模式後，所有文字輸入都交給 handleQimenFlow
   ==========================================================
