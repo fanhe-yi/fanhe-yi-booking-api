@@ -1017,38 +1017,38 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名論斷 600元/小時" },
-    { qid: "ex_contact", full: "改名諮詢 2000元/次" },
-    { qid: "amb_next", full: "新生兒取名 1600元/次" },
+    { qid: "reconcile", full: "姓名論斷 (600元/小時)" },
+    { qid: "ex_contact", full: "改名諮詢 (2000元/次)" },
+    { qid: "amb_next", full: "新生兒取名 (1600元/次)" },
   ],
 
   love: [
-    { qid: "reconcile", full: "文王卦占卜 600元/小時" },
-    { qid: "ex_contact", full: "紫微斗數(合婚) 2400元/小時" },
+    { qid: "reconcile", full: "文王卦占卜 (600元/小時)" },
+    { qid: "ex_contact", full: "紫微斗數(合婚) (2400元/小時)" },
   ],
 
   money: [
-    { qid: "fortune", full: "文王卦占卜 600元/小時" },
-    { qid: "loss", full: "紫微斗數 1200元/小時" },
-    { qid: "side", full: "生肖姓名學 600元/小時" },
+    { qid: "fortune", full: "文王卦占卜 (600元/小時)" },
+    { qid: "loss", full: "紫微斗數 (1200元/小時)" },
+    { qid: "side", full: "生肖姓名學 (600元/小時)" },
   ],
 
   career: [
-    { qid: "stay", full: "文王卦占卜 600元/小時" },
-    { qid: "valued", full: "紫微斗數 1200元/小時" },
-    { qid: "raise", full: "生肖姓名學 600元/小時" },
+    { qid: "stay", full: "文王卦占卜 (600元/小時)" },
+    { qid: "valued", full: "紫微斗數 (1200元/小時)" },
+    { qid: "raise", full: "生肖姓名學 (600元/小時)" },
   ],
 
-  house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
+  house: [{ qid: "buy", full: "文王卦占卜 (600元/小時)" }],
 
   life: [
-    { qid: "parents", full: "四柱八字 1200元/小時" },
-    { qid: "kid", full: "紫微斗數 1200元/小時" },
+    { qid: "parents", full: "四柱八字 (1200元/小時)" },
+    { qid: "kid", full: "紫微斗數 (1200元/小時)" },
   ],
 
   year: [
-    { qid: "zim_2026", full: "生肖姓名學 600元/小時" },
-    { qid: "name_2026", full: "紫微斗數 1200元/小時" },
+    { qid: "zim_2026", full: "生肖姓名學 (600元/小時)" },
+    { qid: "name_2026", full: "紫微斗數 (1200元/小時)" },
   ],
 
   //name: [
@@ -4419,7 +4419,7 @@ async function routePostback(userId, data) {
       /* 【回覆一句】讓使用者安心：你有記下他的問題，接下來選時段 */
       await pushText(
         userId,
-        `收到～你想問的是：\n「${q.full}」\n\n姓名諮詢：NT$600／小時（含方向釐清＋建議策略）。\n\n可以的話我先幫你安排時段，請選擇日期。`,
+        `收到～你想問的是：\n「${q.full}」\n\n可以的話我先幫你安排時段，請選擇日期。`,
       );
 
       /* ✅ 直接丟日期 Carousel（用 chat_line） */
