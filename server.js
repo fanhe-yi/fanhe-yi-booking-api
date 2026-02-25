@@ -514,8 +514,8 @@ const QUESTION_CATEGORIES = [
   {
     id: "name",
     emoji: "🪪",
-    title: "名字學服務",
-    desc: "名字運勢、感情、財運",
+    title: "姓名學服務",
+    desc: "姓名運勢、感情、財運",
   },
   {
     id: "love",
@@ -1017,38 +1017,38 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名論斷 (600元/小時)" },
-    { qid: "ex_contact", full: "改名諮詢 (2000元/次)" },
-    { qid: "amb_next", full: "新生兒取名 (1600元/次)" },
+    { qid: "reconcile", full: "姓名論斷 600元/小時" },
+    { qid: "ex_contact", full: "改名諮詢 2000元/次" },
+    { qid: "amb_next", full: "新生兒取名 1600元/次" },
   ],
 
   love: [
-    { qid: "reconcile", full: "文王卦占卜 (600元/小時)" },
-    { qid: "ex_contact", full: "紫微斗數(合婚) (2400元/小時)" },
+    { qid: "reconcile", full: "文王卦占卜 600元/小時" },
+    { qid: "ex_contact", full: "紫微斗數(合婚) 2400元/小時" },
   ],
 
   money: [
-    { qid: "fortune", full: "文王卦占卜 (600元/小時)" },
-    { qid: "loss", full: "紫微斗數 (1200元/小時)" },
-    { qid: "side", full: "生肖姓名學 (600元/小時)" },
+    { qid: "fortune", full: "文王卦占卜 600元/小時" },
+    { qid: "loss", full: "紫微斗數 1200元/小時" },
+    { qid: "side", full: "生肖姓名學 600元/小時" },
   ],
 
   career: [
-    { qid: "stay", full: "文王卦占卜 (600元/小時)" },
-    { qid: "valued", full: "紫微斗數 (1200元/小時)" },
-    { qid: "raise", full: "生肖姓名學 (600元/小時)" },
+    { qid: "stay", full: "文王卦占卜 600元/小時" },
+    { qid: "valued", full: "紫微斗數 1200元/小時" },
+    { qid: "raise", full: "生肖姓名學 600元/小時" },
   ],
 
-  house: [{ qid: "buy", full: "文王卦占卜 (600元/小時)" }],
+  house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
 
   life: [
-    { qid: "parents", full: "四柱八字 (1200元/小時)" },
-    { qid: "kid", full: "紫微斗數 (1200元/小時)" },
+    { qid: "parents", full: "四柱八字 1200元/小時" },
+    { qid: "kid", full: "紫微斗數 1200元/小時" },
   ],
 
   year: [
-    { qid: "zim_2026", full: "生肖姓名學 (600元/小時)" },
-    { qid: "name_2026", full: "紫微斗數 (1200元/小時)" },
+    { qid: "zim_2026", full: "生肖姓名學 600元/小時" },
+    { qid: "name_2026", full: "紫微斗數 1200元/小時" },
   ],
 
   //name: [
@@ -1072,7 +1072,7 @@ async function sendQuestionListCarouselFlex(userId, catId) {
   if (!cat || list.length === 0) {
     await pushText(
       userId,
-      "這個分類目前題庫還沒填好 🙏\n你可以先選其他類別，或直接輸入「預約」。",
+      "這個分類目前還沒準備好 🙏\n你可以先選其他類別，或直接輸入「預約」。",
     );
     return;
   }
@@ -4391,7 +4391,7 @@ async function routePostback(userId, data) {
       if (!cat || !q) {
         await pushText(
           userId,
-          "我有收到你的選擇，但題目資料對不上 🙏\n你可以再選一次。",
+          "我有收到你的選擇，但分類資料對不上 🙏\n你可以再選一次。",
         );
         await sendQuestionCategoryCarouselFlex(userId);
         return;
@@ -5173,7 +5173,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
       /* ✅ 目的：有問題才換行接上去（避免多出空白行） */
       if (pickedQuestion) {
-        finalNote += `\n${pickedQuestion}`;
+        finalNote += `\n  ${pickedQuestion}`;
       }
     }
 
