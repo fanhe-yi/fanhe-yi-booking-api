@@ -1766,6 +1766,68 @@ async function sendServiceIntroFlex(userId, serviceKey) {
   await pushFlex(userId, flex.altText, flex.contents);
 }
 
+// 🔹 八字解析：讓使用者選擇「個人測算」或「雙人合婚」
+async function sendBaziChoiceFlex(userId) {
+  const contents = {
+    type: "bubble",
+    size: "kilo", // 卡片不用太大，精緻就好
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "八字解析",
+          weight: "bold",
+          size: "xl",
+          color: "#111111",
+        },
+        {
+          type: "text",
+          text: "請選擇您要進行的解析項目：",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        // 選擇一：個人測算 (按下去等於使用者輸入「八字測算」)
+        {
+          type: "button",
+          style: "primary",
+          color: "#3B2E40", // 莊嚴神祕的玄紫色
+          height: "sm",
+          action: {
+            type: "message",
+            label: "單人｜八字格局解析",
+            text: "八字測算",
+          },
+        },
+        // 選擇二：雙人合婚 (按下去等於使用者輸入「八字合婚」)
+        {
+          type: "button",
+          style: "primary",
+          color: "#8B7355", // 大地/燙金感，做出區隔
+          height: "sm",
+          action: {
+            type: "message",
+            label: "雙人｜八字合婚解析",
+            text: "八字合婚",
+          },
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "請選擇八字解析項目", contents);
+}
+
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
 async function sendDateCarouselFlex(userId, serviceId) {
   //
@@ -4277,6 +4339,12 @@ async function handleLineEvent(event) {
 //預約：丟服務/日期/時段 Flex（你的 booking flow）
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
+  // 🌟 新增：攔截「八字分析」，丟出雙按鈕選擇卡
+  if (text === "八字分析") {
+    await sendBaziChoiceFlex(userId);
+    return;
+  }
+
   // 1) 預約（維持原樣）
   if (text === "關於八字/紫微/占卜") {
     conversationStates[userId] = {
