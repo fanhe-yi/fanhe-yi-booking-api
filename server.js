@@ -1405,8 +1405,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "name",
       label: "姓名學",
       badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
-      heroImage:
-        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Name+Analysis", // 替換成你的 Banner 網址
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg", // 替換成你的 Banner 網址
       description:
         "名字是給人的第一印象，也蘊含著無形的能量。無論是想了解目前名字對運勢、人際的影響，或是需要為新生兒取個好名、個人改名換運，都能透過姓名學為你找到最適合的定位。",
       cta: "預約姓名諮詢",
@@ -1415,8 +1414,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "liuyao",
       label: "文王卦 (六爻占卜)",
       badges: ["🏷️ 600元/小時", "🏷️ 單一事件精準預測"],
-      heroImage:
-        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Divination",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/liuyao.jpg",
       description:
         "針對「單一特定事件」提供最精準的走向預測。無論是感情復合、工作去留、投資買房，或是尋找失物，文王卦能直接點出過去與現在的盲點，並給予未來明確的發展結果。",
       cta: "預約文王卦",
@@ -1425,8 +1423,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "ziwei",
       label: "紫微斗數",
       badges: ["🏷️ 1200元/小時起", "🏷️ 看關係互動＆人生事件"],
-      heroImage:
-        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Ziwei+Astrology",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/ziwei.jpg",
       description:
         "透過出生時辰排盤，細緻解析你與他人的互動關係、天賦潛能及各階段的起伏。非常適合用來看感情合婚、事業發展格局、流年運勢，以及解開長期困擾的人際結點。",
       cta: "預約紫微斗數",
@@ -1434,9 +1431,8 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "bazi",
       label: "四柱八字",
-      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生大方向"],
-      heroImage:
-        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Bazi+Consultation",
+      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生職業五行"],
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg",
       description:
         "從先天的五行結構，抓出你的人生大方向與強弱勢。適合想了解自我本質、大運趨勢、適合的職業五行，以及學習如何運用自身優勢來趨吉避凶的人。",
       cta: "預約四柱八字",
@@ -1523,7 +1519,7 @@ async function sendServiceSelectFlex(userId) {
           {
             type: "button",
             style: "primary",
-            color: "#52a6c0ff", // 你的主題色
+            color: "#3B2E40", // 🌟 換成充滿神秘與莊嚴感的「玄紫色」
             height: "sm",
             action: {
               type: "postback",
@@ -1536,12 +1532,13 @@ async function sendServiceSelectFlex(userId) {
           {
             type: "button",
             style: "link",
+            color: "#666666", // 🌟 壓暗文字顏色，避免預設亮藍色破壞莊嚴感
             height: "sm",
             action: {
               type: "postback",
               label: "用「我想問的問題」來找服務",
               data: "action=show_qcats",
-              displayText: "我想看常見問題分類",
+              displayText: "我想看常見分類",
             },
           },
         ],
