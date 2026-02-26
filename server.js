@@ -556,8 +556,8 @@ const QUESTION_CATEGORIES = [
   {
     id: "helper",
     emoji: "🙋‍♀️",
-    title: "呼叫小幫手",
-    desc: "不知道怎麼選就找小幫手",
+    title: "呼叫小幫手 / 真人客服",
+    desc: "有其他的問題，需要專人直接為您解答",
   },
 ];
 
@@ -1622,7 +1622,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
               // 🔑 按鈕上直接顯示「2025-12-10（三）」這種字
               label: day.label,
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
-              displayText: `我想預約 ${serviceName} ${day.dateStr}`,
+              displayText: `我想預約:\n${day.dateStr}`,
             },
           })),
         },
@@ -1661,7 +1661,7 @@ async function sendSlotsFlexForDate(userId, dateStr, serviceId) {
       type: "postback",
       label: slot.timeSlot,
       data: `action=choose_slot&service=${serviceId}&date=${dateStr}&time=${slot.timeSlot}`,
-      displayText: `我想預約 ${serviceName} ${dateStr} ${slot.timeSlot}`,
+      displayText: `我想預約:\n${serviceName}\n ${dateStr}\n ${slot.timeSlot}`,
     },
   }));
 
@@ -4377,16 +4377,43 @@ async function routePostback(userId, data) {
   if (action === "choose_qcat") {
     const catId = params.get("cat");
 
-    /* 🌟 【特例處理】如果是呼叫小幫手，直接推播文字並中斷流程 */
-    if (catId.includes("呼叫小幫手")) {
+    /* 🌟 【特例攔截】如果使用者在大類選了「呼叫小幫手」(假設 id 是 helper) */
+    if (catId === "helper") {
+      // 1. 先安撫/回覆使用者
       await pushText(
         userId,
-        "已經為您呼叫小幫手！真人客服將會盡快與您聯繫，請稍候 💬",
+        "已經為您呼叫小幫手！真人客服將會盡快與您聯繫，請稍候 💬\n（若非營業時間，可先留下您的問題，我們會盡快回覆喔）",
       );
-      // 在這裡 return 就不會進入預約選日期的流程
-      return;
+
+      // 2. 準備通知管理者
+      // 從環境變數讀取多個管理員 ID，並用逗號切成陣列，過濾掉空白
+      const adminStr = process.env.ADMIN_NOTIFY_USER_IDS || "";
+      const adminIds = adminStr
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+
+      if (adminIds.length > 0) {
+        // 組裝要傳給管理者的文字，順便附上使用者的 ID，方便後台查驗
+        const alertMsg = `🔔【客服通知】\n有使用者按下了「呼叫小幫手」！\n使用者 ID：${userId}\n請盡快至後台或手機確認訊息。`;
+
+        // 3. 跑迴圈逐一發送給每位管理者
+        for (const adminId of adminIds) {
+          try {
+            await pushText(adminId, alertMsg);
+          } catch (err) {
+            console.error(
+              `[Helper Notify] 發送通知給管理者 ${adminId} 失敗：`,
+              err.message || err,
+            );
+          }
+        }
+      }
+
+      return; // 攔截並結束，不會再丟出題目清單
     }
 
+    /* 一般流程：丟出該類別的題目清單 */
     await sendQuestionListCarouselFlex(userId, catId);
     return;
   }
@@ -5217,7 +5244,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
       /* ✅ 目的：有問題才換行接上去（避免多出空白行） */
       if (pickedQuestion) {
-        finalNote += `\n  ${pickedQuestion}`;
+        finalNote += `\n   ${pickedQuestion}`;
       }
     }
 
@@ -5304,7 +5331,11 @@ async function handleBookingPostback(userId, action, params, state) {
 
   // 2) 選服務：action=choose_service&service=bazi
   if (action === "choose_service") {
-    const serviceId = params.get("service");
+    //const serviceId = params.get("service");
+    const serviceId =
+      (state.data && state.data.serviceId) ||
+      params.get("service") ||
+      "chat_line";
 
     if (!serviceId) {
       await pushText(
