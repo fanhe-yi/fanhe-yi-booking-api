@@ -3936,6 +3936,33 @@ async function handleMbText(userId, text) {
   return false;
 }
 
+/* ==========================================================
+ * 💡 輔助函式：依據題庫內容 (q.full) 動態決定 serviceId
+ * ========================================================== */
+function getServiceIdByQuestionText(text) {
+  const q = String(text || "");
+
+  // 規則 1：姓名、取名、改名 歸在 name
+  if (q.includes("姓名") || q.includes("取名") || q.includes("改名")) {
+    return "name";
+  }
+  // 規則 2：紫微 歸在 ziwei
+  if (q.includes("紫微")) {
+    return "ziwei";
+  }
+  // 規則 3：八字(四柱八字) 歸在 bazi
+  if (q.includes("八字")) {
+    return "bazi";
+  }
+  // 規則 4：文王卦 歸在 liuyao
+  if (q.includes("文王卦")) {
+    return "liuyao";
+  }
+
+  // 預設 Fallback（都沒命中時）
+  return "chat_line";
+}
+
 //////////////////////////////////////
 /// 在 handleLineEvent 把聊天預約接進來 ///
 //////////////////////////////////////
@@ -4349,6 +4376,17 @@ async function routePostback(userId, data) {
    * ========================= */
   if (action === "choose_qcat") {
     const catId = params.get("cat");
+
+    /* 🌟 【特例處理】如果是呼叫小幫手，直接推播文字並中斷流程 */
+    if (catId.includes("呼叫小幫手")) {
+      await pushText(
+        userId,
+        "已經為您呼叫小幫手！真人客服將會盡快與您聯繫，請稍候 💬",
+      );
+      // 在這裡 return 就不會進入預約選日期的流程
+      return;
+    }
+
     await sendQuestionListCarouselFlex(userId, catId);
     return;
   }
@@ -4397,6 +4435,9 @@ async function routePostback(userId, data) {
         return;
       }
 
+      /* 【核心】動態依據 q.full 判斷對應的 serviceId */
+      const dynamicServiceId = getServiceIdByQuestionText(q.full);
+
       /* 【核心】直接把服務固定成 chat_line（命理諮詢）
        * - stage 直接切到 waiting_date
        * - 後面 choose_date / choose_slot 都會沿用 state.data.serviceId
@@ -4405,8 +4446,11 @@ async function routePostback(userId, data) {
         mode: "booking",
         stage: "waiting_date",
         data: {
+          /* ✅ 動態寫入對應的服務 ID */
+          serviceId: dynamicServiceId,
+
           /* ✅ 固定服務為「命理諮詢」 */
-          serviceId: "chat_line",
+          //serviceId: "chat_line",
 
           /* ✅ 保留你要的問句資料（後續可寫入 note 或通知用） */
           qCategoryId: catId,
