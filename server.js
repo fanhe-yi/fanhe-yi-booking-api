@@ -1813,7 +1813,7 @@ async function sendBaziChoiceFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#8B7355", // 大地/燙金感，做出區隔
+          color: "#3B2E40", // 莊嚴神祕的玄紫色
           height: "sm",
           action: {
             type: "message",
