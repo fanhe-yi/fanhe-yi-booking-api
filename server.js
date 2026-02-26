@@ -1393,48 +1393,62 @@ async function sendQuestionListCarouselFlex(userId, catId) {
 //   await pushFlex(userId, "請選擇預約服務", flexPayload);
 // }
 
-// 🔹 服務展示 Flex（Carousel：商品型錄介紹版，含 Hero 圖片與預約按鈕）
+// 🔹 服務展示 Flex（Carousel：精緻條列版 + 修正圖片間距）
 async function sendServiceSelectFlex(userId) {
   /***************************************
-   * [1] 服務型錄資料
-   * - 移除了 Q 問題庫，改用 description 撰寫服務介紹
-   * - 合併了六爻（因為不列問題了，介紹寫在一起即可）
+   * [1] 服務型錄資料（改為條列式 descriptionList）
    ***************************************/
   const services = [
     {
       serviceId: "name",
       label: "姓名學",
       badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
-      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg", // 替換成你的 Banner 網址
-      description:
-        "名字是給人的第一印象，也蘊含著無形的能量。無論是想了解目前名字對運勢、人際的影響，或是需要為新生兒取個好名、個人改名換運，都能透過姓名學為你找到最適合的定位。",
+      heroImage:
+        "http://googleusercontent.com/image_collection/image_retrieval/13383565098228327626",
+      descriptionList: [
+        "解析名字對運勢與人際的無形影響",
+        "新生兒專屬取名、個人改名換運",
+        "結合命理，為你找到最適合的定位",
+      ],
       cta: "預約姓名諮詢",
     },
     {
       serviceId: "liuyao",
       label: "文王卦 (六爻占卜)",
       badges: ["🏷️ 600元/小時", "🏷️ 單一事件精準預測"],
-      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/liuyao.jpg",
-      description:
-        "針對「單一特定事件」提供最精準的走向預測。無論是感情復合、工作去留、投資買房，或是尋找失物，文王卦能直接點出過去與現在的盲點，並給予未來明確的發展結果。",
+      heroImage:
+        "http://googleusercontent.com/image_collection/image_retrieval/10477976182484341091",
+      descriptionList: [
+        "針對單一特定事件，提供精準走向預測",
+        "適合問感情復合、工作去留、投資買房等",
+        "直指過去現在盲點，給予未來明確結果",
+      ],
       cta: "預約文王卦",
     },
     {
       serviceId: "ziwei",
       label: "紫微斗數",
       badges: ["🏷️ 1200元/小時起", "🏷️ 看關係互動＆人生事件"],
-      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/ziwei.jpg",
-      description:
-        "透過出生時辰排盤，細緻解析你與他人的互動關係、天賦潛能及各階段的起伏。非常適合用來看感情合婚、事業發展格局、流年運勢，以及解開長期困擾的人際結點。",
+      heroImage:
+        "http://googleusercontent.com/image_collection/image_retrieval/1279141197785054628",
+      descriptionList: [
+        "排盤細緻解析關係互動、天賦潛能與流年起伏",
+        "適合感情合婚、事業發展格局與人生事件",
+        "解開長期困擾的人際結點與人生卡關",
+      ],
       cta: "預約紫微斗數",
     },
     {
       serviceId: "bazi",
       label: "四柱八字",
-      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生職業五行"],
-      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg",
-      description:
-        "從先天的五行結構，抓出你的人生大方向與強弱勢。適合想了解自我本質、大運趨勢、適合的職業五行，以及學習如何運用自身優勢來趨吉避凶的人。",
+      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生大方向"],
+      heroImage:
+        "http://googleusercontent.com/image_collection/image_retrieval/1701051899493126944",
+      descriptionList: [
+        "從先天五行結構，抓出人生大方向與強弱勢",
+        "適合了解自我本質、大運趨勢與適合職業",
+        "學習如何運用自身優勢來趨吉避凶",
+      ],
       cta: "預約四柱八字",
     },
   ];
@@ -1443,6 +1457,31 @@ async function sendServiceSelectFlex(userId) {
    * [2] 產生 bubbles
    ***************************************/
   const bubbles = services.map((s) => {
+    // 將條列式陣列轉換成 Flex Text 區塊
+    const bulletPoints = s.descriptionList.map((text) => ({
+      type: "box",
+      layout: "baseline",
+      spacing: "sm",
+      margin: "md",
+      contents: [
+        {
+          type: "text",
+          text: "✦", // 用一個有質感的星芒或圓點當作列表符號
+          size: "xs",
+          color: "#8B7355", // 燙金色點綴
+          flex: 0,
+        },
+        {
+          type: "text",
+          text: text,
+          size: "sm",
+          color: "#4A4A4A",
+          wrap: true,
+          flex: 1,
+        },
+      ],
+    }));
+
     return {
       type: "bubble",
       size: "mega",
@@ -1456,11 +1495,14 @@ async function sendServiceSelectFlex(userId) {
         aspectMode: "cover",
       },
 
-      /* 🌟 Header：標題 + 標籤 */
+      /* 🌟 Header：縮小 paddingTop，消除醜醜的空格 */
       header: {
         type: "box",
         layout: "vertical",
-        paddingAll: "lg",
+        paddingTop: "md", // 👈 將原本的 lg (20px) 縮小到 md (12px) 讓標題貼近圖片
+        paddingBottom: "xs", // 👈 縮小底部空間，直接連貫到 body
+        paddingStart: "lg",
+        paddingEnd: "lg",
         spacing: "xs",
         contents: [
           {
@@ -1484,42 +1526,34 @@ async function sendServiceSelectFlex(userId) {
                 margin: i === 0 ? "sm" : "xs",
               }))
             : []),
-          { type: "separator", margin: "lg" },
         ],
       },
 
-      /* 🌟 Body：服務介紹文案 */
+      /* 🌟 Body：條列式服務介紹 */
       body: {
         type: "box",
         layout: "vertical",
+        paddingTop: "sm", // 接續 Header 保持緊湊
         paddingStart: "lg",
         paddingEnd: "lg",
-        paddingBottom: "lg",
-        spacing: "sm",
+        paddingBottom: "xl", // 底部留白多一點，更有呼吸感
         contents: [
-          {
-            type: "text",
-            text: s.description,
-            size: "sm",
-            color: "#4A4A4A",
-            wrap: true,
-            lineSpacing: "5px", // 增加行距讓長文更好讀
-          },
+          { type: "separator", margin: "xs", color: "#EEEEEE" }, // 細緻的分隔線放在這裡
+          ...bulletPoints,
         ],
       },
 
-      /* 🌟 Footer：預約按鈕與分類選單 */
+      /* 🌟 Footer：神秘玄紫色按鈕 */
       footer: {
         type: "box",
         layout: "vertical",
         paddingAll: "lg",
         spacing: "sm",
         contents: [
-          // 主按鈕：直接預約這個項目 (進入選日期)
           {
             type: "button",
             style: "primary",
-            color: "#3B2E40", // 🌟 換成充滿神秘與莊嚴感的「玄紫色」
+            color: "#3B2E40", // 莊嚴神祕的玄紫色
             height: "sm",
             action: {
               type: "postback",
@@ -1528,17 +1562,16 @@ async function sendServiceSelectFlex(userId) {
               displayText: `我想${s.cta}`,
             },
           },
-          // 次按鈕：如果不知道選哪個，可以用「問題」來找
           {
             type: "button",
             style: "link",
-            color: "#666666", // 🌟 壓暗文字顏色，避免預設亮藍色破壞莊嚴感
+            color: "#666666",
             height: "sm",
             action: {
               type: "postback",
               label: "用「我想問的問題」來找服務",
               data: "action=show_qcats",
-              displayText: "我想看常見分類",
+              displayText: "我想看常見問題分類",
             },
           },
         ],
