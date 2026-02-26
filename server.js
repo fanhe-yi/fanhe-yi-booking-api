@@ -513,6 +513,12 @@ const LIU_YAO_TOPIC_LABEL = {
  */
 const QUESTION_CATEGORIES = [
   {
+    id: "helper",
+    emoji: "🙋‍♀️",
+    title: "呼叫小幫手 / 真人客服",
+    desc: "有其他的問題，需要專人直接為您解答",
+  },
+  {
     id: "name",
     emoji: "🪪",
     title: "姓名學服務",
@@ -553,12 +559,6 @@ const QUESTION_CATEGORIES = [
     emoji: "🧭",
     title: "流年 / 整體運勢",
     desc: "年度趨勢、關鍵月份、要注意的坑與機會",
-  },
-  {
-    id: "helper",
-    emoji: "🙋‍♀️",
-    title: "呼叫小幫手 / 真人客服",
-    desc: "有其他的問題，需要專人直接為您解答",
   },
 ];
 
