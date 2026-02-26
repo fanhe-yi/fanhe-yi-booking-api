@@ -1058,6 +1058,7 @@ const QUESTION_BANK = {
   //  { qid: "shop_name", full: "店名用什麼名字好？" },
   //],
 
+  //目前不會跳到這裡
   helper: [{ qid: "buy", full: "呼叫小幫手" }],
 };
 
@@ -1159,143 +1160,307 @@ async function sendQuestionListCarouselFlex(userId, catId) {
 // ✅ A 方案：六爻拆成 2 頁，但兩頁按鈕都走同一個 service=liuyao（不動後端流程）
 // ✅ 不動結構：postback data 仍是 action=choose_service&service=xxx
 // ------------------------------------------------------------
+// async function sendServiceSelectFlex(userId) {
+//   /***************************************
+//    * [0] 問題庫（你給的句子我直接分到不同頁）
+//    * - 不做隨機：我先「直接塞」，你之後要換內容自己改這裡
+//    * - 每頁盡量維持相近字量，滑起來比較舒服
+//    ***************************************/
+//   const Q = {
+//     // 姓名學（偏「自我/運勢/定位」）
+//     name: [
+//       "• 我名字好嗎？我想改名",
+//       "• 我在公司會被重視嗎？",
+//       "• 我的名字適合當老闆嗎？",
+//       "• 我想幫新生兒取名？",
+//       "• 我要如何讓工作更順利？",
+//     ],
+//     // 六爻占卜：拆兩頁
+//     liuyao_1: [
+//       //感情現況/復合/前任
+//       "• 三個月內前任會重新聯絡我嗎？",
+//       "• 我們會復合嗎？",
+//       "• 若復合，這段感情有機會變得更成熟嗎？",
+//       "• 這段婚姻該不該離？",
+//       "• 我今年有沒有桃花？",
+//       "• 現在的曖昧關係會往下一步發展嗎？",
+//       "• 我該主動表達還是等待更好的時機？",
+//       "• 我容易在哪裡遇到真愛？",
+//       "• 是否有潛在第三者需要注意？",
+//       "• 這段關係該不該繼續走下去？",
+//       "• 這段感情目前的問題該怎麼調整？",
+//     ],
+//     liuyao_2: [
+//       "• 我 2026 年的整體運勢如何？",
+//       "• 換工作會比現在更好嗎？",
+//       "• 今年的財運如何？",
+//       "• 我創業會不會賠錢？",
+//       "• 有需要特別留意的小人或阻礙嗎？",
+//       "• 這間房子能買嗎？",
+//       "• 身體有要注意的地方嗎？",
+//     ],
+
+//     // 八字諮詢（偏「趨勢/節點」）
+//     bazi: [
+//       "• 我該如何提升愛情運與吸引力？",
+//       "• 哪個方向的事業最有潛力？",
+//       "• 我適合我的職業五行是什麼",
+//       "• 我的天賦與潛能在哪方面？",
+//     ],
+
+//     // 紫微斗數（偏「互動/關係模式」）
+//     ziwei: [
+//       "• 為什麼我總吸引到不合適的對象？",
+//       "• 是否有升遷或加薪的機會？",
+//       "• 出國、轉換跑道或進修會順利嗎？",
+//       "• 我的孩子在學業狀況如何？",
+//       "• 我和現任的緣分深嗎？",
+//       "• 我們適合走向婚姻嗎？",
+//       "• 我應該如何放下過去的感情？",
+//       "• 我適合創業嗎？",
+//       "• 有破財風險需要留意嗎？",
+//       "• 是否有偏財運或額外收入？",
+//       "• 什麼時候會遇到對的人？",
+//     ],
+//   };
+
+//   /***************************************
+//    * [1] 服務清單（六爻拆兩頁）
+//    * - pageKey：用來對應上面 Q 的內容
+//    * - serviceId：真正送到後端的 service（六爻兩頁都用 liuyao）
+//    * - label：頁面大標
+//    * - badge：你現在用的 🏷️ 文字（可自行換）
+//    * - cta：依服務類型配最像「先聊聊」的一句（功能不變）
+//    ***************************************/
+//   const services = [
+//     {
+//       pageKey: "name",
+//       serviceId: "name",
+//       label: "姓名學",
+//       badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
+//       cta: "先幫我看一下",
+//     },
+
+//     // ✅ 六爻第 1 頁 (感情現況/復合/前任)
+//     {
+//       pageKey: "liuyao_1",
+//       serviceId: "liuyao",
+//       label: "六爻占卜(感情現況/復合/前任)",
+//       badges: ["🏷️ 600元/小時", "🏷️ 我想知道會不會回頭"],
+//       cta: "我想問這個",
+//     },
+//     // ✅ 六爻第 2 頁
+//     {
+//       pageKey: "liuyao_2",
+//       serviceId: "liuyao",
+//       label: "六爻占卜(財運/事業/疾病)",
+//       badges: ["🏷️ 600元/小時", "🏷️ 財運/事業/疾病/買房/官司"],
+//       cta: "我想問這個",
+//     },
+//     {
+//       pageKey: "ziwei",
+//       serviceId: "ziwei",
+//       label: "紫微斗數",
+//       badges: ["🏷️ 2400元/小時", "🏷️ 看關係互動＆事件"],
+//       cta: "我比較需要這個",
+//     },
+//     {
+//       pageKey: "bazi",
+//       serviceId: "bazi",
+//       label: "八字諮詢",
+//       badges: ["🏷️ 2400元/小時", "🏷️ 先抓人生大方向"],
+//       cta: "從這裡開始",
+//     },
+//   ];
+
+//   /***************************************
+//    * [2] 產生 bubbles（每服務一頁）
+//    * - header/footer 不動你的風格
+//    * - 「適合什麼樣的人？」移到 header 的 separator 下方
+//    * - body 只放「問題清單」，字體稍微放大（xs -> sm）
+//    ***************************************/
+//   const bubbles = services.map((s) => {
+//     // ✅ 這頁要顯示的問題列表
+//     const questionLines = (Q[s.pageKey] || []).map((t) => ({
+//       type: "text",
+//       text: t, // 已含 "• "
+//       size: "sm", // ✅ 放大（原本多是 xs）
+//       color: "#333333",
+//       wrap: true,
+//       margin: "sm",
+//     }));
+
+//     return {
+//       type: "bubble",
+//       size: "mega",
+
+//       /***************************************
+//        * [2-1] Header：標題 + badges + 分隔線 + 「適合什麼樣的人？」
+//        ***************************************/
+//       header: {
+//         type: "box",
+//         layout: "vertical",
+//         paddingAll: "lg",
+//         spacing: "xs",
+//         contents: [
+//           {
+//             type: "text",
+//             text: s.label,
+//             weight: "bold",
+//             size: "xl", // ✅ 放大
+//             color: "#111111",
+//             wrap: true,
+//             margin: "sm",
+//           },
+
+//           // ✅ badges：上下排列（你已改成純文字版本）
+//           ...(Array.isArray(s.badges) && s.badges.length
+//             ? s.badges.slice(0, 2).map((b, i) => ({
+//                 type: "text",
+//                 text: b,
+//                 size: "xs",
+//                 color: "#635750",
+//                 wrap: true,
+//                 margin: i === 0 ? "sm" : "xs",
+//               }))
+//             : []),
+
+//           // ✅ 把「適合什麼樣的人？」往上拉：放在 header 的 separator 下方
+//           { type: "separator", margin: "md" },
+//           {
+//             type: "text",
+//             text: "適合什麼問題的人？",
+//             size: "sm",
+//             weight: "bold",
+//             color: "#111111",
+//             margin: "md",
+//           },
+//         ],
+//       },
+
+//       /***************************************
+//        * [2-2] Body：只放「問題清單」
+//        * - intro/highlights 都刪掉
+//        * - 維持閱讀舒服：spacing 用 sm / margin 用 sm
+//        ***************************************/
+//       body: {
+//         type: "box",
+//         layout: "vertical",
+//         paddingAll: "lg",
+//         spacing: "sm",
+//         contents: [...questionLines],
+//       },
+
+//       /***************************************
+//        * [2-3] Footer：CTA 換成「先聊聊」語氣，但功能一樣
+//        * - data: action=choose_service&service=xxx（不動）
+//        * - displayText: 仍可用，但不會自己改 state；真正改流程的是 postback data
+//        ***************************************/
+//       footer: {
+//         type: "box",
+//         layout: "vertical",
+//         paddingAll: "lg",
+//         spacing: "sm",
+//         contents: [
+//           {
+//             type: "button",
+//             style: "primary",
+//             color: "#52a6c0ff",
+//             height: "sm",
+//             action: {
+//               type: "postback",
+//               label: s.cta, // ✅ 依服務類型配一句
+//               data: `action=choose_service&service=${s.serviceId}`,
+//               displayText: `我想先聊聊：${s.label}`,
+//             },
+//           },
+//         ],
+//       },
+//     };
+//   });
+
+//   /***************************************
+//    * [3] Carousel：一次送出多頁
+//    ***************************************/
+//   const flexPayload = {
+//     type: "carousel",
+//     contents: bubbles,
+//   };
+
+//   /***************************************
+//    * [4] 推送 Flex
+//    ***************************************/
+//   await pushFlex(userId, "請選擇預約服務", flexPayload);
+// }
+
+// 🔹 服務展示 Flex（Carousel：商品型錄介紹版，含 Hero 圖片與預約按鈕）
 async function sendServiceSelectFlex(userId) {
   /***************************************
-   * [0] 問題庫（你給的句子我直接分到不同頁）
-   * - 不做隨機：我先「直接塞」，你之後要換內容自己改這裡
-   * - 每頁盡量維持相近字量，滑起來比較舒服
-   ***************************************/
-  const Q = {
-    // 姓名學（偏「自我/運勢/定位」）
-    name: [
-      "• 我名字好嗎？我想改名",
-      "• 我在公司會被重視嗎？",
-      "• 我的名字適合當老闆嗎？",
-      "• 我想幫新生兒取名？",
-      "• 我要如何讓工作更順利？",
-    ],
-    // 六爻占卜：拆兩頁
-    liuyao_1: [
-      //感情現況/復合/前任
-      "• 三個月內前任會重新聯絡我嗎？",
-      "• 我們會復合嗎？",
-      "• 若復合，這段感情有機會變得更成熟嗎？",
-      "• 這段婚姻該不該離？",
-      "• 我今年有沒有桃花？",
-      "• 現在的曖昧關係會往下一步發展嗎？",
-      "• 我該主動表達還是等待更好的時機？",
-      "• 我容易在哪裡遇到真愛？",
-      "• 是否有潛在第三者需要注意？",
-      "• 這段關係該不該繼續走下去？",
-      "• 這段感情目前的問題該怎麼調整？",
-    ],
-    liuyao_2: [
-      "• 我 2026 年的整體運勢如何？",
-      "• 換工作會比現在更好嗎？",
-      "• 今年的財運如何？",
-      "• 我創業會不會賠錢？",
-      "• 有需要特別留意的小人或阻礙嗎？",
-      "• 這間房子能買嗎？",
-      "• 身體有要注意的地方嗎？",
-    ],
-
-    // 八字諮詢（偏「趨勢/節點」）
-    bazi: [
-      "• 我該如何提升愛情運與吸引力？",
-      "• 哪個方向的事業最有潛力？",
-      "• 我適合我的職業五行是什麼",
-      "• 我的天賦與潛能在哪方面？",
-    ],
-
-    // 紫微斗數（偏「互動/關係模式」）
-    ziwei: [
-      "• 為什麼我總吸引到不合適的對象？",
-      "• 是否有升遷或加薪的機會？",
-      "• 出國、轉換跑道或進修會順利嗎？",
-      "• 我的孩子在學業狀況如何？",
-      "• 我和現任的緣分深嗎？",
-      "• 我們適合走向婚姻嗎？",
-      "• 我應該如何放下過去的感情？",
-      "• 我適合創業嗎？",
-      "• 有破財風險需要留意嗎？",
-      "• 是否有偏財運或額外收入？",
-      "• 什麼時候會遇到對的人？",
-    ],
-  };
-
-  /***************************************
-   * [1] 服務清單（六爻拆兩頁）
-   * - pageKey：用來對應上面 Q 的內容
-   * - serviceId：真正送到後端的 service（六爻兩頁都用 liuyao）
-   * - label：頁面大標
-   * - badge：你現在用的 🏷️ 文字（可自行換）
-   * - cta：依服務類型配最像「先聊聊」的一句（功能不變）
+   * [1] 服務型錄資料
+   * - 移除了 Q 問題庫，改用 description 撰寫服務介紹
+   * - 合併了六爻（因為不列問題了，介紹寫在一起即可）
    ***************************************/
   const services = [
     {
-      pageKey: "name",
       serviceId: "name",
       label: "姓名學",
       badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
-      cta: "先幫我看一下",
+      heroImage:
+        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Name+Analysis", // 替換成你的 Banner 網址
+      description:
+        "名字是給人的第一印象，也蘊含著無形的能量。無論是想了解目前名字對運勢、人際的影響，或是需要為新生兒取個好名、個人改名換運，都能透過姓名學為你找到最適合的定位。",
+      cta: "預約姓名諮詢",
     },
-
-    // ✅ 六爻第 1 頁 (感情現況/復合/前任)
     {
-      pageKey: "liuyao_1",
       serviceId: "liuyao",
-      label: "六爻占卜(感情現況/復合/前任)",
-      badges: ["🏷️ 600元/小時", "🏷️ 我想知道會不會回頭"],
-      cta: "我想問這個",
-    },
-    // ✅ 六爻第 2 頁
-    {
-      pageKey: "liuyao_2",
-      serviceId: "liuyao",
-      label: "六爻占卜(財運/事業/疾病)",
-      badges: ["🏷️ 600元/小時", "🏷️ 財運/事業/疾病/買房/官司"],
-      cta: "我想問這個",
+      label: "文王卦 (六爻占卜)",
+      badges: ["🏷️ 600元/小時", "🏷️ 單一事件精準預測"],
+      heroImage:
+        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Divination",
+      description:
+        "針對「單一特定事件」提供最精準的走向預測。無論是感情復合、工作去留、投資買房，或是尋找失物，文王卦能直接點出過去與現在的盲點，並給予未來明確的發展結果。",
+      cta: "預約文王卦",
     },
     {
-      pageKey: "ziwei",
       serviceId: "ziwei",
       label: "紫微斗數",
-      badges: ["🏷️ 2400元/小時", "🏷️ 看關係互動＆事件"],
-      cta: "我比較需要這個",
+      badges: ["🏷️ 1200元/小時起", "🏷️ 看關係互動＆人生事件"],
+      heroImage:
+        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Ziwei+Astrology",
+      description:
+        "透過出生時辰排盤，細緻解析你與他人的互動關係、天賦潛能及各階段的起伏。非常適合用來看感情合婚、事業發展格局、流年運勢，以及解開長期困擾的人際結點。",
+      cta: "預約紫微斗數",
     },
     {
-      pageKey: "bazi",
       serviceId: "bazi",
-      label: "八字諮詢",
-      badges: ["🏷️ 2400元/小時", "🏷️ 先抓人生大方向"],
-      cta: "從這裡開始",
+      label: "四柱八字",
+      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生大方向"],
+      heroImage:
+        "https://via.placeholder.com/1040x500/E8E4D9/555555?text=Bazi+Consultation",
+      description:
+        "從先天的五行結構，抓出你的人生大方向與強弱勢。適合想了解自我本質、大運趨勢、適合的職業五行，以及學習如何運用自身優勢來趨吉避凶的人。",
+      cta: "預約四柱八字",
     },
   ];
 
   /***************************************
-   * [2] 產生 bubbles（每服務一頁）
-   * - header/footer 不動你的風格
-   * - 「適合什麼樣的人？」移到 header 的 separator 下方
-   * - body 只放「問題清單」，字體稍微放大（xs -> sm）
+   * [2] 產生 bubbles
    ***************************************/
   const bubbles = services.map((s) => {
-    // ✅ 這頁要顯示的問題列表
-    const questionLines = (Q[s.pageKey] || []).map((t) => ({
-      type: "text",
-      text: t, // 已含 "• "
-      size: "sm", // ✅ 放大（原本多是 xs）
-      color: "#333333",
-      wrap: true,
-      margin: "sm",
-    }));
-
     return {
       type: "bubble",
       size: "mega",
 
-      /***************************************
-       * [2-1] Header：標題 + badges + 分隔線 + 「適合什麼樣的人？」
-       ***************************************/
+      /* 🌟 Hero：主視覺圖 */
+      hero: {
+        type: "image",
+        url: s.heroImage,
+        size: "full",
+        aspectRatio: "20:13",
+        aspectMode: "cover",
+      },
+
+      /* 🌟 Header：標題 + 標籤 */
       header: {
         type: "box",
         layout: "vertical",
@@ -1306,71 +1471,77 @@ async function sendServiceSelectFlex(userId) {
             type: "text",
             text: s.label,
             weight: "bold",
-            size: "xl", // ✅ 放大
+            size: "xl",
             color: "#111111",
             wrap: true,
             margin: "sm",
           },
-
-          // ✅ badges：上下排列（你已改成純文字版本）
+          // 標籤排列
           ...(Array.isArray(s.badges) && s.badges.length
             ? s.badges.slice(0, 2).map((b, i) => ({
                 type: "text",
                 text: b,
                 size: "xs",
-                color: "#635750",
+                color: "#8B7355", // 大地色/燙金感
+                weight: "bold",
                 wrap: true,
                 margin: i === 0 ? "sm" : "xs",
               }))
             : []),
+          { type: "separator", margin: "lg" },
+        ],
+      },
 
-          // ✅ 把「適合什麼樣的人？」往上拉：放在 header 的 separator 下方
-          { type: "separator", margin: "md" },
+      /* 🌟 Body：服務介紹文案 */
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingStart: "lg",
+        paddingEnd: "lg",
+        paddingBottom: "lg",
+        spacing: "sm",
+        contents: [
           {
             type: "text",
-            text: "適合什麼問題的人？",
+            text: s.description,
             size: "sm",
-            weight: "bold",
-            color: "#111111",
-            margin: "md",
+            color: "#4A4A4A",
+            wrap: true,
+            lineSpacing: "5px", // 增加行距讓長文更好讀
           },
         ],
       },
 
-      /***************************************
-       * [2-2] Body：只放「問題清單」
-       * - intro/highlights 都刪掉
-       * - 維持閱讀舒服：spacing 用 sm / margin 用 sm
-       ***************************************/
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "lg",
-        spacing: "sm",
-        contents: [...questionLines],
-      },
-
-      /***************************************
-       * [2-3] Footer：CTA 換成「先聊聊」語氣，但功能一樣
-       * - data: action=choose_service&service=xxx（不動）
-       * - displayText: 仍可用，但不會自己改 state；真正改流程的是 postback data
-       ***************************************/
+      /* 🌟 Footer：預約按鈕與分類選單 */
       footer: {
         type: "box",
         layout: "vertical",
         paddingAll: "lg",
         spacing: "sm",
         contents: [
+          // 主按鈕：直接預約這個項目 (進入選日期)
           {
             type: "button",
             style: "primary",
-            color: "#52a6c0ff",
+            color: "#52a6c0ff", // 你的主題色
             height: "sm",
             action: {
               type: "postback",
-              label: s.cta, // ✅ 依服務類型配一句
+              label: s.cta,
               data: `action=choose_service&service=${s.serviceId}`,
-              displayText: `我想先聊聊：${s.label}`,
+              displayText: `我想${s.cta}`,
+            },
+          },
+          // 次按鈕：如果不知道選哪個，可以用「問題」來找
+          {
+            type: "button",
+            style: "link",
+            height: "sm",
+            action: {
+              type: "postback",
+              label: "用「我想問的問題」來找服務",
+              data: "action=show_qcats",
+              displayText: "我想看常見問題分類",
             },
           },
         ],
@@ -1379,17 +1550,14 @@ async function sendServiceSelectFlex(userId) {
   });
 
   /***************************************
-   * [3] Carousel：一次送出多頁
+   * [3] Carousel 推送
    ***************************************/
   const flexPayload = {
     type: "carousel",
     contents: bubbles,
   };
 
-  /***************************************
-   * [4] 推送 Flex
-   ***************************************/
-  await pushFlex(userId, "請選擇預約服務", flexPayload);
+  await pushFlex(userId, "梵和易學｜服務介紹", flexPayload);
 }
 
 //AI服務選擇說明卡 Flex（八字 / 紫微 / 姓名）
