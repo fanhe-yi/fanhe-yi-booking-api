@@ -1403,8 +1403,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "name",
       label: "姓名學",
       badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
-      heroImage:
-        "http://googleusercontent.com/image_collection/image_retrieval/13383565098228327626",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg",
       descriptionList: [
         "解析名字對運勢與人際的無形影響",
         "新生兒專屬取名、個人改名換運",
@@ -1416,8 +1415,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "liuyao",
       label: "文王卦 (六爻占卜)",
       badges: ["🏷️ 600元/小時", "🏷️ 單一事件精準預測"],
-      heroImage:
-        "http://googleusercontent.com/image_collection/image_retrieval/10477976182484341091",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/liuyao.jpg",
       descriptionList: [
         "針對單一特定事件，提供精準走向預測",
         "適合問感情復合、工作去留、投資買房等",
@@ -1429,8 +1427,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "ziwei",
       label: "紫微斗數",
       badges: ["🏷️ 1200元/小時起", "🏷️ 看關係互動＆人生事件"],
-      heroImage:
-        "http://googleusercontent.com/image_collection/image_retrieval/1279141197785054628",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/ziwei.jpg",
       descriptionList: [
         "排盤細緻解析關係互動、天賦潛能與流年起伏",
         "適合感情合婚、事業發展格局與人生事件",
@@ -1442,8 +1439,7 @@ async function sendServiceSelectFlex(userId) {
       serviceId: "bazi",
       label: "四柱八字",
       badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生大方向"],
-      heroImage:
-        "http://googleusercontent.com/image_collection/image_retrieval/1701051899493126944",
+      heroImage: "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg",
       descriptionList: [
         "從先天五行結構，抓出人生大方向與強弱勢",
         "適合了解自我本質、大運趨勢與適合職業",
