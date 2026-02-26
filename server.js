@@ -1766,59 +1766,88 @@ async function sendServiceIntroFlex(userId, serviceKey) {
   await pushFlex(userId, flex.altText, flex.contents);
 }
 
-// 🔹 八字解析：讓使用者選擇「個人測算」或「雙人合婚」
+// 🔹 八字解析選擇卡（美化版：含 Hero 圖與精緻排版）
 async function sendBaziChoiceFlex(userId) {
+  // 使用之前生成的「四柱八字」高質感圖片當主視覺
+  const heroImageUrl = "hhttps://assets.chen-yi.tw/tenants/a/booking/bazi.jpg";
+
   const contents = {
     type: "bubble",
-    size: "kilo", // 卡片不用太大，精緻就好
+    size: "mega", // 稍微加大一點，更有份量感
+
+    /* 🌟 1. 加入主視覺 Hero 圖片 */
+    hero: {
+      type: "image",
+      url: heroImageUrl,
+      size: "full",
+      aspectRatio: "20:13",
+      aspectMode: "cover",
+    },
+
+    /* 🌟 2. 身體區塊：標題與引言 */
     body: {
       type: "box",
       layout: "vertical",
-      spacing: "md",
+      paddingAll: "lg",
       contents: [
         {
           type: "text",
-          text: "八字解析",
+          text: "八字命理析論", // 稍微改得更專業一點的標題
           weight: "bold",
           size: "xl",
-          color: "#111111",
+          color: "#3B2E40", // 使用玄紫色增加莊重感
+          align: "center", // 置中對齊，增加儀式感
+        },
+        {
+          type: "separator", // 加一條細緻的分隔線
+          margin: "md",
+          color: "#8B7355", // 燙金色
         },
         {
           type: "text",
-          text: "請選擇您要進行的解析項目：",
+          text: "探究先天命格與後天運勢\n請選擇您想深入了解的方向：",
           size: "sm",
           color: "#666666",
           wrap: true,
+          align: "center", // 置中
+          margin: "md",
+          lineSpacing: "6px", // 增加行距更好讀
         },
       ],
     },
+
+    /* 🌟 3. 底部按鈕區塊 */
     footer: {
       type: "box",
       layout: "vertical",
+      paddingStart: "lg",
+      paddingEnd: "lg",
+      paddingBottom: "lg",
       spacing: "sm",
       contents: [
-        // 選擇一：個人測算 (按下去等於使用者輸入「八字測算」)
+        // 選擇一：個人測算 (加上小圖示讓視覺更豐富)
         {
           type: "button",
           style: "primary",
-          color: "#3B2E40", // 莊嚴神祕的玄紫色
+          color: "#3B2E40", // 玄紫色按鈕
           height: "sm",
           action: {
             type: "message",
-            label: "單人｜八字格局解析",
-            text: "八字測算",
+            label: "👤 個人格局精批", // 按鈕文字
+            text: "八字測算", // 實際送出的指令
           },
         },
-        // 選擇二：雙人合婚 (按下去等於使用者輸入「八字合婚」)
+        // 選擇二：雙人合婚
         {
           type: "button",
           style: "primary",
-          color: "#3B2E40", // 莊嚴神祕的玄紫色
+          color: "#8B7355", // 大地燙金色按鈕，做出區隔
           height: "sm",
+          margin: "md", // 增加一點按鈕間距
           action: {
             type: "message",
-            label: "雙人｜八字合婚解析",
-            text: "八字合婚",
+            label: "👥 雙人緣分合婚", // 按鈕文字
+            text: "八字合婚", // 實際送出的指令
           },
         },
       ],
