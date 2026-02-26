@@ -26,6 +26,7 @@ const {
   sendBaziMatchResultFlex,
   sendLiuYaoMenuFlex,
   sendLiuYaoTimeModeFlex,
+  getUserProfile,
 } = require("./lineClient");
 
 /* ==========================================================
@@ -4394,8 +4395,11 @@ async function routePostback(userId, data) {
         .filter(Boolean);
 
       if (adminIds.length > 0) {
+        // 🌟 透過 LINE API 取得使用者暱稱
+        const displayName = await getUserProfile(userId);
+
         // 組裝要傳給管理者的文字，順便附上使用者的 ID，方便後台查驗
-        const alertMsg = `🔔【客服通知】\n有使用者按下了「呼叫小幫手」！\n使用者 ID：${userId}\n請盡快至後台或手機確認訊息。`;
+        const alertMsg = `🔔【客服通知】\n有使用者按下了呼叫小幫手\n暱稱：${displayName}\n使用者 ID：${userId}\n請盡快至後台或手機確認訊息。`;
 
         // 3. 跑迴圈逐一發送給每位管理者
         for (const adminId of adminIds) {
