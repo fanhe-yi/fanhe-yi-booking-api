@@ -165,6 +165,9 @@ async function notifyNewBooking(booking) {
   // 服務名稱（轉中文）
   const serviceName = getServiceName(serviceId);
 
+  //使用者匿稱
+  const displayName = await getUserProfile(userId);
+
   // 時段（多選優先）
   let slotText = "未選擇時段";
   if (Array.isArray(timeSlots) && timeSlots.length > 0) {
@@ -203,6 +206,7 @@ async function notifyNewBooking(booking) {
     `📣 新預約通知\n` +
     `-----------------\n` +
     `項目：${serviceName}\n` +
+    `匿稱：${displayName || "（未填寫）"}\n` +
     `姓名：${name || "（未填寫）"}\n` +
     `日期：${date || "（未填寫）"}\n` +
     `時段：${slotText}\n` +
@@ -213,7 +217,29 @@ async function notifyNewBooking(booking) {
     `建立時間：${convertToTaiwanTime(createdAt)}`;
 
   // 發送
-  await pushText(ADMIN_USER_ID, msg);
+  //await pushText(adminIds, msg);
+
+  // 2. 準備通知管理者
+  // 從環境變數讀取多個管理員 ID，並用逗號切成陣列，過濾掉空白
+  const adminStr = process.env.ADMIN_NOTIFY_USER_IDS || "";
+  const adminIds = adminStr
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  if (adminIds.length > 0) {
+    // 3. 跑迴圈逐一發送給每位管理者
+    for (const adminId of adminIds) {
+      try {
+        await pushText(adminId, msg);
+      } catch (err) {
+        console.error(
+          `[Helper Notify] 發送通知給管理者 ${adminId} 失敗：`,
+          err.message || err,
+        );
+      }
+    }
+  }
 }
 
 // ------------------------------------------------------------
