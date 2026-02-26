@@ -5248,7 +5248,7 @@ async function handleBookingFlow(userId, text, state, event) {
 
       /* ✅ 目的：有問題才換行接上去（避免多出空白行） */
       if (pickedQuestion) {
-        finalNote += `\n   ${pickedQuestion}`;
+        finalNote += `\n  ${pickedQuestion}`;
       }
     }
 

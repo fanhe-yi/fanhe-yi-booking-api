@@ -143,10 +143,11 @@ async function pushFlex(to, altText, contents) {
 }
 
 // ------------------------------------------------------------
-// 🔔 2) 新預約通知：傳給「管理者（=你自己）」
+// 🔔 2) 新預約通知：傳給「管理者（多位）」
 // ------------------------------------------------------------
 async function notifyNewBooking(booking) {
-  if (!CHANNEL_ACCESS_TOKEN || !ADMIN_USER_ID) return;
+  // 這裡的檢查依你實際需求為主，若已改用多位管理員，可以拔掉單一 ADMIN_USER_ID 的檢查
+  if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) return;
 
   const {
     serviceId,
@@ -160,13 +161,17 @@ async function notifyNewBooking(booking) {
     timeSlot,
     note,
     createdAt,
+    lineUserId, // 🌟 關鍵 1：把 lineUserId 從 booking 中解構出來
   } = booking;
 
   // 服務名稱（轉中文）
   const serviceName = getServiceName(serviceId);
 
-  //使用者匿稱
-  const displayName = await getUserProfile(userId);
+  // 🌟 關鍵 2：判斷是否有 lineUserId，有才去抓暱稱
+  let displayName = "（未提供 LINE 帳號）";
+  if (lineUserId) {
+    displayName = await getUserProfile(lineUserId);
+  }
 
   // 時段（多選優先）
   let slotText = "未選擇時段";
@@ -178,18 +183,13 @@ async function notifyNewBooking(booking) {
 
   // 聯絡方式整理
   const contactLines = [];
-
-  if (phone && String(phone).trim()) {
+  if (phone && String(phone).trim())
     contactLines.push(`電話：${String(phone).trim()}`);
-  }
-  if (lineId && String(lineId).trim()) {
+  if (lineId && String(lineId).trim())
     contactLines.push(`LINE ID：${String(lineId).trim()}`);
-  }
-  if (email && String(email).trim()) {
+  if (email && String(email).trim())
     contactLines.push(`Email：${String(email).trim()}`);
-  }
 
-  // 若 email/phone/lineId 都沒填，但有 contact，就使用 contact
   if (!contactLines.length && contact && String(contact).trim()) {
     contactLines.push(String(contact).trim());
   }
@@ -206,7 +206,7 @@ async function notifyNewBooking(booking) {
     `📣 新預約通知\n` +
     `-----------------\n` +
     `項目：${serviceName}\n` +
-    `匿稱：${displayName || "（未填寫）"}\n` +
+    `暱稱：${displayName}\n` + // 🌟 關鍵 3：帶入抓到的暱稱
     `姓名：${name || "（未填寫）"}\n` +
     `日期：${date || "（未填寫）"}\n` +
     `時段：${slotText}\n` +
@@ -216,11 +216,9 @@ async function notifyNewBooking(booking) {
     `-----------------\n` +
     `建立時間：${convertToTaiwanTime(createdAt)}`;
 
-  // 發送
-  //await pushText(adminIds, msg);
-
-  // 2. 準備通知管理者
-  // 從環境變數讀取多個管理員 ID，並用逗號切成陣列，過濾掉空白
+  // ------------------------------------------------------------
+  // 準備通知管理者群
+  // ------------------------------------------------------------
   const adminStr = process.env.ADMIN_NOTIFY_USER_IDS || "";
   const adminIds = adminStr
     .split(",")
@@ -228,13 +226,12 @@ async function notifyNewBooking(booking) {
     .filter(Boolean);
 
   if (adminIds.length > 0) {
-    // 3. 跑迴圈逐一發送給每位管理者
     for (const adminId of adminIds) {
       try {
         await pushText(adminId, msg);
       } catch (err) {
         console.error(
-          `[Helper Notify] 發送通知給管理者 ${adminId} 失敗：`,
+          `[Helper Notify] 發送新預約通知給管理者 ${adminId} 失敗：`,
           err.message || err,
         );
       }
