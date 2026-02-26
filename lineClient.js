@@ -47,17 +47,28 @@ function getServiceName(serviceId) {
   return map[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
 }
 
-// 在 lineClient.js 裡面新增這個函式
-// 藉由userId取得使用者的匿稱
+// ------------------------------------------------------------
+// 👤 取得使用者暱稱 (Profile)
+// ------------------------------------------------------------
 async function getUserProfile(userId) {
+  if (!CHANNEL_ACCESS_TOKEN) return "未知用戶";
+
   try {
-    // 假設你的 LINE SDK 實體叫做 client
-    const profile = await client.getProfile(userId);
-    return profile.displayName; // 回傳使用者的 LINE 暱稱
+    // 使用 axios 打 LINE 的 Profile API
+    const res = await axios.get(
+      `https://api.line.me/v2/bot/profile/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+        },
+      },
+    );
+
+    return res.data.displayName; // 回傳使用者的 LINE 暱稱
   } catch (err) {
     console.error(
       `[LINE API] 無法取得 userId: ${userId} 的 Profile:`,
-      err.message,
+      err.response?.data || err.message,
     );
     return "未知用戶"; // 抓不到時的防呆預設值
   }
