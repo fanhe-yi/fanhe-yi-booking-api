@@ -696,7 +696,7 @@ function chunkArray(arr, chunkSize) {
 // - showCount：你想顯示幾個「可約日期」
 // - scanDays：最多往後掃幾天（避免一直掃到宇宙盡頭）
 // ✅ 更新：抓取未來日期，並在標籤加上「剩餘時段數量」
-function getNextAvailableDays(showCount, scanDays = 90) {
+function getNextAvailableDays(showCount, scanDays = 60) {
   const results = [];
   const base = new Date();
   const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
@@ -1913,7 +1913,14 @@ async function sendBaziChoiceFlex(userId) {
 // 🔹 日期選擇 Carousel Flex（質感按鈕版，一頁 3 個）
 async function sendDateCarouselFlex(userId, serviceId) {
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-  const days = getNextAvailableDays(30, 90);
+
+  // 想開放幾天自己決定：例如未來 30 天
+  //const days = getNextDays(30);//原來不屏蔽不可預約時段前
+  // ✅ 只顯示「有可預約時段」的日期
+  // 你想顯示幾個可約日期：showCount = 30
+  // 最多往後掃幾天：scanDays = 90（自己調）
+
+  const days = getNextAvailableDays(30, 60);
 
   if (days.length === 0) {
     await pushText(
