@@ -6878,7 +6878,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
         },
         {
           type: "text",
-          text: "請默念，並逐字照念。",
+          text: "請念出，並逐字照念。",
           size: "xs",
           color: "#777777",
           wrap: true,
@@ -6901,7 +6901,7 @@ async function sendLiuYaoSpellFlex(userId, topicLabel = "此事") {
 
         {
           type: "text",
-          text: "默念完畢後，按下方按鈕。",
+          text: "念完後，按下方按鈕。",
           size: "xs",
           color: "#999999",
           wrap: true,
@@ -7282,14 +7282,14 @@ async function sendLiuYaoMidGateFlex(userId) {
         {
           type: "text",
           text:
-            "請你默念：\n\n" +
+            "請你念：\n\n" +
             "「內卦三爻吉凶未判」\n「再求外卦三爻，以成全卦。」",
           size: "md",
           wrap: true,
         },
         {
           type: "text",
-          text: "默念完畢後，按下方按鈕，進入第四爻。",
+          text: "念完後，按下方按鈕，進入第四爻。",
           size: "xs",
           color: "#999999",
           wrap: true,
@@ -7308,7 +7308,7 @@ async function sendLiuYaoMidGateFlex(userId) {
           margin: "md",
           action: {
             type: "postback",
-            label: "默念完畢，進入第四爻",
+            label: "念完後，進入第四爻",
             data: "action=liuyao_mid_continue",
             displayText: "默念完畢",
           },
