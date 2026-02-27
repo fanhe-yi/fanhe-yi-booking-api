@@ -1910,7 +1910,7 @@ async function sendBaziChoiceFlex(userId) {
 }
 
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
-// 🔹 日期選擇 Carousel Flex（實體按鈕版）
+// 🔹 日期選擇 Carousel Flex（質感按鈕版，一頁 3 個）
 async function sendDateCarouselFlex(userId, serviceId) {
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
   const days = getNextAvailableDays(30, 90);
@@ -1923,8 +1923,8 @@ async function sendDateCarouselFlex(userId, serviceId) {
     return;
   }
 
-  // 每 4 個日期一頁 (因為有實體按鈕了，一頁放 4 個排版會比較適中)
-  const dayGroups = chunkArray(days, 4);
+  // ✅ 改回一頁只放 3 個日期，讓畫面保持適當留白與呼吸感
+  const dayGroups = chunkArray(days, 3);
 
   const bubbles = dayGroups.map((group) => ({
     type: "bubble",
@@ -1938,21 +1938,22 @@ async function sendDateCarouselFlex(userId, serviceId) {
           type: "text",
           text: "請選擇預約日期",
           size: "sm",
-          color: "#888888",
+          color: "#8B7355", // 標題也換成呼應的質感色
           weight: "bold",
         },
         {
           type: "box",
           layout: "vertical",
-          spacing: "md", // 加大按鈕間距，避免實體按鈕黏在一起
+          spacing: "md", // 實體按鈕之間的間距
           margin: "lg",
           contents: group.map((day) => ({
             type: "button",
-            style: "secondary", // 🌟 將原本的 link 改成 secondary (實體灰底按鈕)
+            style: "primary", // 🌟 放棄預設灰色，改用填滿色彩的 primary
+            color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
             height: "sm",
             action: {
               type: "postback",
-              label: day.label, // 這裡就會顯示：03/01(日) [2時段可選]
+              label: day.label, // 這裡會顯示：03/01(日) [2時段可選]
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
               displayText: `我想預約 ${serviceName} ${day.dateStr}`,
             },
