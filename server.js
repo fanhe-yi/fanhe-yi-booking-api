@@ -695,29 +695,35 @@ function chunkArray(arr, chunkSize) {
 // ✅ 取得未來 N 天內「有 open 時段」的日期列表（給日期 Carousel 用）
 // - showCount：你想顯示幾個「可約日期」
 // - scanDays：最多往後掃幾天（避免一直掃到宇宙盡頭）
-function getNextAvailableDays(showCount, scanDays = 60) {
+// ✅ 更新：抓取未來日期，並在標籤加上「剩餘時段數量」
+function getNextAvailableDays(showCount, scanDays = 90) {
   const results = [];
   const base = new Date();
   const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
 
-  // ✅ 先讀一次，避免每個日期都讀檔
   const bookings = loadBookings();
   const unavailable = loadUnavailable();
 
   for (let i = 0; i < scanDays; i++) {
     const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const dateStr = d.toISOString().slice(0, 10); // 這是 YYYY-MM-DD (後端資料用)
     const w = weekdayNames[d.getDay()];
 
-    // 只要這天有任何 open slot，就收進清單
-    if (hasOpenSlotOnDate(dateStr, bookings, unavailable)) {
+    // 取 MM/DD (前端顯示用，避免超過 LINE 按鈕 20 字限制)
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+
+    // 計算剩餘時段數
+    const openCount = countOpenSlotsOnDate(dateStr, bookings, unavailable);
+
+    if (openCount > 0) {
       results.push({
-        dateStr,
-        label: `${dateStr}（${w}）`,
+        dateStr: dateStr, // 傳給後端的 action data 保持完整
+        // 🌟 按鈕顯示文字變成：03/01(日) [2時段可選]
+        label: `${mm}/${dd}(${w}) [${openCount}時段可選]`,
       });
     }
 
-    // 收滿就停（顧客只看到「可約」的日期）
     if (results.length >= showCount) break;
   }
 
@@ -764,6 +770,52 @@ function hasOpenSlotOnDate(date, bookings, unavailable) {
     if (bookedSlotsForDate.includes(slot)) return false;
     return true;
   });
+}
+
+// ✅ 新增：精準計算某一天剩餘「幾個」可預約時段
+function countOpenSlotsOnDate(date, bookings, unavailable) {
+  // 這一天是否整天不開放
+  const isFullDayBlocked =
+    Array.isArray(unavailable.fullDay) && unavailable.fullDay.includes(date);
+
+  if (isFullDayBlocked) return 0;
+
+  // 這一天被你標記為不開放的時段
+  const blockedSlotsForDate = [];
+  if (Array.isArray(unavailable.slots)) {
+    unavailable.slots
+      .filter((u) => u.date === date)
+      .forEach((u) => {
+        if (Array.isArray(u.timeSlots))
+          blockedSlotsForDate.push(...u.timeSlots);
+      });
+  }
+
+  // 這一天已被預約的時段（順手幫你加上 status !== "canceled" 的防呆）
+  const bookedSlotsForDate = [];
+  bookings
+    .filter((b) => b.date === date && b.status !== "canceled")
+    .forEach((b) => {
+      const slots = Array.isArray(b.timeSlots)
+        ? b.timeSlots
+        : b.timeSlot
+          ? [b.timeSlot]
+          : [];
+      bookedSlotsForDate.push(...slots);
+    });
+
+  // 計算符合 open 條件的時段數量
+  let openCount = 0;
+  ALL_TIME_SLOTS.forEach((slot) => {
+    if (
+      !blockedSlotsForDate.includes(slot) &&
+      !bookedSlotsForDate.includes(slot)
+    ) {
+      openCount++;
+    }
+  });
+
+  return openCount;
 }
 
 // 🔹 取得未來 N 天的日期列表（給日期 Carousel 用）
@@ -1858,15 +1910,9 @@ async function sendBaziChoiceFlex(userId) {
 }
 
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
+// 🔹 日期選擇 Carousel Flex（實體按鈕版）
 async function sendDateCarouselFlex(userId, serviceId) {
-  //
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-
-  // 想開放幾天自己決定：例如未來 30 天
-  //const days = getNextDays(30);//原來不屏蔽不可預約時段前
-  // ✅ 只顯示「有可預約時段」的日期
-  // 你想顯示幾個可約日期：showCount = 30
-  // 最多往後掃幾天：scanDays = 90（自己調）
   const days = getNextAvailableDays(30, 90);
 
   if (days.length === 0) {
@@ -1877,8 +1923,8 @@ async function sendDateCarouselFlex(userId, serviceId) {
     return;
   }
 
-  // 每 5 個日期一頁（你可以改成 3 或 4）
-  const dayGroups = chunkArray(days, 3);
+  // 每 4 個日期一頁 (因為有實體按鈕了，一頁放 4 個排版會比較適中)
+  const dayGroups = chunkArray(days, 4);
 
   const bubbles = dayGroups.map((group) => ({
     type: "bubble",
@@ -1890,25 +1936,25 @@ async function sendDateCarouselFlex(userId, serviceId) {
       contents: [
         {
           type: "text",
-          text: "選擇預約日期",
+          text: "請選擇預約日期",
           size: "sm",
           color: "#888888",
+          weight: "bold",
         },
         {
           type: "box",
           layout: "vertical",
-          spacing: "sm",
-          margin: "md",
+          spacing: "md", // 加大按鈕間距，避免實體按鈕黏在一起
+          margin: "lg",
           contents: group.map((day) => ({
             type: "button",
-            style: "link",
+            style: "secondary", // 🌟 將原本的 link 改成 secondary (實體灰底按鈕)
             height: "sm",
             action: {
               type: "postback",
-              // 🔑 按鈕上直接顯示「2025-12-10（三）」這種字
-              label: day.label,
+              label: day.label, // 這裡就會顯示：03/01(日) [2時段可選]
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
-              displayText: `我想預約:\n${day.dateStr}`,
+              displayText: `我想預約 ${serviceName} ${day.dateStr}`,
             },
           })),
         },
