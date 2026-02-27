@@ -1920,7 +1920,7 @@ async function sendDateCarouselFlex(userId, serviceId) {
   // 你想顯示幾個可約日期：showCount = 30
   // 最多往後掃幾天：scanDays = 90（自己調）
 
-  const days = getNextAvailableDays(30, 60);
+  const days = getNextAvailableDays(15, 60);
 
   if (days.length === 0) {
     await pushText(
