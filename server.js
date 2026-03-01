@@ -1622,6 +1622,18 @@ async function sendServiceSelectFlex(userId) {
               displayText: "我想看常見分類",
             },
           },
+          {
+            type: "button",
+            style: "primary",
+            color: "#3B2E40",
+            height: "sm",
+            action: {
+              type: "postback",
+              label: "用「這個工具」來找服務",
+              data: "action=show_qcats",
+              displayText: "我想看常見分類",
+            },
+          },
         ],
       },
     };
