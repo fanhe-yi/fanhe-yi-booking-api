@@ -1598,7 +1598,7 @@ async function sendServiceSelectFlex(userId) {
         paddingAll: "lg",
         spacing: "sm",
         contents: [
-          {
+          /*           {
             type: "button",
             style: "primary",
             color: "#3B2E40", // 莊嚴神祕的玄紫色
@@ -1621,7 +1621,7 @@ async function sendServiceSelectFlex(userId) {
               data: "action=show_qcats",
               displayText: "我想看常見分類",
             },
-          },
+          }, */
           {
             type: "button",
             style: "primary",
