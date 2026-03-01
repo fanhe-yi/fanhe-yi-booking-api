@@ -1859,8 +1859,18 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           height: "sm",
           action: {
             type: "message",
+            label: "預約諮詢",
+            text: "預約諮詢",
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: {
+            type: "message",
             label: "再問一題",
-            text: "占卜",
+            text: "時空占卜",
           },
         },
       ],
