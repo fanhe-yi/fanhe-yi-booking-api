@@ -1843,7 +1843,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
       layout: "vertical",
       spacing: "sm",
       contents: [
-        {
+        /* {
           type: "button",
           style: "primary",
           color: "#2B2338",
@@ -1852,10 +1852,11 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
             label: "分享好運",
             uri: `https://line.me/R/msg/text/?${encodeURIComponent("我剛剛抽到了一時空靈籤，還蠻準的！\n你也來試試：https://line.me/R/ti/p/@415kfyus")}`,
           },
-        },
+        }, */
         {
           type: "button",
-          style: "link",
+          style: "primary",
+          color: "#2B2338",
           height: "sm",
           action: {
             type: "message",
