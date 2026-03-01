@@ -1821,7 +1821,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
 // 🔹 八字解析選擇卡（美化版：含 Hero 圖與精緻排版）
 async function sendBaziChoiceFlex(userId) {
   // 使用之前生成的「四柱八字」高質感圖片當主視覺
-  const heroImageUrl = "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg";
+  const heroImageUrl =
+    "https://assets.chen-yi.tw/tenants/a/booking/minibazi.jpg";
 
   const contents = {
     type: "bubble",
