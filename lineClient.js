@@ -1857,7 +1857,6 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
           type: "button",
           style: "primary",
           color: "#2B2338",
-          height: "sm",
           action: {
             type: "message",
             label: "預約諮詢",
