@@ -6,7 +6,7 @@
 ==========================================================
 */
 
-const { pushText, sendQimenResultFlex } = require("./lineClient.js");
+const { pushText, pushFlex, sendQimenResultFlex } = require("./lineClient.js");
 const { buildQimenPayloadFromQuestion } = require("./qimenEngine.js");
 const {
   getQimenSystemPrompt,
@@ -73,34 +73,88 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
      */
     const payload = buildQimenPayloadFromQuestion(question, userNumber);
 
-    /* ✅ 格式化時間 (顯示給使用者看，增加信任感)
-    timeStr 格式為 yyyyMMddHH
-    */
-    const ts = payload.chartTimeStr;
-    const formattedTime = `${ts.slice(0, 4)}/${ts.slice(4, 6)}/${ts.slice(6, 8)} ${ts.slice(8, 10)}:00`;
-
-    /* ✅ 回覆摘要 + 引導下一步
-     */
-    //const msg =
-    //  `數字起卦：${userNumber} ✅\n` +
-    //  `映射時間：${formattedTime}\n` +
-    //  `問題：${payload.userQuestion}\n` +
-    //  `類型：${payload.qType} (用神：${payload.useDoors.join("/")})\n` +
-    //  `\n若確認無誤，請輸入：開始解盤\n（或輸入「取消」退出）`;
-
-    const msg =
-      `時空運數：${userNumber} ✅\n` +
-      //`映射時間：${formattedTime}\n` +
-      `問題：${payload.userQuestion}\n` +
-      `類型：${payload.qType}\n` +
-      `\n若確認無誤，請輸入：\n「開始解盤」或「取消」`;
-
     // 存 payload，準備讓 AI 解讀
     state.stage = "ready_ai";
     state.data = { payload };
     conversationStates[userId] = state;
 
-    await pushText(userId, msg);
+    /* 🌟 改用 Flex Message 呈現確認卡片與「開始解盤 / 取消」按鈕 */
+    const confirmFlex = {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "奇門問事確認",
+            weight: "bold",
+            size: "xl",
+            color: "#3B2E40", // 呼應玄紫色設計
+          },
+          {
+            type: "text",
+            text: `時空運數：${userNumber}`,
+            size: "sm",
+            color: "#8B7355", // 燙金色
+            weight: "bold",
+          },
+          {
+            type: "text",
+            text: `問題：${payload.userQuestion}`,
+            size: "sm",
+            color: "#4A4A4A",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: `類型：${payload.qType}`,
+            size: "sm",
+            color: "#999999",
+          },
+          { type: "separator", margin: "md" },
+          {
+            type: "text",
+            text: "若確認無誤，請點擊下方開始解盤。",
+            size: "xs",
+            color: "#888888",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "horizontal", // 讓兩個按鈕並排
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "secondary", // 灰色取消按鈕
+            height: "sm",
+            action: {
+              type: "message",
+              label: "取消",
+              text: "取消", // 👈 觸發最上方的 t === "取消"
+            },
+          },
+          {
+            type: "button",
+            style: "primary",
+            color: "#3B2E40", // 玄紫色主按鈕
+            height: "sm",
+            action: {
+              type: "message",
+              label: "開始解盤",
+              text: "開始解盤", // 👈 觸發 ready_ai 階段的邏輯
+            },
+          },
+        ],
+      },
+    };
+
+    await pushFlex(userId, "奇門問事確認", confirmFlex);
     return true;
   }
 
@@ -116,7 +170,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
       /* 防呆：資料遺失 */
       if (!payload) {
         delete conversationStates[userId];
-        await pushText(userId, "資料已過期，請重新輸入：占卜");
+        await pushText(userId, "資料已過期，請重新輸入：奇門問事");
         return true;
       }
 
@@ -156,7 +210,10 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
     }
 
     /* 沒輸入開始解盤 */
-    await pushText(userId, "要我解盤就輸入：開始解盤\n或「取消」退出。");
+    await pushText(
+      userId,
+      "要我解盤請點擊按鈕或輸入：開始解盤\n或「取消」退出。",
+    );
     return true;
   }
 
