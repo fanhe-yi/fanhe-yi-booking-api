@@ -6074,7 +6074,8 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       const isFirstFree =
         eligibility.allow && eligibility.source === "firstFree";
 
-      if (isFirstFree) {
+      //關閉合婚首次免費先送遮罩版功能
+      /* if (isFirstFree) {
         // ✅ 首免：先送「遮罩版」，不扣次
         const fullPayload = {
           ...result,
@@ -6091,7 +6092,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
 
         delete conversationStates[userId];
         return true;
-      }
+      } */
 
       // ✅ 非首免（有 quota/付費）：直接送完整版，然後扣次
       await sendBaziMatchResultFlex(userId, {
