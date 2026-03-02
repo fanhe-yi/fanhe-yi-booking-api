@@ -280,7 +280,7 @@ const paymentOrders = require("./paymentOrdersStore.pg");
 const PRICE_MAP = {
   liuyao: 99,
   minibazi: 99,
-  bazimatch: 199,
+  bazimatch: 99,
 };
 
 function genMerchantTradeNo() {
@@ -1662,8 +1662,8 @@ async function sendServiceIntroFlex(userId, serviceKey) {
     },
     bazimatch: {
       title: "💑 八字合婚解析(LINE線上)",
-      originalPrice: "NT$ 299",
-      salePrice: "NT$ 199",
+      originalPrice: "NT$ 199",
+      salePrice: "NT$ 99",
       desc: "使用者完成付費並提供雙方生辰資料後，系統將進行命盤結構比對與關係互動層面之文字解析說明，並回傳解析結果。",
     },
     liuyao: {
@@ -6074,7 +6074,7 @@ async function handleBaziMatchFlow(userId, text, state, event) {
       const isFirstFree =
         eligibility.allow && eligibility.source === "firstFree";
 
-      //關閉合婚首次免費先送遮罩版功能
+      //關閉合婚首次免費先送遮罩版功能,若之後要打開，把這一個註解打開就好
       /* if (isFirstFree) {
         // ✅ 首免：先送「遮罩版」，不扣次
         const fullPayload = {
