@@ -1629,7 +1629,7 @@ async function sendServiceSelectFlex(userId) {
             height: "sm",
             action: {
               type: "postback",
-              label: `用${s.cta}來找服務`,
+              label: "用「這個工具」來找服務",
               data: "action=show_qcats",
               displayText: "我想看常見分類",
             },
