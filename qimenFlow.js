@@ -89,7 +89,7 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
         contents: [
           {
             type: "text",
-            text: "奇門問事確認",
+            text: "時空占卜確認",
             weight: "bold",
             size: "xl",
             color: "#3B2E40", // 呼應玄紫色設計
@@ -131,16 +131,6 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
         contents: [
           {
             type: "button",
-            style: "secondary", // 灰色取消按鈕
-            height: "sm",
-            action: {
-              type: "message",
-              label: "取消",
-              text: "取消", // 👈 觸發最上方的 t === "取消"
-            },
-          },
-          {
-            type: "button",
             style: "primary",
             color: "#3B2E40", // 玄紫色主按鈕
             height: "sm",
@@ -148,6 +138,16 @@ async function handleQimenFlow(userId, text, state, event, conversationStates) {
               type: "message",
               label: "開始解盤",
               text: "開始解盤", // 👈 觸發 ready_ai 階段的邏輯
+            },
+          },
+          {
+            type: "button",
+            style: "secondary", // 灰色取消按鈕
+            height: "sm",
+            action: {
+              type: "message",
+              label: "取消",
+              text: "取消", // 👈 觸發最上方的 t === "取消"
             },
           },
         ],
