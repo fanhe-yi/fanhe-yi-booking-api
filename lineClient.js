@@ -208,6 +208,7 @@ async function notifyNewBooking(booking) {
     `項目：${serviceName}\n` +
     `暱稱：${displayName}\n` + // 🌟 關鍵 3：帶入抓到的暱稱
     `姓名：${name || "（未填寫）"}\n` +
+    `出生：${birthRaw || "（略過）"}\n` +
     `日期：${date || "（未填寫）"}\n` +
     `時段：${slotText}\n` +
     `-----------------\n` +

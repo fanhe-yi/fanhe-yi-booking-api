@@ -277,6 +277,7 @@ const crypto = require("crypto");
 const paymentOrders = require("./paymentOrdersStore.pg");
 // ⚠️ getEligibility 是你原本就有的那個 function（在哪裡就從哪裡 require/使用）
 
+////綠界金額設定
 const PRICE_MAP = {
   liuyao: 99,
   minibazi: 99,
