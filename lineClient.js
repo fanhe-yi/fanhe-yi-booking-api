@@ -156,6 +156,7 @@ async function notifyNewBooking(booking) {
     email,
     phone,
     lineId,
+    gender,
     birthRaw,
     date,
     timeSlots,
@@ -210,7 +211,8 @@ async function notifyNewBooking(booking) {
     `暱稱：${displayName}\n` + // 🌟 關鍵 3：帶入抓到的暱稱
     `姓名：${name || "（未填寫）"}\n` +
     `出生：${birthRaw || "（略過）"}\n` +
-    `日期：${date || "（未填寫）"}\n` +
+    `性別：${gender || "（略過）"}\n` +
+    `預約日期：${date || "（未填寫）"}\n` +
     `時段：${slotText}\n` +
     `-----------------\n` +
     `聯絡方式：\n${contactBlock}\n` +
