@@ -156,6 +156,7 @@ async function notifyNewBooking(booking) {
     email,
     phone,
     lineId,
+    birthRaw,
     date,
     timeSlots,
     timeSlot,
