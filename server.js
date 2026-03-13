@@ -1970,13 +1970,15 @@ async function sendDateCarouselFlex(userId, serviceId) {
           contents: group.map((day) => ({
             type: "button",
             style: "primary", // 🌟 放棄預設灰色，改用填滿色彩的 primary
-            color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
+            color: "#3B2E40",
+            //color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
             height: "sm",
             action: {
               type: "postback",
               label: day.label, // 這裡會顯示：03/01(日) [2時段可選]
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
               displayText: `我想預約 ${serviceName} ${day.dateStr}`,
+              //displayText: `我想約${day.dateStr}這天`,
             },
           })),
         },
@@ -4827,6 +4829,7 @@ async function routePostback(userId, data) {
 
       /* 【核心】動態依據 q.full 判斷對應的 serviceId */
       const dynamicServiceId = getServiceIdByQuestionText(q.full);
+      const serviceName = SERVICE_NAME_MAP[dynamicServiceId] || "命理諮詢";
 
       /* 【核心】直接把服務固定成 chat_line（命理諮詢）
        * - stage 直接切到 waiting_date
