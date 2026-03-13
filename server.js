@@ -1970,7 +1970,8 @@ async function sendDateCarouselFlex(userId, serviceId) {
           contents: group.map((day) => ({
             type: "button",
             style: "primary", // 🌟 放棄預設灰色，改用填滿色彩的 primary
-            color: "#A85751",
+            color: "#A85751", //晨曦香檳金 (Champagne Gold)：#C5A880 //玫瑰煙粉 (Dusty Rose)：#B57B7B //赤茶豆沙 (Terracotta)：#A85751
+            //煙燻紫藤 (Smoky Mauve)：#8D6B78
             //color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
             height: "sm",
             action: {
