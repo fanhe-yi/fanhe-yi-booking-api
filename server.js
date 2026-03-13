@@ -1977,8 +1977,8 @@ async function sendDateCarouselFlex(userId, serviceId) {
               type: "postback",
               label: day.label, // 這裡會顯示：03/01(日) [2時段可選]
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
-              displayText: `我想預約 ${serviceName} ${day.dateStr}`,
-              //displayText: `我想約${day.dateStr}這天`,
+              //displayText: `我想預約 ${serviceName} ${day.dateStr}`,
+              displayText: `我想約${day.dateStr}這天`,
             },
           })),
         },
@@ -4829,7 +4829,6 @@ async function routePostback(userId, data) {
 
       /* 【核心】動態依據 q.full 判斷對應的 serviceId */
       const dynamicServiceId = getServiceIdByQuestionText(q.full);
-      const serviceName = SERVICE_NAME_MAP[dynamicServiceId] || "命理諮詢";
 
       /* 【核心】直接把服務固定成 chat_line（命理諮詢）
        * - stage 直接切到 waiting_date
