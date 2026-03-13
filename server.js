@@ -1970,13 +1970,15 @@ async function sendDateCarouselFlex(userId, serviceId) {
           contents: group.map((day) => ({
             type: "button",
             style: "primary", // 🌟 放棄預設灰色，改用填滿色彩的 primary
-            color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
+            color: "#A85751",
+            //color: "#8B7355", // 🌟 換成高級的「燙金/大地褐」，增加點擊慾望與質感
             height: "sm",
             action: {
               type: "postback",
               label: day.label, // 這裡會顯示：03/01(日) [2時段可選]
               data: `action=choose_date&service=${serviceId}&date=${day.dateStr}`,
-              displayText: `我想預約 ${serviceName} ${day.dateStr}`,
+              //displayText: `我想預約 ${serviceName} ${day.dateStr}`,
+              displayText: `我想約${day.dateStr}這天`,
             },
           })),
         },
