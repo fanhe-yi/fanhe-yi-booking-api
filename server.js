@@ -5735,8 +5735,8 @@ async function handleBookingPostback(userId, action, params, state) {
     const date = params.get("date");
     // serviceId 優先用 state 裡存的，沒有再用 params
     const serviceId =
-      (state.data && state.data.serviceId) ||
       params.get("service") ||
+      (state.data && state.data.serviceId) ||
       "chat_line";
     const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
 
@@ -5773,9 +5773,10 @@ async function handleBookingPostback(userId, action, params, state) {
   if (action === "choose_slot") {
     // 優先用狀態裡的 service / date，避免被亂按舊按鈕搞亂
     const serviceId =
-      (state.data && state.data.serviceId) ||
       params.get("service") ||
+      (state.data && state.data.serviceId) ||
       "chat_line";
+
     const date = (state.data && state.data.date) || params.get("date") || null;
     const time = params.get("time");
 
