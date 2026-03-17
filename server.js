@@ -3977,8 +3977,12 @@ app.post(
       const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
       if (order) {
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
-
         ////以下為付款後做的事------------
+        await pushText(
+          order.user_id,
+          "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。",
+        );
+
         // 根據購買的 feature 直接推對應的服務說明卡
         if (order.feature === "八字測算" || order.feature === "minibazi") {
           await sendServiceIntroFlex(order.user_id, "minibazi");
