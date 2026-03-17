@@ -3978,10 +3978,28 @@ app.post(
       if (order) {
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
 
-        await pushText(
-          order.user_id,
-          "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。",
-        );
+        ////以下為付款後做的事------------
+        // 根據購買的 feature 直接推對應的服務說明卡
+        if (order.feature === "八字測算" || order.feature === "minibazi") {
+          await sendServiceIntroFlex(order.user_id, "minibazi");
+        } else if (
+          order.feature === "八字合婚" ||
+          order.feature === "bazimatch"
+        ) {
+          await sendServiceIntroFlex(order.user_id, "bazimatch");
+        } else {
+          // 萬一未來有其他新服務，留個備用的基本通知
+          await pushText(
+            order.user_id,
+            "你現在可以回到對話，點選「開始解析」立即使用。",
+          );
+        }
+        ////以上為付款後做的事------------
+
+        //await pushText(
+        //  order.user_id,
+        //  "✅ 付款完成！\n你現在可以回到對話，點選「開始解析」立即使用。",
+        //);
       }
 
       res.send("1|OK");
@@ -4391,7 +4409,7 @@ async function handleLineEvent(event) {
       delete conversationStates[userId];
       await pushText(
         userId,
-        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字測算 / 八字合婚 / 時空占卜",
+        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字分析 / 時空占卜",
       );
       return;
     }
