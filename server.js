@@ -5713,7 +5713,7 @@ async function handleBookingPostback(userId, action, params, state) {
     );
     await pushText(
       userId,
-      "這個預約已過期，如果要重新預約，可以再按一次選單⮕預約諮詢。",
+      "這個預約選單已過期，如果要重新預約，可以再按一次選單⮕預約諮詢。",
     );
     return;
   }
