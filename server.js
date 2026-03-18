@@ -3977,6 +3977,7 @@ app.post(
       const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
       if (order) {
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
+
         ////以下為付款後做的事------------
         await pushText(
           order.user_id,
@@ -5712,7 +5713,7 @@ async function handleBookingPostback(userId, action, params, state) {
     );
     await pushText(
       userId,
-      "這個按鈕目前沒有對應的預約流程，如果要重新預約，可以直接輸入「預約」。",
+      "這個預約已過期，如果要重新預約，可以再按一次選單⮕預約諮詢。",
     );
     return;
   }
