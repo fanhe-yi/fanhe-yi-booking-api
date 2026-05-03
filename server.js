@@ -1071,38 +1071,38 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名論斷 600元/30分" },
+    { qid: "reconcile", full: "姓名鑑定 600元/30分" },
     { qid: "ex_contact", full: "改名諮詢 3000元/50分" },
     { qid: "amb_next", full: "新生兒取名 1600元/45分" },
   ],
 
   love: [
     { qid: "reconcile", full: "文王卦占卜 600元/小時" },
-    { qid: "ex_contact", full: "紫微斗數(合婚) 2400元/小時" },
+    { qid: "ex_contact", full: "紫微斗數(合婚) 2400元/50分" },
   ],
 
   money: [
     { qid: "fortune", full: "文王卦占卜 600元/小時" },
-    { qid: "loss", full: "紫微斗數 1200元/小時" },
-    { qid: "side", full: "生肖姓名學 600元/小時" },
+    { qid: "loss", full: "紫微斗數 1200元/50分" },
+    { qid: "side", full: "姓名論斷 600元/30分" },
   ],
 
   career: [
     { qid: "stay", full: "文王卦占卜 600元/小時" },
-    { qid: "valued", full: "紫微斗數 1200元/小時" },
-    { qid: "raise", full: "生肖姓名學 600元/小時" },
+    { qid: "valued", full: "紫微斗數 1200元/50分" },
+    { qid: "raise", full: "姓名論斷 600元/30分" },
   ],
 
   house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
 
   life: [
-    { qid: "parents", full: "四柱八字 1200元/小時" },
-    { qid: "kid", full: "紫微斗數 1200元/小時" },
+    { qid: "parents", full: "四柱八字 1200元/50分" },
+    { qid: "kid", full: "紫微斗數 1200元/50分" },
   ],
 
   year: [
-    { qid: "zim_2026", full: "生肖姓名學 600元/小時" },
-    { qid: "name_2026", full: "紫微斗數 1200元/小時" },
+    { qid: "zim_2026", full: "姓名論斷 600元/30分" },
+    { qid: "name_2026", full: "紫微斗數 1200元/50分" },
   ],
 
   //name: [
