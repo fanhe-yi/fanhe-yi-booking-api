@@ -1071,9 +1071,9 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名論斷 600元/小時" },
-    { qid: "ex_contact", full: "改名諮詢 2000元/次" },
-    { qid: "amb_next", full: "新生兒取名 1600元/次" },
+    { qid: "reconcile", full: "姓名論斷 600元/30分" },
+    { qid: "ex_contact", full: "改名諮詢 3000元/50分" },
+    { qid: "amb_next", full: "新生兒取名 1600元/45分" },
   ],
 
   love: [
@@ -5713,7 +5713,7 @@ async function handleBookingPostback(userId, action, params, state) {
     );
     await pushText(
       userId,
-      "這個預約選單已過期，如果要重新預約，可以再按一次選單⮕預約諮詢。",
+      "這個預約選單已過期，如果要重新預約，可以再按一次\n選單⮕預約諮詢。",
     );
     return;
   }
