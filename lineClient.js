@@ -519,6 +519,218 @@ async function sendBookingSuccessHero(userId, booking) {
   await pushFlex(userId, "預約成功", bubble);
 }
 
+// ------------------------------------------------------------
+// 預約成功後：匯款通知 + 諮詢小提醒 Carousel
+// ------------------------------------------------------------
+async function sendBookingPaymentAndNoticeCarousel(
+  userId,
+  { serviceName, price } = {},
+) {
+  const safeServiceName = serviceName || "命理諮詢";
+  const safePrice = price ? `NT$${price}` : "（依實際服務項目而定）";
+
+  const paymentBubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "匯款通知",
+          weight: "bold",
+          size: "xl",
+          color: "#8B6F47",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "您好，提供匯款資訊給您 😊",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "服務項目",
+                  size: "sm",
+                  color: "#aaaaaa",
+                  flex: 3,
+                },
+                {
+                  type: "text",
+                  text: safeServiceName,
+                  size: "sm",
+                  flex: 5,
+                  wrap: true,
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "費用",
+                  size: "sm",
+                  color: "#aaaaaa",
+                  flex: 3,
+                },
+                {
+                  type: "text",
+                  text: safePrice,
+                  size: "sm",
+                  flex: 5,
+                  weight: "bold",
+                },
+              ],
+            },
+          ],
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "銀行",
+                  size: "sm",
+                  color: "#aaaaaa",
+                  flex: 3,
+                },
+                {
+                  type: "text",
+                  text: "玉山銀行（808）",
+                  size: "sm",
+                  flex: 5,
+                  wrap: true,
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                {
+                  type: "text",
+                  text: "帳號",
+                  size: "sm",
+                  color: "#aaaaaa",
+                  flex: 3,
+                },
+                {
+                  type: "text",
+                  text: "0831979071579",
+                  size: "sm",
+                  flex: 5,
+                  weight: "bold",
+                },
+              ],
+            },
+          ],
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "匯款完成後，麻煩回傳「匯款末五碼」給我，我再幫您確認預約唷。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+      ],
+    },
+  };
+
+  const noticeBubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "諮詢小提醒",
+          weight: "bold",
+          size: "xl",
+          color: "#6A4C93",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "本次諮詢採 LINE 語音通話進行。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "諮詢前請先確認手機電量、網路與收訊是否穩定，並盡量選擇安靜、不易被打擾的地方。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "諮詢中可以一併提出想詢問的問題，本服務無事後補問，建議可自行錄音留存。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "若諮詢時間超過原訂時間 15 分鐘以上，將酌收加時費：每半小時 NT$500。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "正式預約以完成付款為主。\n完成預約即表示已詳閱並同意以上提醒事項。",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "謝謝您，期待與您諮詢 😊",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+          color: "#8B6F47",
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "匯款通知 / 諮詢小提醒", {
+    type: "carousel",
+    contents: [paymentBubble, noticeBubble],
+  });
+}
+
 // 通用：性別選擇 Flex（給六爻、八字測算共用）
 // actionName 例： "liuyao_gender" 或 "minibazi_gender"
 async function sendGenderSelectFlex(
@@ -1893,6 +2105,7 @@ module.exports = {
   notifyNewBooking,
   notifyCustomerBooking,
   sendBookingSuccessHero,
+  sendBookingPaymentAndNoticeCarousel,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
   sendGenderSelectFlex,

@@ -16,6 +16,7 @@ const {
   pushText,
   pushFlex,
   sendBookingSuccessHero,
+  sendBookingPaymentAndNoticeCarousel,
   sendBaziMenuFlex,
   sendMiniBaziResultFlex,
   sendGenderSelectFlex,
@@ -1114,6 +1115,15 @@ const QUESTION_BANK = {
   //目前不會跳到這裡
   helper: [{ qid: "buy", full: "呼叫小幫手" }],
 };
+
+//////服務項目與費用解析函式QUESTION_BANK
+
+function parseServiceFromQuestionText(text) {
+  if (!text || typeof text !== "string") return { serviceName: "", price: "" };
+  const m = text.match(/^\s*(.+?)\s+(\d+)\s*元/);
+  if (m) return { serviceName: m[1].trim(), price: m[2] };
+  return { serviceName: text.trim(), price: "" };
+}
 
 /* 【2-2】丟出「題目清單」Carousel//回朔2
  * - 一頁放 3 題（你也可以改成 4）
@@ -5694,6 +5704,25 @@ async function handleBookingFlow(userId, text, state, event) {
           `姓名：${bookingBody.name}\n` +
           `聯絡方式：${bookingBody.phone}\n` +
           `備註：${bookingBody.note}`,
+      );
+    }
+
+    // 接著推送：匯款通知 + 諮詢小提醒 Carousel
+    const { serviceName: parsedServiceName, price: parsedPrice } =
+      parseServiceFromQuestionText(pickedQuestion);
+    const carouselServiceName =
+      parsedServiceName ||
+      SERVICE_NAME_MAP[bookingBody.serviceId] ||
+      "命理諮詢";
+    try {
+      await sendBookingPaymentAndNoticeCarousel(userId, {
+        serviceName: carouselServiceName,
+        price: parsedPrice,
+      });
+    } catch (err) {
+      console.error(
+        "[LINE] sendBookingPaymentAndNoticeCarousel 發送失敗：",
+        err,
       );
     }
 
