@@ -2,3 +2,7 @@ node_modules
 .env
 bookings.json
 *.log
+
+# macOS 自動產生
+.DS_Store
+**/.DS_Store
