@@ -172,6 +172,62 @@ function getArticleAssetsDir(slug) {
   return path.join(getArticleDir(slug), "assets");
 }
 
+/* ==========================================================
+  ✅ 文章瀏覽數（views）
+  目的：
+  - 在 articles/views.json 維護 { "<slug>": <count> }
+  - 不動 index.json（避免和 admin 寫入互相覆蓋）
+  - 寫入用 in-process queue 序列化，避免 race condition
+========================== */
+const ARTICLES_VIEWS_PATH = path.join(ARTICLES_DIR, "views.json");
+
+/* =========================
+  【工具】讀取 views.json
+========================== */
+function loadArticleViews() {
+  ensureDir(ARTICLES_DIR);
+  const data = readJsonSafe(ARTICLES_VIEWS_PATH, {});
+  // 防呆：壞掉或不是物件就回空
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  return data;
+}
+
+/* =========================
+  【工具】序列化寫入 views.json
+  - 用 Promise queue 串接：同一個 Node 程序內所有寫入會排隊
+  - 避免 read → modify → write 期間其他請求插隊覆蓋
+========================== */
+let viewsWriteQueue = Promise.resolve();
+
+function incrementArticleView(slug) {
+  viewsWriteQueue = viewsWriteQueue.then(() => {
+    const views = loadArticleViews();
+    const current = typeof views[slug] === "number" ? views[slug] : 0;
+    views[slug] = current + 1;
+    try {
+      writeJsonPretty(ARTICLES_VIEWS_PATH, views);
+    } catch (err) {
+      // 寫入失敗：吞掉、回 0 也可以；下一次再試
+      console.error("[views] write failed", err);
+    }
+    return views[slug];
+  });
+  return viewsWriteQueue;
+}
+
+/* =========================
+  【工具】判斷 User-Agent 是不是 bot / prerender
+  - 用於 POST /api/articles/:slug/view 過濾
+========================== */
+function isBotUserAgent(ua) {
+  if (!ua || typeof ua !== "string") return true; // 沒 UA 直接擋
+  const s = ua.toLowerCase();
+  // 列常見類型：headless / spider / bot / curl / wget / lighthouse 等
+  return /headlesschrome|puppeteer|playwright|phantom|selenium|spider|bot|crawler|curl|wget|lighthouse|googlebot|bingbot|yandex|baidu|duckduckbot|facebookexternalhit|slurp/i.test(
+    s,
+  );
+}
+
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -3645,7 +3701,19 @@ app.get("/api/articles", async (req, res) => {
     }
 
     /* =========================
-      【5】回傳（列表頁只需要這些）
+      【5】合併 viewCount（讀 views.json）
+      - 後端尚未有計數時，預設為 0
+      - 前端用 typeof === "number" 守住，所以 0 也會正常顯示
+    ========================== */
+    const views = loadArticleViews();
+    items = items.map((a) => ({
+      ...a,
+      viewCount:
+        typeof views[a.slug] === "number" ? views[a.slug] : 0,
+    }));
+
+    /* =========================
+      【6】回傳（列表頁只需要這些）
     ========================== */
     return res.json({
       items,
@@ -3714,6 +3782,60 @@ app.get("/api/articles/:slug", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: String(err?.message || err || "ARTICLE_GET_FAILED"),
+    });
+  }
+});
+
+/* =========================
+  POST /api/articles/:slug/view
+  功能：
+  - 文章內頁載入完成時呼叫一次
+  - 文章必須存在且 status=published 才會 +1
+  - bot / prerender / 空 UA 一律 skip
+  - 前端負責 30 分鐘 dedup（localStorage），後端純加
+========================= */
+app.post("/api/articles/:slug/view", async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim();
+    if (!slug) {
+      return res.status(400).json({ ok: false, message: "BAD_SLUG" });
+    }
+
+    /* =========================
+      【1】UA 過濾（bot / prerender 一律不計）
+    ========================== */
+    const ua = req.headers["user-agent"] || "";
+    if (isBotUserAgent(ua)) {
+      return res.json({ ok: true, skipped: "bot" });
+    }
+
+    /* =========================
+      【2】文章必須存在且為 published（避免被任意 slug 灌數字）
+    ========================== */
+    const metaPath = getArticleMetaPath(slug);
+    if (!fs.existsSync(metaPath)) {
+      return res.status(404).json({ ok: false, message: "NOT_FOUND" });
+    }
+    let meta;
+    try {
+      meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+    } catch (err) {
+      return res.status(500).json({ ok: false, message: "META_PARSE_FAIL" });
+    }
+    if (meta.status !== "published") {
+      return res.status(404).json({ ok: false, message: "NOT_FOUND" });
+    }
+
+    /* =========================
+      【3】+1（序列化寫入 views.json）
+    ========================== */
+    const newCount = await incrementArticleView(slug);
+
+    return res.json({ ok: true, viewCount: newCount });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: String(err?.message || err || "VIEW_INC_FAILED"),
     });
   }
 });
