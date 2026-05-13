@@ -256,10 +256,25 @@ const CEZI_ALL_TIME_SLOTS = [
 ========================== */
 const CEZI_CONFIG_PATH = path.join(process.cwd(), "cezi-config.json");
 const CEZI_DEFAULT_CONFIG = {
-  openWeekdays: [2, 4, 6], // 預設週二/四/六，可隨時改
+  openWeekdays: [2, 4, 6], // 預設週二/四/六（常態 weekday，給沒指定 openDates 用）
+  openDates: [], // 🌟 特定日期清單；非空時凌駕 openWeekdays（單次活動用）
   isCurrentlyFree: false,
   price: 200,
+  eventMaxBookings: 3, // 🌟 免費活動最多放幾個名額（0 = 不限制）
+  eventBookingsCount: 0, // 🌟 本輪活動已預約計數
+  eventStartedAt: null, // 🌟 活動開始時間（ISO）
+  eventEndedAt: null, // 🌟 活動結束時間（ISO）
 };
+
+/* =========================
+  【validate】日期字串 YYYY-MM-DD
+========================== */
+function isValidDateStr(s) {
+  if (typeof s !== "string") return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + "T00:00:00");
+  return !isNaN(d.getTime());
+}
 
 function loadCeziConfig() {
   const data = readJsonSafe(CEZI_CONFIG_PATH, CEZI_DEFAULT_CONFIG);
@@ -271,11 +286,26 @@ function loadCeziConfig() {
     openWeekdays: Array.isArray(data.openWeekdays)
       ? data.openWeekdays.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
       : CEZI_DEFAULT_CONFIG.openWeekdays,
+    openDates: Array.isArray(data.openDates)
+      ? data.openDates.filter(isValidDateStr)
+      : [],
     isCurrentlyFree: !!data.isCurrentlyFree,
     price:
       typeof data.price === "number" && data.price >= 0
         ? data.price
         : CEZI_DEFAULT_CONFIG.price,
+    eventMaxBookings:
+      typeof data.eventMaxBookings === "number" && data.eventMaxBookings >= 0
+        ? data.eventMaxBookings
+        : CEZI_DEFAULT_CONFIG.eventMaxBookings,
+    eventBookingsCount:
+      typeof data.eventBookingsCount === "number" && data.eventBookingsCount >= 0
+        ? data.eventBookingsCount
+        : 0,
+    eventStartedAt:
+      typeof data.eventStartedAt === "string" ? data.eventStartedAt : null,
+    eventEndedAt:
+      typeof data.eventEndedAt === "string" ? data.eventEndedAt : null,
   };
 }
 
@@ -341,9 +371,22 @@ function getCeziSlotsForDate(date) {
   if (isNaN(d.getTime())) {
     return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
   }
-  const weekday = d.getDay();
-  if (!cfg.openWeekdays.includes(weekday)) {
-    return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+
+  /* =========================
+    🌟 規則優先序：
+    - 若 openDates 非空 → 只看那幾天，其他一律 closed
+    - 若 openDates 空 → 回到 openWeekdays 常態
+  ========================== */
+  const useExplicitDates = Array.isArray(cfg.openDates) && cfg.openDates.length > 0;
+  if (useExplicitDates) {
+    if (!cfg.openDates.includes(date)) {
+      return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+    }
+  } else {
+    const weekday = d.getDay();
+    if (!cfg.openWeekdays.includes(weekday)) {
+      return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+    }
   }
 
   // 整天 unavailable.fullDay 一樣阻擋
@@ -2182,12 +2225,38 @@ async function sendBaziChoiceFlex(userId) {
 ========================== */
 async function sendCeziIntroFlex(userId) {
   const cfg = loadCeziConfig();
-  const priceLine = cfg.isCurrentlyFree
-    ? "✨ 本輪免費（脆友福利期）"
-    : `💴 ${cfg.price} 元 / 20 分`;
-  const openDays = (cfg.openWeekdays || [])
-    .map((w) => "週" + CEZI_WEEKDAY_NAMES[w])
-    .join("、");
+
+  // 名額顯示：免費活動且有 max 限制時，顯示剩餘
+  let priceLine;
+  if (cfg.isCurrentlyFree) {
+    if (cfg.eventMaxBookings > 0) {
+      const remain = Math.max(
+        0,
+        cfg.eventMaxBookings - (cfg.eventBookingsCount || 0),
+      );
+      priceLine = `✨ 本輪免費（剩 ${remain} 個名額）`;
+    } else {
+      priceLine = "✨ 本輪免費（脆友福利期）";
+    }
+  } else {
+    priceLine = `💴 ${cfg.price} 元 / 20 分`;
+  }
+
+  /* 🌟 openDates 非空 → 顯示具體日期；否則顯示常態 weekday */
+  const openDays =
+    Array.isArray(cfg.openDates) && cfg.openDates.length > 0
+      ? cfg.openDates
+          .map((dstr) => {
+            const d = new Date(dstr + "T00:00:00");
+            if (isNaN(d.getTime())) return dstr;
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            return `${mm}/${dd}(${CEZI_WEEKDAY_NAMES[d.getDay()]})`;
+          })
+          .join("、")
+      : (cfg.openWeekdays || [])
+          .map((w) => "週" + CEZI_WEEKDAY_NAMES[w])
+          .join("、");
 
   // 先看近期到底有沒有可約日
   const nearDays = getNextAvailableCeziDays(1, 14);
@@ -2352,6 +2421,171 @@ async function sendCeziIntroFlex(userId) {
   };
 
   await pushFlex(userId, "測字 · 脆友福利", bubble);
+}
+
+/* ==========================================================
+  ✅ Admin 指令解析 — 給老師本人用
+  - 透過 LINE 訊息切換「脆友測字活動」開／關
+  - 不用 SSH 編 cezi-config.json
+
+  支援命令：
+    脆友測字活動開始             → 開啟免費（沿用 openWeekdays 常態日）
+    脆友測字活動開始 5/15         → 指定單一日期
+    脆友測字活動開始 5/15 5/22    → 指定多個日期
+    脆友測字活動結束             → 關閉免費 + 清空 openDates
+    脆友測字狀態                 → 回報當前 config
+    脆友測字名額 5               → 調整 eventMaxBookings
+========================== */
+
+/* =========================
+  【解析】日期 token（支援多種格式）
+  - "5/15", "5-15"          → 假設今年；若已過 → 明年
+  - "2026-05-15", "2026/5/15"
+  - 多個 token 用空白/逗號分隔
+========================== */
+function parseAdminDateTokens(textTail) {
+  const tokens = String(textTail || "")
+    .split(/[\s,，、]+/)
+    .filter(Boolean);
+  const dates = [];
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  for (const tok of tokens) {
+    let m;
+
+    // 完整日期：YYYY-MM-DD / YYYY/MM/DD
+    m = tok.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m) {
+      const dateStr = `${m[1]}-${String(+m[2]).padStart(2, "0")}-${String(+m[3]).padStart(2, "0")}`;
+      if (isValidDateStr(dateStr)) dates.push(dateStr);
+      continue;
+    }
+
+    // 月日格式：MM/DD / MM-DD（假設今年）
+    m = tok.match(/^(\d{1,2})[-/](\d{1,2})$/);
+    if (m) {
+      const mo = +m[1];
+      const d = +m[2];
+      let y = today.getFullYear();
+      const trialStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      if (isValidDateStr(trialStr)) {
+        // 已經過了 → 改用明年
+        if (trialStr < todayKey) y += 1;
+        const finalStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        if (isValidDateStr(finalStr)) dates.push(finalStr);
+      }
+      continue;
+    }
+    // 不認識的 token 直接忽略
+  }
+  return Array.from(new Set(dates)); // 去重
+}
+
+/* =========================
+  【handler】處理 admin 指令
+  - 認證：只認 process.env.LINE_ADMIN_USER_ID
+  - 回傳：true=有處理，false=非 admin 或非此類指令（讓後續流程繼續）
+========================== */
+async function handleCeziAdminCommand(userId, text) {
+  // 認證
+  if (!userId || userId !== process.env.LINE_ADMIN_USER_ID) return false;
+
+  const t = String(text || "").trim();
+
+  /* 1) 狀態查詢 */
+  if (t === "脆友測字狀態" || t === "測字狀態") {
+    const cfg = loadCeziConfig();
+    const openInfo =
+      cfg.openDates.length > 0
+        ? `開放日：${cfg.openDates.join("、")}（單次活動）`
+        : `常態：每週${cfg.openWeekdays.map((w) => CEZI_WEEKDAY_NAMES[w]).join("、") || "（無）"}`;
+    const eventInfo = cfg.isCurrentlyFree
+      ? `🎁 本輪免費（${cfg.eventBookingsCount || 0} / ${cfg.eventMaxBookings || "∞"}）`
+      : `💴 ${cfg.price} 元 / 20 分（常態）`;
+    const startedAt = cfg.eventStartedAt
+      ? `開始於：${cfg.eventStartedAt.slice(0, 19).replace("T", " ")}`
+      : "";
+
+    await pushText(
+      userId,
+      ["📋 測字活動狀態", "", openInfo, eventInfo, startedAt]
+        .filter(Boolean)
+        .join("\n"),
+    );
+    return true;
+  }
+
+  /* 2) 結束活動 */
+  if (
+    t === "脆友測字活動結束" ||
+    t === "脆友測字停止" ||
+    t === "脆友測字結束"
+  ) {
+    const cfg = loadCeziConfig();
+    saveCeziConfig({
+      ...cfg,
+      isCurrentlyFree: false,
+      openDates: [],
+      eventEndedAt: new Date().toISOString(),
+    });
+    await pushText(
+      userId,
+      `✅ 脆友測字活動已結束\n本輪共預約：${cfg.eventBookingsCount || 0} 筆\n恢復常態 ${cfg.price} 元 / 20 分`,
+    );
+    return true;
+  }
+
+  /* 3) 開始活動 */
+  if (t === "脆友測字活動開始" || t.startsWith("脆友測字活動開始 ") ||
+      t === "脆友測字開始"    || t.startsWith("脆友測字開始 ")) {
+    const tail = t.replace(/^脆友測字(活動)?開始\s*/, "");
+    const dates = parseAdminDateTokens(tail);
+
+    const cfg = loadCeziConfig();
+    const next = {
+      ...cfg,
+      isCurrentlyFree: true,
+      openDates: dates, // 沒指定就空陣列 → 沿用 openWeekdays
+      eventBookingsCount: 0,
+      eventStartedAt: new Date().toISOString(),
+      eventEndedAt: null,
+    };
+    saveCeziConfig(next);
+
+    const dayInfo =
+      dates.length > 0
+        ? `開放日：${dates.join("、")}`
+        : `沿用常態：每週${cfg.openWeekdays.map((w) => CEZI_WEEKDAY_NAMES[w]).join("、")}`;
+
+    await pushText(
+      userId,
+      [
+        "✅ 已開啟脆友測字活動（免費）",
+        dayInfo,
+        `名額上限：${next.eventMaxBookings || "∞"}`,
+        "",
+        "脆友只要輸入「脆友測字」即可進入預約。",
+      ].join("\n"),
+    );
+    return true;
+  }
+
+  /* 4) 調整名額上限 */
+  const mLimit = t.match(/^脆友測字名額\s+(\d+)$/);
+  if (mLimit) {
+    const n = parseInt(mLimit[1], 10);
+    const cfg = loadCeziConfig();
+    saveCeziConfig({ ...cfg, eventMaxBookings: n });
+    await pushText(
+      userId,
+      `✅ 名額上限已設為 ${n === 0 ? "不限" : n}（之後活動開始時生效）`,
+    );
+    return true;
+  }
+
+  /* 不是 admin 指令 → 回 false 讓後續正常流程跑 */
+  return false;
 }
 
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
@@ -4971,6 +5205,15 @@ async function handleLineEvent(event) {
 //預約：丟服務/日期/時段 Flex（你的 booking flow）
 //這裡先做成「設定 state + 丟教學 Flex」
 async function routeGeneralCommands(userId, text) {
+  /* =========================
+    🌟 Admin 指令（只認本人 LINE userId）
+    - 在最前面攔截，避免跟使用者觸發詞混淆
+    - 命令前綴：脆友測字活動 / 脆友測字狀態
+  ========================== */
+  if (await handleCeziAdminCommand(userId, text)) {
+    return;
+  }
+
   // 🌟 新增：攔截「八字分析」，丟出雙按鈕選擇卡
   if (text === "八字分析") {
     await sendBaziChoiceFlex(userId);
@@ -6199,6 +6442,37 @@ async function handleBookingFlow(userId, text, state, event) {
       bookingBody.price = cfg.isCurrentlyFree ? 0 : cfg.price;
     }
 
+    /* =========================
+      🌟 測字免費活動：累計 + 達上限自動結束
+      - 只計免費活動的 booking
+      - 達 eventMaxBookings → 自動切回付費模式 + 通知老師
+      - 在 saveBookings 之後執行（先存到 bookings.json 再算）
+    ========================== */
+    let autoEndedEvent = null; // 留到下面通知用
+    if (bookingBody.serviceId === "cezi" && bookingBody.isFree) {
+      const cfgNow = loadCeziConfig();
+      const newCount = (cfgNow.eventBookingsCount || 0) + 1;
+      const maxBookings = cfgNow.eventMaxBookings || 0;
+
+      if (maxBookings > 0 && newCount >= maxBookings) {
+        // 達上限 → 自動結束活動
+        saveCeziConfig({
+          ...cfgNow,
+          isCurrentlyFree: false,
+          openDates: [],
+          eventBookingsCount: newCount,
+          eventEndedAt: new Date().toISOString(),
+        });
+        autoEndedEvent = { count: newCount, max: maxBookings };
+      } else {
+        // 還沒滿 → 只 +1
+        saveCeziConfig({
+          ...cfgNow,
+          eventBookingsCount: newCount,
+        });
+      }
+    }
+
     // 寫入 bookings.json
     const bookings = loadBookings();
     const newBooking = {
@@ -6214,6 +6488,26 @@ async function handleBookingFlow(userId, text, state, event) {
     notifyNewBooking(newBooking).catch((err) => {
       console.error("[LINE] notifyNewBooking (chat) 發送失敗：", err);
     });
+
+    /* =========================
+      🌟 測字活動自動結束 → 通知老師
+    ========================== */
+    if (autoEndedEvent && process.env.LINE_ADMIN_USER_ID) {
+      pushText(
+        process.env.LINE_ADMIN_USER_ID,
+        [
+          "🎉 脆友測字活動自動結束",
+          `已預約滿 ${autoEndedEvent.max} 個免費名額`,
+          `已恢復常態 200 元 / 20 分`,
+          "",
+          "若要再開一輪，請輸入：",
+          "脆友測字活動開始（沿用 openWeekdays）",
+          "或 脆友測字活動開始 5/22",
+        ].join("\n"),
+      ).catch((err) => {
+        console.error("[cezi] auto-end notify failed", err);
+      });
+    }
 
     // 清掉對話狀態
     delete conversationStates[userId];
