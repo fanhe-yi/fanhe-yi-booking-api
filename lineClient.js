@@ -42,6 +42,7 @@ function getServiceName(serviceId) {
     name: "改名 / 姓名學",
     liuyao: "六爻占卜",
     fengshui: "風水勘察",
+    cezi: "測字", // 🌟 脆友測字（hero/匯款卡片用簡短名稱）
     chat_line: "命理諮詢",
   };
   return map[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
@@ -524,10 +525,12 @@ async function sendBookingSuccessHero(userId, booking) {
 // ------------------------------------------------------------
 async function sendBookingPaymentAndNoticeCarousel(
   userId,
-  { serviceName, price } = {},
+  { serviceName, price, skipPayment = false } = {},
 ) {
   const safeServiceName = serviceName || "命理諮詢";
-  const safePrice = price ? `NT$${price}` : "（依實際服務項目而定）";
+  // 🌟 price=0 也應該顯示「NT$0」而不是 fallback（用 typeof 而非 truthy 判斷）
+  const safePrice =
+    typeof price === "number" ? `NT$${price}` : "（依實際服務項目而定）";
 
   const paymentBubble = {
     type: "bubble",
@@ -725,9 +728,13 @@ async function sendBookingPaymentAndNoticeCarousel(
     },
   };
 
-  await pushFlex(userId, "匯款通知 / 諮詢小提醒", {
+  /* 🌟 skipPayment=true（如 cezi 免費活動）→ 只推「諮詢小提醒」單張 */
+  const bubbles = skipPayment ? [noticeBubble] : [paymentBubble, noticeBubble];
+  const altText = skipPayment ? "諮詢小提醒" : "匯款通知 / 諮詢小提醒";
+
+  await pushFlex(userId, altText, {
     type: "carousel",
-    contents: [paymentBubble, noticeBubble],
+    contents: bubbles,
   });
 }
 

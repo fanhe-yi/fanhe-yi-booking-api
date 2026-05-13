@@ -242,11 +242,7 @@ function isBotUserAgent(ua) {
   - 跟現有 19:00-20:00 / 20:00-21:00 / 21:00-22:00 不重疊
   - 設在現有 19/20/21 三個 1 小時時段的前半段
 ========================== */
-const CEZI_ALL_TIME_SLOTS = [
-  "19:00-19:20",
-  "19:30-19:50",
-  "20:00-20:20",
-];
+const CEZI_ALL_TIME_SLOTS = ["19:00-19:20", "19:30-19:50", "20:00-20:20"];
 
 /* =========================
   【config】cezi-config.json
@@ -299,7 +295,8 @@ function loadCeziConfig() {
         ? data.eventMaxBookings
         : CEZI_DEFAULT_CONFIG.eventMaxBookings,
     eventBookingsCount:
-      typeof data.eventBookingsCount === "number" && data.eventBookingsCount >= 0
+      typeof data.eventBookingsCount === "number" &&
+      data.eventBookingsCount >= 0
         ? data.eventBookingsCount
         : 0,
     eventStartedAt:
@@ -332,10 +329,7 @@ function countCeziBookingsOnDate(date) {
   const bookings = loadBookings();
   return bookings.filter(
     (b) =>
-      b &&
-      b.serviceId === "cezi" &&
-      b.date === date &&
-      b.status !== "canceled",
+      b && b.serviceId === "cezi" && b.date === date && b.status !== "canceled",
   ).length;
 }
 
@@ -377,15 +371,22 @@ function getCeziSlotsForDate(date) {
     - 若 openDates 非空 → 只看那幾天，其他一律 closed
     - 若 openDates 空 → 回到 openWeekdays 常態
   ========================== */
-  const useExplicitDates = Array.isArray(cfg.openDates) && cfg.openDates.length > 0;
+  const useExplicitDates =
+    Array.isArray(cfg.openDates) && cfg.openDates.length > 0;
   if (useExplicitDates) {
     if (!cfg.openDates.includes(date)) {
-      return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+      return CEZI_ALL_TIME_SLOTS.map((s) => ({
+        timeSlot: s,
+        status: "closed",
+      }));
     }
   } else {
     const weekday = d.getDay();
     if (!cfg.openWeekdays.includes(weekday)) {
-      return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+      return CEZI_ALL_TIME_SLOTS.map((s) => ({
+        timeSlot: s,
+        status: "closed",
+      }));
     }
   }
 
@@ -1749,7 +1750,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "name",
       label: "姓名學",
-      badges: ["🏷️ 姓名論斷 600元/小時", "🏷️ 取名、改名 2000元/次"],
+      badges: ["🏷️ 姓名鑑定 600元/30分", "🏷️ 取名、改名 3000元/50分"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg",
       descriptionList: [
         "解析名字對運勢與人際的關係影響",
@@ -1773,7 +1774,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "ziwei",
       label: "紫微斗數",
-      badges: ["🏷️ 1200元/小時起", "🏷️ 看關係互動＆人生事件"],
+      badges: ["🏷️ 1200元/50分", "🏷️ 看關係互動＆人生事件"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/ziwei.jpg",
       descriptionList: [
         "排盤細緻解析關係互動、天賦潛能與流年起伏",
@@ -1785,7 +1786,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "bazi",
       label: "四柱八字",
-      badges: ["🏷️ 1200元/小時", "🏷️ 掌握人生大方向"],
+      badges: ["🏷️ 1200元/50分", "🏷️ 掌握人生大方向"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg",
       descriptionList: [
         "從先天五行結構，抓出人生大方向與強弱勢",
@@ -2262,6 +2263,11 @@ async function sendCeziIntroFlex(userId) {
   const nearDays = getNextAvailableCeziDays(1, 14);
   const hasUpcoming = nearDays.length > 0;
 
+  /* 🌟 footer 提示文字：免費活動 vs 常態，用不同句子 */
+  const footerHint = cfg.isCurrentlyFree
+    ? "* 名額有限，沒搶到下次再來～"
+    : "* 諮詢 20 分鐘 · 若想更深入歡迎預約其他服務";
+
   const bubble = {
     type: "bubble",
     size: "mega",
@@ -2390,7 +2396,7 @@ async function sendCeziIntroFlex(userId) {
             },
             {
               type: "text",
-              text: "* 名額有限，沒搶到下次再來～",
+              text: footerHint,
               size: "xs",
               color: "#9C9C9C",
               align: "center",
@@ -2537,8 +2543,12 @@ async function handleCeziAdminCommand(userId, text) {
   }
 
   /* 3) 開始活動 */
-  if (t === "脆友測字活動開始" || t.startsWith("脆友測字活動開始 ") ||
-      t === "脆友測字開始"    || t.startsWith("脆友測字開始 ")) {
+  if (
+    t === "脆友測字活動開始" ||
+    t.startsWith("脆友測字活動開始 ") ||
+    t === "脆友測字開始" ||
+    t.startsWith("脆友測字開始 ")
+  ) {
     const tail = t.replace(/^脆友測字(活動)?開始\s*/, "");
     const dates = parseAdminDateTokens(tail);
 
@@ -4319,8 +4329,7 @@ app.get("/api/articles", async (req, res) => {
     const views = loadArticleViews();
     items = items.map((a) => ({
       ...a,
-      viewCount:
-        typeof views[a.slug] === "number" ? views[a.slug] : 0,
+      viewCount: typeof views[a.slug] === "number" ? views[a.slug] : 0,
     }));
 
     /* =========================
@@ -6535,10 +6544,22 @@ async function handleBookingFlow(userId, text, state, event) {
       parsedServiceName ||
       SERVICE_NAME_MAP[bookingBody.serviceId] ||
       "命理諮詢";
+
+    /* =========================
+      🌟 cezi 專用：
+      - 免費 → skipPayment=true（不發匯款卡，只發諮詢小提醒）
+      - 付費 → 用 bookingBody.price（NT$ 200）
+      其他服務維持原行為（parsedPrice 從題目文字解析）
+    ========================== */
+    const isCezi = bookingBody.serviceId === "cezi";
+    const finalPrice = isCezi ? bookingBody.price : parsedPrice;
+    const skipPayment = isCezi && bookingBody.isFree === true;
+
     try {
       await sendBookingPaymentAndNoticeCarousel(userId, {
         serviceName: carouselServiceName,
-        price: parsedPrice,
+        price: finalPrice,
+        skipPayment,
       });
     } catch (err) {
       console.error(
