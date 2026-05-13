@@ -471,13 +471,20 @@ async function sendBookingSuccessHero(userId, booking) {
           type: "separator",
           margin: "md",
         },
-        {
-          type: "text",
-          text: `${note || ""}`,
-          size: "sm",
-          wrap: true,
-          margin: "md",
-        },
+        /* 🌟 修正：note 為空字串時跳過該行
+           LINE Flex 不允許 text:"" → 會回 "must be non-empty text"
+           cezi 預約不走題目分類流程、且使用者輸「無」時 note=""，會炸 */
+        ...(note && String(note).trim()
+          ? [
+              {
+                type: "text",
+                text: String(note),
+                size: "sm",
+                wrap: true,
+                margin: "md",
+              },
+            ]
+          : []),
         {
           type: "text",
           text: "我會再跟你確認細節，若臨時需調整，也可以隨時在這裡跟我說 👇",
@@ -528,9 +535,18 @@ async function sendBookingPaymentAndNoticeCarousel(
   { serviceName, price, skipPayment = false } = {},
 ) {
   const safeServiceName = serviceName || "命理諮詢";
-  // 🌟 price=0 也應該顯示「NT$0」而不是 fallback（用 typeof 而非 truthy 判斷）
+  /* 🌟 同時支援兩種來源：
+       - cezi 走 bookingBody.price → number（0 / 200）
+       - 其他服務走 parseServiceFromQuestionText → 數字字串（"1200"）
+     兩種都要顯示，且 price=0（免費）也要顯示「NT$0」 */
+  const numericPrice =
+    typeof price === "number" && Number.isFinite(price)
+      ? price
+      : typeof price === "string" && /^\d+$/.test(price.trim())
+        ? Number(price)
+        : null;
   const safePrice =
-    typeof price === "number" ? `NT$${price}` : "（依實際服務項目而定）";
+    numericPrice !== null ? `NT$${numericPrice}` : "（依實際服務項目而定）";
 
   const paymentBubble = {
     type: "bubble",

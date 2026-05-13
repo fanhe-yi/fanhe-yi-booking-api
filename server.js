@@ -773,7 +773,7 @@ const SERVICE_NAME_MAP = {
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
-  cezi: "測字（脆友福利）", // 🌟 Threads 脆友專屬，隱藏入口、20 分鐘短時段
+  cezi: "測字", // 🌟 Threads 脆友專屬，隱藏入口、20 分鐘短時段
 
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
@@ -2237,7 +2237,7 @@ async function sendCeziIntroFlex(userId) {
       );
       priceLine = `✨ 本輪免費（剩 ${remain} 個名額）`;
     } else {
-      priceLine = "✨ 本輪免費（脆友福利期）";
+      priceLine = "✨ 本輪免費";
     }
   } else {
     priceLine = `💴 ${cfg.price} 元 / 20 分`;
@@ -2279,7 +2279,7 @@ async function sendCeziIntroFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "🎴 測字 · 脆友福利",
+          text: "🎴 測字",
           weight: "bold",
           size: "lg",
           color: "#8B5C36",
@@ -2426,7 +2426,7 @@ async function sendCeziIntroFlex(userId) {
     },
   };
 
-  await pushFlex(userId, "測字 · 脆友福利", bubble);
+  await pushFlex(userId, "測字", bubble);
 }
 
 /* ==========================================================
@@ -6704,7 +6704,7 @@ async function handleBookingPostback(userId, action, params, state) {
     /* =========================
       🌟 測字限額驗證
       - 當日 cezi booking ≥ 3 → 婉拒
-      - 同一 LINE userId 7 天內已預約過 → 婉拒並推主服務
+      - 只有「免費活動」時才擋 7 天內重複；付費 200 不限
       - 通過才繼續走 waiting_name
     ========================== */
     if (serviceId === "cezi") {
@@ -6713,7 +6713,7 @@ async function handleBookingPostback(userId, action, params, state) {
       if (count >= 3) {
         await pushText(
           userId,
-          `這一天（${date}）的測字名額已滿了 🙏\n建議再選一天，或輸入「脆友測字」回到日期選單。`,
+          `這一天（${date}）的測字名額已滿了 🙏\n建議再選一天，或輸入「測字」回到日期選單。`,
         );
         return;
       }
@@ -6724,17 +6724,19 @@ async function handleBookingPostback(userId, action, params, state) {
       if (!target || target.status !== "open") {
         await pushText(
           userId,
-          `這個時段剛剛被預約走囉 🙏\n再輸入「脆友測字」重新挑一個時段吧～`,
+          `這個時段剛剛被預約走囉 🙏\n再輸入「測字」重新挑一個時段吧～`,
         );
         return;
       }
 
-      // 4-3) 同一人 7 天內限預約一次
-      if (hasRecentCeziBookingByUser(userId, 7)) {
+      // 4-3) 同一人 7 天內限預約一次（只在「當前是免費活動」才檢查）
+      //      付費 200 屬於常態服務，不該被擋
+      const cfgNow = loadCeziConfig();
+      if (cfgNow.isCurrentlyFree && hasRecentCeziBookingByUser(userId, 7)) {
         delete conversationStates[userId];
         await pushText(
           userId,
-          "你在 7 天內已預約過測字囉～\n名額有限想留給更多脆友，這次就先讓給其他人 🙏\n\n如果想更深入聊聊，歡迎輸入「關於八字/紫微/占卜」預約其他項目。",
+          "你在 7 天內已預約過測字囉～\n免費名額有限想留給更多人，這次就先讓給其他人 🙏\n\n如果想更深入聊聊，歡迎輸入「關於八字/紫微/占卜」預約其他項目。",
         );
         return;
       }
