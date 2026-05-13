@@ -228,6 +228,190 @@ function isBotUserAgent(ua) {
   );
 }
 
+/* ==========================================================
+  ✅ 測字（脆友福利）— 獨立 slot 邏輯
+  目的：
+  - 跟現有 1 小時 ALL_TIME_SLOTS 完全平行，不互相影響
+  - 動態開放日由 cezi-config.json 控制（你想隨時調整哪 3 天）
+  - 一天最多 3 個 20 分鐘時段
+  - 共用 bookings.json 儲存，多帶 serviceId="cezi"
+========================== */
+
+/* =========================
+  【常數】3 個固定 20 分鐘時段
+  - 跟現有 19:00-20:00 / 20:00-21:00 / 21:00-22:00 不重疊
+  - 設在現有 19/20/21 三個 1 小時時段的前半段
+========================== */
+const CEZI_ALL_TIME_SLOTS = [
+  "19:00-19:20",
+  "19:30-19:50",
+  "20:00-20:20",
+];
+
+/* =========================
+  【config】cezi-config.json
+  - openWeekdays：0=日,1=一,...,6=六；每週開放哪幾天
+  - isCurrentlyFree：本輪是否免費（脆友活動期）
+  - price：常態價格 NT$
+========================== */
+const CEZI_CONFIG_PATH = path.join(process.cwd(), "cezi-config.json");
+const CEZI_DEFAULT_CONFIG = {
+  openWeekdays: [2, 4, 6], // 預設週二/四/六，可隨時改
+  isCurrentlyFree: false,
+  price: 200,
+};
+
+function loadCeziConfig() {
+  const data = readJsonSafe(CEZI_CONFIG_PATH, CEZI_DEFAULT_CONFIG);
+  // 防呆
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return { ...CEZI_DEFAULT_CONFIG };
+  }
+  return {
+    openWeekdays: Array.isArray(data.openWeekdays)
+      ? data.openWeekdays.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+      : CEZI_DEFAULT_CONFIG.openWeekdays,
+    isCurrentlyFree: !!data.isCurrentlyFree,
+    price:
+      typeof data.price === "number" && data.price >= 0
+        ? data.price
+        : CEZI_DEFAULT_CONFIG.price,
+  };
+}
+
+function saveCeziConfig(next) {
+  try {
+    writeJsonPretty(CEZI_CONFIG_PATH, next);
+  } catch (err) {
+    console.error("[cezi] saveCeziConfig failed", err);
+  }
+}
+
+/* =========================
+  【weekday 名稱】（產生日期 carousel 顯示用）
+========================== */
+const CEZI_WEEKDAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
+
+/* =========================
+  【統計】當日已有幾筆 cezi booking
+  - 從 bookings.json 算（同一份儲存）
+  - 只認 serviceId === "cezi"
+  - status !== "canceled" 才算（避免取消過的還佔名額）
+========================== */
+function countCeziBookingsOnDate(date) {
+  const bookings = loadBookings();
+  return bookings.filter(
+    (b) =>
+      b &&
+      b.serviceId === "cezi" &&
+      b.date === date &&
+      b.status !== "canceled",
+  ).length;
+}
+
+/* =========================
+  【統計】使用者 N 天內是否已預約過 cezi
+  - 避免單一人霸佔脆友福利
+========================== */
+function hasRecentCeziBookingByUser(userId, withinDays = 7) {
+  if (!userId) return false;
+  const bookings = loadBookings();
+  const now = Date.now();
+  const cutoff = now - withinDays * 24 * 60 * 60 * 1000;
+  return bookings.some((b) => {
+    if (!b || b.serviceId !== "cezi") return false;
+    if (b.lineUserId !== userId) return false;
+    if (b.status === "canceled") return false;
+    const t = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return t >= cutoff;
+  });
+}
+
+/* =========================
+  【slot 狀態】這一天每個 cezi 時段是 open / booked / closed
+  - 若 weekday 不在 openWeekdays：所有時段 status = "closed"
+  - 若整天被 unavailable.fullDay 擋：所有 closed
+  - 否則回 open / booked
+========================== */
+function getCeziSlotsForDate(date) {
+  const cfg = loadCeziConfig();
+
+  // 驗證 date 格式 + 取得 weekday
+  const d = new Date(date + "T00:00:00");
+  if (isNaN(d.getTime())) {
+    return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+  }
+  const weekday = d.getDay();
+  if (!cfg.openWeekdays.includes(weekday)) {
+    return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+  }
+
+  // 整天 unavailable.fullDay 一樣阻擋
+  const unavailable = loadUnavailable();
+  const isFullDayBlocked =
+    Array.isArray(unavailable.fullDay) && unavailable.fullDay.includes(date);
+  if (isFullDayBlocked) {
+    return CEZI_ALL_TIME_SLOTS.map((s) => ({ timeSlot: s, status: "closed" }));
+  }
+
+  // 找出當日所有 cezi booked slots
+  const bookings = loadBookings();
+  const bookedSlotsForDate = [];
+  bookings
+    .filter(
+      (b) =>
+        b &&
+        b.serviceId === "cezi" &&
+        b.date === date &&
+        b.status !== "canceled",
+    )
+    .forEach((b) => {
+      const slots = Array.isArray(b.timeSlots)
+        ? b.timeSlots
+        : b.timeSlot
+          ? [b.timeSlot]
+          : [];
+      bookedSlotsForDate.push(...slots);
+    });
+
+  return CEZI_ALL_TIME_SLOTS.map((slot) => {
+    if (bookedSlotsForDate.includes(slot)) {
+      return { timeSlot: slot, status: "booked" };
+    }
+    return { timeSlot: slot, status: "open" };
+  });
+}
+
+/* =========================
+  【日期 carousel 用】未來 N 個「有開放且有 open 時段」的日期
+  - 只掃 cfg.openWeekdays 的 weekday
+  - 跳過 booked 滿 3 的日期
+========================== */
+function getNextAvailableCeziDays(showCount, scanDays = 60) {
+  const results = [];
+  const base = new Date();
+
+  for (let i = 0; i < scanDays; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10);
+
+    const slots = getCeziSlotsForDate(dateStr);
+    const openCount = slots.filter((s) => s.status === "open").length;
+    if (openCount === 0) continue;
+
+    const w = CEZI_WEEKDAY_NAMES[d.getDay()];
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+
+    results.push({
+      dateStr,
+      label: `${mm}/${dd}(${w}) [${openCount}時段可選]`,
+    });
+    if (results.length >= showCount) break;
+  }
+  return results;
+}
+
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -545,6 +729,7 @@ const SERVICE_NAME_MAP = {
   name: "改名 / 姓名學",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
+  cezi: "測字（脆友福利）", // 🌟 Threads 脆友專屬，隱藏入口、20 分鐘短時段
 
   chat_line: "命理諮詢", // 預設用在聊天預約沒特別指定時
 };
@@ -1989,6 +2174,186 @@ async function sendBaziChoiceFlex(userId) {
   await pushFlex(userId, "請選擇八字解析項目", contents);
 }
 
+/* ==========================================================
+  ✅ 測字 intro flex
+  目的：
+  - 進入測字流程的「說明卡」：規則 + 當前是否免費 + 開始預約
+  - 由 routeGeneralCommands 觸發詞「脆友測字」進來
+========================== */
+async function sendCeziIntroFlex(userId) {
+  const cfg = loadCeziConfig();
+  const priceLine = cfg.isCurrentlyFree
+    ? "✨ 本輪免費（脆友福利期）"
+    : `💴 ${cfg.price} 元 / 20 分`;
+  const openDays = (cfg.openWeekdays || [])
+    .map((w) => "週" + CEZI_WEEKDAY_NAMES[w])
+    .join("、");
+
+  // 先看近期到底有沒有可約日
+  const nearDays = getNextAvailableCeziDays(1, 14);
+  const hasUpcoming = nearDays.length > 0;
+
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "lg",
+      backgroundColor: "#F8F2E6",
+      contents: [
+        {
+          type: "text",
+          text: "🎴 測字 · 脆友福利",
+          weight: "bold",
+          size: "lg",
+          color: "#8B5C36",
+        },
+        {
+          type: "text",
+          text: "20 分鐘 · 一日 3 個名額",
+          size: "sm",
+          color: "#A68A6A",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: priceLine,
+          weight: "bold",
+          size: "md",
+          color: cfg.isCurrentlyFree ? "#A85751" : "#4A4A4A",
+        },
+        {
+          type: "separator",
+          margin: "md",
+        },
+        {
+          type: "box",
+          layout: "baseline",
+          spacing: "sm",
+          margin: "md",
+          contents: [
+            { type: "text", text: "✦", size: "xs", color: "#8B7355", flex: 0 },
+            {
+              type: "text",
+              text: `開放日：${openDays || "暫未設定"}`,
+              size: "sm",
+              color: "#4A4A4A",
+              wrap: true,
+              flex: 1,
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "baseline",
+          spacing: "sm",
+          contents: [
+            { type: "text", text: "✦", size: "xs", color: "#8B7355", flex: 0 },
+            {
+              type: "text",
+              text: "時段：19:00 / 19:30 / 20:00（各 20 分）",
+              size: "sm",
+              color: "#4A4A4A",
+              wrap: true,
+              flex: 1,
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "baseline",
+          spacing: "sm",
+          contents: [
+            { type: "text", text: "✦", size: "xs", color: "#8B7355", flex: 0 },
+            {
+              type: "text",
+              text: "每人 7 天內限預約一次",
+              size: "sm",
+              color: "#4A4A4A",
+              wrap: true,
+              flex: 1,
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "baseline",
+          spacing: "sm",
+          contents: [
+            { type: "text", text: "✦", size: "xs", color: "#8B7355", flex: 0 },
+            {
+              type: "text",
+              text: "請寫一個你想測的字（諮詢時告訴我）",
+              size: "sm",
+              color: "#4A4A4A",
+              wrap: true,
+              flex: 1,
+            },
+          ],
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: hasUpcoming
+        ? [
+            {
+              type: "button",
+              style: "primary",
+              color: "#A85751",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "開始預約測字",
+                data: "action=cezi_start",
+                displayText: "我想預約測字",
+              },
+            },
+            {
+              type: "text",
+              text: "* 名額有限，沒搶到下次再來～",
+              size: "xs",
+              color: "#9C9C9C",
+              align: "center",
+              wrap: true,
+            },
+          ]
+        : [
+            {
+              type: "text",
+              text: "近期暫無可預約日，請追蹤 Threads 等下次開放 🙏",
+              size: "sm",
+              color: "#888888",
+              wrap: true,
+              align: "center",
+            },
+            {
+              type: "button",
+              style: "link",
+              height: "sm",
+              action: {
+                type: "message",
+                label: "看其他預約項目",
+                text: "關於八字/紫微/占卜",
+              },
+            },
+          ],
+    },
+  };
+
+  await pushFlex(userId, "測字 · 脆友福利", bubble);
+}
+
 // 🔹 日期選擇 Carousel Flex（每一頁有多個「日期按鈕」，會帶著 serviceId）
 // 🔹 日期選擇 Carousel Flex（質感按鈕版，一頁 3 個）
 async function sendDateCarouselFlex(userId, serviceId) {
@@ -2000,7 +2365,13 @@ async function sendDateCarouselFlex(userId, serviceId) {
   // 你想顯示幾個可約日期：showCount = 30
   // 最多往後掃幾天：scanDays = 90（自己調）
 
-  const days = getNextAvailableDays(15, 60);
+  /* =========================
+    🌟 測字走獨立 slot 邏輯，跟 1 小時系統完全平行
+  ========================== */
+  const days =
+    serviceId === "cezi"
+      ? getNextAvailableCeziDays(15, 60)
+      : getNextAvailableDays(15, 60);
 
   if (days.length === 0) {
     await pushText(
@@ -2065,7 +2436,13 @@ async function sendDateCarouselFlex(userId, serviceId) {
 // dateStr 格式：YYYY-MM-DD
 async function sendSlotsFlexForDate(userId, dateStr, serviceId) {
   const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
-  const slots = getSlotsForDate(dateStr);
+  /* =========================
+    🌟 測字走獨立 slot 邏輯（20 分鐘 × 3）
+  ========================== */
+  const slots =
+    serviceId === "cezi"
+      ? getCeziSlotsForDate(dateStr)
+      : getSlotsForDate(dateStr);
   const openSlots = slots.filter((s) => s.status === "open");
 
   if (openSlots.length === 0) {
@@ -4600,6 +4977,22 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
+  /* =========================
+    🌟 測字（脆友福利）— 隱藏觸發詞
+    - 不放進主 service select，只給 Threads 來的人輸入
+    - 觸發詞：「脆友測字」「測字」「threads測字」「Threads測字」
+  ========================== */
+  if (
+    text === "脆友測字" ||
+    text === "測字" ||
+    text === "threads測字" ||
+    text === "Threads測字" ||
+    text === "脆友福利"
+  ) {
+    await sendCeziIntroFlex(userId);
+    return;
+  }
+
   // 1) 預約（維持原樣）
   if (text === "關於八字/紫微/占卜") {
     conversationStates[userId] = {
@@ -4874,7 +5267,8 @@ async function routePostback(userId, data) {
   if (
     action === "choose_service" ||
     action === "choose_date" ||
-    action === "choose_slot"
+    action === "choose_slot" ||
+    action === "cezi_start"
   ) {
     /* ✅ 用最新 state，避免 postback 帶到舊/空狀態 */
     const state = getState();
@@ -5794,6 +6188,17 @@ async function handleBookingFlow(userId, text, state, event) {
       birthRaw: state.data.birthRaw || "",
     };
 
+    /* =========================
+      🌟 測字：補上 isFree / price 欄位（依當前 cezi-config）
+      - 這樣 admin 後台一眼看出本筆是免費還是付費
+      - 用快照的方式（以建立當下的價格為準），之後 toggle 不會回頭改舊資料
+    ========================== */
+    if (bookingBody.serviceId === "cezi") {
+      const cfg = loadCeziConfig();
+      bookingBody.isFree = !!cfg.isCurrentlyFree;
+      bookingBody.price = cfg.isCurrentlyFree ? 0 : cfg.price;
+    }
+
     // 寫入 bookings.json
     const bookings = loadBookings();
     const newBooking = {
@@ -5857,6 +6262,21 @@ async function handleBookingFlow(userId, text, state, event) {
 
 // 🧩 預約相關的 postback（選服務 / 選日期 / 選時段）
 async function handleBookingPostback(userId, action, params, state) {
+  /* =========================
+    🌟 測字流程入口：cezi_start
+    - 不需要先 routeGeneralCommands 設 state
+    - 自己 set state，然後丟出日期 carousel（測字版）
+  ========================== */
+  if (action === "cezi_start") {
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "waiting_date",
+      data: { serviceId: "cezi" },
+    };
+    await sendDateCarouselFlex(userId, "cezi");
+    return;
+  }
+
   // 1) 先確認：目前有在 booking 模式
   if (!state || state.mode !== "booking") {
     console.log(
@@ -5965,6 +6385,45 @@ async function handleBookingPostback(userId, action, params, state) {
     }
 
     const serviceName = SERVICE_NAME_MAP[serviceId] || "命理諮詢";
+
+    /* =========================
+      🌟 測字限額驗證
+      - 當日 cezi booking ≥ 3 → 婉拒
+      - 同一 LINE userId 7 天內已預約過 → 婉拒並推主服務
+      - 通過才繼續走 waiting_name
+    ========================== */
+    if (serviceId === "cezi") {
+      // 4-1) 當日是否已滿 3 個
+      const count = countCeziBookingsOnDate(date);
+      if (count >= 3) {
+        await pushText(
+          userId,
+          `這一天（${date}）的測字名額已滿了 🙏\n建議再選一天，或輸入「脆友測字」回到日期選單。`,
+        );
+        return;
+      }
+
+      // 4-2) 該時段是否已被搶（保險：UI 已 filter，但 race condition 防呆）
+      const slots = getCeziSlotsForDate(date);
+      const target = slots.find((s) => s.timeSlot === time);
+      if (!target || target.status !== "open") {
+        await pushText(
+          userId,
+          `這個時段剛剛被預約走囉 🙏\n再輸入「脆友測字」重新挑一個時段吧～`,
+        );
+        return;
+      }
+
+      // 4-3) 同一人 7 天內限預約一次
+      if (hasRecentCeziBookingByUser(userId, 7)) {
+        delete conversationStates[userId];
+        await pushText(
+          userId,
+          "你在 7 天內已預約過測字囉～\n名額有限想留給更多脆友，這次就先讓給其他人 🙏\n\n如果想更深入聊聊，歡迎輸入「關於八字/紫微/占卜」預約其他項目。",
+        );
+        return;
+      }
+    }
 
     console.log(`✅ [booking] 使用者選擇：${serviceName} ${date} ${time}`);
 

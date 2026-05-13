@@ -6,3 +6,6 @@ bookings.json
 # macOS 自動產生
 .DS_Store
 **/.DS_Store
+
+# 測字設定（VPS 獨立維護，避免本機與線上互覆蓋）
+cezi-config.json
