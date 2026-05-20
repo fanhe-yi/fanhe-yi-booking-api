@@ -456,6 +456,178 @@ function getNextAvailableCeziDays(showCount, scanDays = 60) {
   return results;
 }
 
+/* ==========================================================
+  ✅ 占卜（fortune）— 免費引流功能
+  目的：使用者輸入「免費占卜」可選神明、擲筊、抽籤、AI 解讀
+  - 詳細設計：docs/fortune-design.md
+  - DB schema：migrations/001_fortune_draws.sql
+  - 籤詩資料：fortune-deities/<deity>-poems.json
+  - DB helpers：fortuneStore.pg.js（pool / canCastFortuneToday / recordFortuneDraw）
+========================== */
+
+const FORTUNE_DEITIES_DIR = path.join(process.cwd(), "fortune-deities");
+const FORTUNE_QUESTION_MIN = 10;
+const FORTUNE_QUESTION_MAX = 150;
+const FORTUNE_XIAOJIAO_MAX_RETRY = 2; // 笑筊最多重試 2 次，第 3 次強制聖筊
+
+/* =========================
+  【神明 metadata】MVP 只做月老
+========================== */
+const DEITY_META = {
+  yuelao: {
+    label: "月老",
+    desc: "司掌姻緣紅絲｜問感情、復合、桃花",
+    offTopicKeywords: [
+      "工作",
+      "升遷",
+      "加薪",
+      "考試",
+      "升學",
+      "投資",
+      "股票",
+      "創業",
+      "搬家",
+      "買房",
+      "健康",
+      "疾病",
+    ],
+  },
+};
+
+/* =========================
+  【籤詩 cache】只讀一次，後續走記憶體
+========================== */
+const _deityPoemsCache = {};
+
+function loadDeityPoems(deity) {
+  if (_deityPoemsCache[deity]) return _deityPoemsCache[deity];
+  const file = path.join(FORTUNE_DEITIES_DIR, `${deity}-poems.json`);
+  if (!fs.existsSync(file)) {
+    console.error(`[fortune] poems file not found: ${file}`);
+    return null;
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8"));
+    const poems = Array.isArray(data?.poems) ? data.poems : [];
+    if (poems.length === 0) {
+      console.error(`[fortune] no poems in ${file}`);
+      return null;
+    }
+    _deityPoemsCache[deity] = poems;
+    return poems;
+  } catch (err) {
+    console.error(`[fortune] failed to load ${file}:`, err);
+    return null;
+  }
+}
+
+/* =========================
+  【擲筊】隨機產生結果
+  - attempt >= 3 → 強制聖筊（避免使用者卡關離開）
+  - 否則：聖 70% / 笑 20% / 陰 10%
+========================== */
+function castJiao(attempt = 1) {
+  if (attempt > FORTUNE_XIAOJIAO_MAX_RETRY) return "shengjiao";
+  const r = Math.random();
+  if (r < 0.7) return "shengjiao";
+  if (r < 0.9) return "xiaojiao";
+  return "yinjiao";
+}
+
+/* =========================
+  【抽籤】從該神明籤詩庫隨機抽一支
+========================== */
+function drawPoemFromDeity(deity) {
+  const poems = loadDeityPoems(deity);
+  if (!poems || poems.length === 0) return null;
+  const idx = Math.floor(Math.random() * poems.length);
+  return poems[idx];
+}
+
+/* =========================
+  【驗證】使用者問題
+  - 字數 30-150
+  - 內容過濾（月老限感情題）
+  - 過濾無實質內容（純符號）
+========================== */
+function validateFortuneQuestion(text, deity) {
+  const t = String(text || "").trim();
+  const len = t.length;
+  if (len < FORTUNE_QUESTION_MIN) return { ok: false, reason: "too_short" };
+  if (len > FORTUNE_QUESTION_MAX) return { ok: false, reason: "too_long" };
+
+  const meta = DEITY_META[deity];
+  if (meta && Array.isArray(meta.offTopicKeywords)) {
+    const hit = meta.offTopicKeywords.find((k) => t.includes(k));
+    if (hit) return { ok: false, reason: "off_topic", hint_keyword: hit };
+  }
+
+  /* 沒實質內容（純符號 / 純空白 / 沒任何文字）
+     注意：用 \p{L}+\p{N} 才能正確認到中文字
+     原本用 \W 會把中文當成「非字」誤判為無內容 */
+  if (!/[\p{L}\p{N}]/u.test(t)) return { ok: false, reason: "no_content" };
+
+  return { ok: true };
+}
+
+/* =========================
+  【AI prompts】組 system / user prompt
+  - 風格規範：古典莊重「神諭」風，不擬神明本人發言
+  - 詳細規範見 docs/fortune-design.md §5
+========================== */
+function buildFortuneAIPrompts(deity, poem, userQuestion) {
+  const meta = DEITY_META[deity];
+  const deityLabel = meta?.label || deity;
+
+  const systemPrompt = `你是一位協助使用者解讀${deityLabel}籤的助手。
+
+【嚴格規則】
+1. 用古典中文神諭風格，但不可擬神明本人發言。
+2. 用詞使用「籤示／籤意／請者宜／請者忌／${deityLabel}示」等中性詞。
+3. 嚴禁用「絕對」「一定」「必然」「絕不」等斷言詞。
+4. 嚴禁口語「啦／喔／呢／欸／吼／哈」等。
+5. 解讀必須依使用者實際問題客製化，不可只重複籤詩本意。
+6. 結尾固定加入「僅供參考」disclaimer。
+
+【輸出格式】固定四段，標題用全形冒號：
+籤示：第 X 籤 · 等級
+籤詩：（原句四行，每行前一個全形空格）
+籤意：（3-5 句解讀，扣住使用者問題）
+請者宜：（2-3 條具體建議，可條列）
+請者忌：（1-2 條警告）
+${deityLabel}示：「（1-2 句畫龍點睛短語）」
+
+【篇幅】總長 200-350 字。`;
+
+  const poemLines = (poem.poem || []).map((s) => "　" + s).join("\n");
+  const userPrompt = `使用者問題：${userQuestion}
+
+抽到的籤：第 ${poem.id} 籤 · ${poem.level}（${poem.name}）
+
+籤詩四句：
+${poemLines}
+
+籤意提示（內部資料，不要原文照抄到輸出，請以此為解讀方向）：
+${poem.interpretation_hint || "（無）"}
+
+請依以上資料生成解讀。`;
+
+  return { systemPrompt, userPrompt };
+}
+
+/* =========================
+  【weekday 中文名稱】(共用於某些 flex 顯示)
+  其實 CEZI_WEEKDAY_NAMES 已有，這裡留個別名給 fortune 用
+========================== */
+
+/* =========================
+  【DB helpers from fortuneStore.pg.js】
+========================== */
+const {
+  canCastFortuneToday,
+  recordFortuneDraw,
+} = require("./fortuneStore.pg");
+
 //AI 訊息回覆相關
 const { AI_Reading } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -5245,6 +5417,26 @@ async function routeGeneralCommands(userId, text) {
     return;
   }
 
+  /* =========================
+    🌟 占卜（fortune）— 免費引流
+    觸發詞進入後先給隱私同意卡，同意才進選神明
+    詳細設計：docs/fortune-design.md
+  ========================== */
+  if (
+    text === "免費占卜" ||
+    text === "占卜" ||
+    text === "求籤" ||
+    text === "求神問卜"
+  ) {
+    conversationStates[userId] = {
+      mode: "fortune",
+      stage: "waiting_consent",
+      data: {},
+    };
+    await sendFortuneConsentFlex(userId);
+    return;
+  }
+
   // 1) 預約（維持原樣）
   if (text === "關於八字/紫微/占卜") {
     conversationStates[userId] = {
@@ -5378,6 +5570,12 @@ async function routeByConversationState(userId, text, state, event) {
       conversationStates,
     );
   }
+
+  // 🌟 新增：占卜流程
+  if (mode === "fortune") {
+    return await handleFortuneFlow(userId, text, state, event);
+  }
+
   // 其他未支援的 mode
   return false;
 }
@@ -5525,6 +5723,29 @@ async function routePostback(userId, data) {
     /* ✅ 用最新 state，避免 postback 帶到舊/空狀態 */
     const state = getState();
     return await handleBookingPostback(userId, action, params, state);
+  }
+
+  /* =========================
+    🌟 占卜流程的 postback
+    - fortune_consent  同意/拒絕隱私
+    - fortune_deity    選神明
+    - fortune_confirm_q  確認問題後擲筊
+    - fortune_edit_q   修改問題
+    - fortune_retry    笑筊後重擲
+    - fortune_change_deity  陰筊後換神明
+    - fortune_to_booking 結尾 CTA 接付費預約
+  ========================== */
+  if (
+    action === "fortune_consent" ||
+    action === "fortune_deity" ||
+    action === "fortune_confirm_q" ||
+    action === "fortune_edit_q" ||
+    action === "fortune_retry" ||
+    action === "fortune_change_deity" ||
+    action === "fortune_to_booking"
+  ) {
+    const state = getState();
+    return await handleFortunePostback(userId, action, params, state);
   }
 
   /* =========================
@@ -8508,15 +8729,13 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
     `你是一個六爻解卦大師\n` +
     `今天有${genderText}\n` +
     `提問：${topicText}\n` +
-    `本卦：${hexData?.bengua || "（缺）"}\n` +
-    `變卦：${hexData?.biangua || "（缺）"}\n` +
     `${gzText}\n` +
     (phaseText ? `${phaseText}\n` : "") +
     (xkText ? `${xkText}\n` : "") +
     `\n` +
     `${sixLinesText}\n` +
     `\n` +
-    `請直接根據提問與卦象給出建議，最後以繁體中文回覆。`;
+    `不要用爻辭解卦，用五行生剋，日月動爻為能量最高，以繁體中文回覆。`;
 
   const aiText = await AI_Reading(userPrompt, systemPrompt);
 
@@ -8953,6 +9172,801 @@ async function handleLyNav(userId, text) {
   }
 
   return false;
+}
+
+/* ==========================================================
+  ✅ 占卜流程實作（fortune mode）
+  詳細設計：docs/fortune-design.md
+  資料：fortune-deities/<deity>-poems.json
+  DB：fortune_draws 表（migrations/001_fortune_draws.sql）
+========================== */
+
+/* =========================
+  【Flex】隱私同意卡
+========================== */
+async function sendFortuneConsentFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🌿 占卜小提醒",
+          weight: "bold",
+          size: "lg",
+          color: "#8B6F47",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "為了讓老師日後能改善服務、讓 AI 解讀更準確，我們會留存以下資料：",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "✦ 你抽到的籤\n✦ 你問的問題內容\n✦ AI 給的解讀",
+          size: "sm",
+          wrap: true,
+          margin: "sm",
+          color: "#4A4A4A",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "【我們會做什麼】",
+          size: "sm",
+          weight: "bold",
+          margin: "md",
+          color: "#6A4C93",
+        },
+        {
+          type: "text",
+          text: "✦ 用於改善 AI 解讀品質\n✦ 以「匿名聚合統計」分享於社群\n　（例如：本週熱門籤詩、常被問的議題類型）",
+          size: "xs",
+          wrap: true,
+          color: "#4A4A4A",
+        },
+        {
+          type: "text",
+          text: "【我們不會做什麼】",
+          size: "sm",
+          weight: "bold",
+          margin: "md",
+          color: "#A85751",
+        },
+        {
+          type: "text",
+          text: "✦ 不會公開任何可識別你個人的內容\n✦ 不會引述你的問題原文\n✦ 不會將資料提供給第三方",
+          size: "xs",
+          wrap: true,
+          color: "#4A4A4A",
+        },
+        {
+          type: "text",
+          text: "你隨時可請老師刪除你的紀錄。",
+          size: "xs",
+          wrap: true,
+          margin: "md",
+          color: "#888888",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#8B6F47",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "同意，繼續",
+            data: "action=fortune_consent&v=yes",
+            displayText: "我同意",
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "先看看，不同意",
+            data: "action=fortune_consent&v=no",
+            displayText: "先不同意",
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "占卜隱私同意", bubble);
+}
+
+/* =========================
+  【Flex】選神明（MVP 只有月老一張）
+========================== */
+async function sendDeitySelectFlex(userId) {
+  const yuelao = DEITY_META.yuelao;
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "🌸 請選擇要請示的神明",
+          weight: "bold",
+          size: "lg",
+          color: "#8B6F47",
+        },
+        {
+          type: "text",
+          text: "每人每天可請示一次",
+          size: "xs",
+          color: "#A68A6A",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "md",
+          backgroundColor: "#FFF5F0",
+          cornerRadius: "md",
+          contents: [
+            {
+              type: "text",
+              text: "❤ " + yuelao.label,
+              weight: "bold",
+              size: "md",
+              color: "#A85751",
+            },
+            {
+              type: "text",
+              text: yuelao.desc,
+              size: "xs",
+              color: "#4A4A4A",
+              wrap: true,
+              margin: "sm",
+            },
+          ],
+        },
+        {
+          type: "text",
+          text: "未來將陸續開放文昌、關聖帝君、媽祖、觀音…",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
+          margin: "md",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#A85751",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "請示月老",
+            data: "action=fortune_deity&id=yuelao",
+            displayText: "我想請示月老",
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "選擇神明", bubble);
+}
+
+/* =========================
+  【Flex】問題確認卡
+========================== */
+async function sendFortuneQuestionConfirm(userId, question) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🙏 確認你的問題",
+          weight: "bold",
+          size: "lg",
+          color: "#8B6F47",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "你的問題：",
+          size: "xs",
+          color: "#888888",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: question,
+          size: "sm",
+          wrap: true,
+          margin: "sm",
+          color: "#2A2A2A",
+        },
+        { type: "separator", margin: "md" },
+        {
+          type: "text",
+          text: "確認此問題後即可擲筊請示。",
+          size: "xs",
+          color: "#888888",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#A85751",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "確認，擲筊",
+            data: "action=fortune_confirm_q",
+            displayText: "請示神明",
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "我要修改問題",
+            data: "action=fortune_edit_q",
+            displayText: "修改問題",
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "確認問題", bubble);
+}
+
+/* =========================
+  【Flex】結尾 CTA 軟推
+========================== */
+async function sendFortuneCTAFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "🌸 籤詩給了你方向",
+          weight: "bold",
+          size: "lg",
+          color: "#8B6F47",
+        },
+        {
+          type: "text",
+          text: "但人生關鍵節點，建議透過命盤深入分析：",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+          color: "#4A4A4A",
+        },
+        {
+          type: "text",
+          text: "✦ 八字｜看你的感情格局與大運\n✦ 紫微｜看 12 宮位的關係互動",
+          size: "sm",
+          wrap: true,
+          margin: "md",
+          color: "#4A4A4A",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#8B6F47",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: "預約諮詢",
+            data: "action=fortune_to_booking",
+            displayText: "我想預約諮詢",
+          },
+        },
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: {
+            type: "uri",
+            label: "分享給朋友",
+            uri:
+              (process.env.OFFICIAL_LINE_URL || "https://line.me/R/ti/p/@415kfyus"),
+          },
+        },
+      ],
+    },
+  };
+  await pushFlex(userId, "結尾 CTA", bubble);
+}
+
+/* =========================
+  【主流程】handleFortuneFlow
+  - 處理 mode="fortune" 下的文字訊息
+  - postback 由 handleFortunePostback 處理（分流在 routePostback）
+========================== */
+async function handleFortuneFlow(userId, text, state /* event */) {
+  if (!state || state.mode !== "fortune") return false;
+
+  const trimmed = String(text || "").trim();
+
+  /* 中斷詞 → 清掉 state，讓 routeGeneralCommands 接手 */
+  if (isAbortCommand(trimmed)) {
+    delete conversationStates[userId];
+    await pushText(userId, "已退出占卜。需要時可再輸入「免費占卜」開始。");
+    return true;
+  }
+
+  /* ============================================
+     waiting_question：等使用者輸入問題
+     ============================================ */
+  if (state.stage === "waiting_question") {
+    const deity = state.data.deity || "yuelao";
+    const result = validateFortuneQuestion(trimmed, deity);
+
+    if (!result.ok) {
+      if (result.reason === "too_short") {
+        await pushText(
+          userId,
+          `神明傾聽，但聲音太細不易明示。\n請將你心中所問再描述完整一些（至少 ${FORTUNE_QUESTION_MIN} 字），含「對誰、何事、現況如何」三要素。`,
+        );
+      } else if (result.reason === "too_long") {
+        await pushText(
+          userId,
+          `神明示意：所問過繁。\n請者宜將心中重點濃縮為 ${FORTUNE_QUESTION_MAX} 字內。`,
+        );
+      } else if (result.reason === "off_topic") {
+        const meta = DEITY_META[deity];
+        await pushText(
+          userId,
+          `請者所問非「${meta?.label || deity}」掌管之域。\n${meta?.label || deity}司：感情、姻緣、復合、桃花。\n\n若想問其他主題：\n✦ 事業／升遷 → 關聖帝君（未來開放）\n✦ 考試／學業 → 文昌帝君（未來開放）\n\n請輸入「修改」重新提問，或輸入「取消」離開。`,
+        );
+      } else {
+        await pushText(
+          userId,
+          `請描述清楚你想問的事，至少 ${FORTUNE_QUESTION_MIN} 字。輸入「取消」可離開。`,
+        );
+      }
+      return true;
+    }
+
+    // 通過驗證 → 進確認問題階段
+    state.data.question = trimmed;
+    state.stage = "confirm_question";
+    conversationStates[userId] = state;
+    await sendFortuneQuestionConfirm(userId, trimmed);
+    return true;
+  }
+
+  /* ============================================
+     其他 stage 收到純文字訊息：提示用 button 操作
+     ============================================ */
+  if (
+    state.stage === "waiting_consent" ||
+    state.stage === "waiting_deity" ||
+    state.stage === "confirm_question" ||
+    state.stage === "ready_to_cast" ||
+    state.stage === "cast_xiaojiao"
+  ) {
+    await pushText(
+      userId,
+      "目前請按上方卡片的按鈕進行。若要離開請輸入「取消」。",
+    );
+    return true;
+  }
+
+  return false;
+}
+
+/* =========================
+  【主流程】handleFortunePostback
+  - 處理 mode="fortune" 下的 button 點擊
+========================== */
+async function handleFortunePostback(userId, action, params, state) {
+  if (!state || state.mode !== "fortune") {
+    // 過期按鈕
+    await pushText(
+      userId,
+      "這個占卜選單看起來已過期。\n請重新輸入「免費占卜」開始。",
+    );
+    return;
+  }
+
+  /* ============================================
+     fortune_consent：同意或拒絕隱私
+     ============================================ */
+  if (action === "fortune_consent") {
+    const v = params.get("v");
+    if (v === "no") {
+      delete conversationStates[userId];
+      await pushText(
+        userId,
+        "了解，未同意則無法使用占卜功能。\n你可以先看看其他服務，輸入「關於八字/紫微/占卜」。",
+      );
+      return;
+    }
+    // 同意 → 進選神明
+    state.stage = "waiting_deity";
+    conversationStates[userId] = state;
+    await sendDeitySelectFlex(userId);
+    return;
+  }
+
+  /* ============================================
+     fortune_deity：選了神明
+     - 先檢查 quota（每天 1 次）
+     ============================================ */
+  if (action === "fortune_deity") {
+    const deity = params.get("id");
+    if (!DEITY_META[deity]) {
+      await pushText(userId, "這位神明尚未開放，請選擇其他。");
+      return;
+    }
+
+    // Quota 檢查
+    let canCast = true;
+    try {
+      canCast = await canCastFortuneToday(userId);
+    } catch (err) {
+      console.error("[fortune] canCastFortuneToday failed:", err);
+      // DB 故障時保守拒絕（避免無限抽）
+      await pushText(
+        userId,
+        "占卜系統短暫不穩，請稍後再試 🙏",
+      );
+      delete conversationStates[userId];
+      return;
+    }
+
+    if (!canCast) {
+      delete conversationStates[userId];
+      await pushText(
+        userId,
+        "你今天已請示過神明了 🙏\n占卜每人每天限一次，明日 00:00 後可再來。\n\n若想更深入探討，可輸入「關於八字/紫微/占卜」預約諮詢。",
+      );
+      return;
+    }
+
+    // 引導輸入問題
+    state.data.deity = deity;
+    state.stage = "waiting_question";
+    conversationStates[userId] = state;
+    const meta = DEITY_META[deity];
+    await pushText(
+      userId,
+      `請靜心默念你心中所問，然後輸入文字（${FORTUNE_QUESTION_MIN}~${FORTUNE_QUESTION_MAX} 字）。\n\n${meta.label}司：${meta.desc.split("｜")[1] || meta.desc}。\n\n請描述：對誰、何事、現況如何。`,
+    );
+    return;
+  }
+
+  /* ============================================
+     fortune_edit_q：修改問題
+     ============================================ */
+  if (action === "fortune_edit_q") {
+    state.stage = "waiting_question";
+    state.data.question = "";
+    conversationStates[userId] = state;
+    await pushText(userId, "好的，請重新輸入你想問的問題。");
+    return;
+  }
+
+  /* ============================================
+     fortune_confirm_q：確認問題 → 擲筊
+     ============================================ */
+  if (action === "fortune_confirm_q" || action === "fortune_retry") {
+    const deity = state.data.deity;
+    const question = state.data.question;
+    const meta = DEITY_META[deity];
+    if (!deity || !question || !meta) {
+      delete conversationStates[userId];
+      await pushText(userId, "占卜資料缺失，請重新輸入「免費占卜」開始。");
+      return;
+    }
+
+    const attempt = (state.data.jiaoAttempt || 0) + 1;
+    state.data.jiaoAttempt = attempt;
+
+    const jiaoResult = castJiao(attempt);
+
+    /* 笑筊：重試 */
+    if (jiaoResult === "xiaojiao") {
+      state.stage = "cast_xiaojiao";
+      conversationStates[userId] = state;
+
+      // 寫一筆 row 留紀錄（poem_id = NULL）
+      try {
+        await recordFortuneDraw({
+          userId,
+          deity,
+          jiaoResult: "xiaojiao",
+          poemId: null,
+          questionText: question,
+          aiResponse: null,
+        });
+      } catch (err) {
+        console.error("[fortune] xiaojiao record failed:", err);
+      }
+
+      // 回笑筊 flex（簡單版用文字 + button）
+      await pushFlex(userId, "笑筊", {
+        type: "bubble",
+        size: "kilo",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: "🪨 笑筊",
+              weight: "bold",
+              size: "lg",
+              color: "#A85751",
+            },
+            { type: "separator", margin: "md" },
+            {
+              type: "text",
+              text: "神明示：笑筊\n籤未現，蓋因所問未明。",
+              size: "sm",
+              wrap: true,
+              margin: "md",
+              color: "#4A4A4A",
+            },
+            {
+              type: "text",
+              text: "請者宜將心中所問再想清楚一次，具體述明「對誰、何事、現況」。",
+              size: "xs",
+              wrap: true,
+              margin: "md",
+              color: "#666666",
+            },
+            {
+              type: "text",
+              text:
+                attempt >= FORTUNE_XIAOJIAO_MAX_RETRY
+                  ? "（這是最後一次重擲機會）"
+                  : `（已笑筊 ${attempt} 次，最多 ${FORTUNE_XIAOJIAO_MAX_RETRY} 次重試）`,
+              size: "xs",
+              color: "#999999",
+              margin: "sm",
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#A85751",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "再次擲筊",
+                data: "action=fortune_retry",
+                displayText: "再擲一次",
+              },
+            },
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "修改問題",
+                data: "action=fortune_edit_q",
+                displayText: "修改問題",
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+
+    /* 陰筊：拒答，不扣 quota */
+    if (jiaoResult === "yinjiao") {
+      // 寫紀錄
+      try {
+        await recordFortuneDraw({
+          userId,
+          deity,
+          jiaoResult: "yinjiao",
+          poemId: null,
+          questionText: question,
+          aiResponse: null,
+        });
+      } catch (err) {
+        console.error("[fortune] yinjiao record failed:", err);
+      }
+
+      delete conversationStates[userId];
+
+      await pushFlex(userId, "陰筊", {
+        type: "bubble",
+        size: "kilo",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: "🌑 陰筊",
+              weight: "bold",
+              size: "lg",
+              color: "#4A4A4A",
+            },
+            { type: "separator", margin: "md" },
+            {
+              type: "text",
+              text: "神明示：陰筊\n此事此時，緣未至，神不便答。",
+              size: "sm",
+              wrap: true,
+              margin: "md",
+              color: "#4A4A4A",
+            },
+            {
+              type: "text",
+              text: "請者宜：靜待時機，或明日再來。今日仍可改向其他神明請示（未開放）。",
+              size: "xs",
+              wrap: true,
+              margin: "md",
+              color: "#666666",
+            },
+            {
+              type: "text",
+              text: "陰筊不消耗你今日的占卜機會。",
+              size: "xs",
+              color: "#888888",
+              margin: "sm",
+            },
+          ],
+        },
+      });
+      return;
+    }
+
+    /* 聖筊：抽籤 → AI 解讀 → 寫紀錄 → 顯示結果 → CTA */
+    const poem = drawPoemFromDeity(deity);
+    if (!poem) {
+      console.error(`[fortune] no poems available for ${deity}`);
+      await pushText(
+        userId,
+        "占卜系統暫時無法抽籤，請稍後再試 🙏",
+      );
+      delete conversationStates[userId];
+      return;
+    }
+
+    // 立即先回個提示，避免使用者等 AI 等太久
+    await pushText(
+      userId,
+      `🪨 聖筊\n神明允許回答。\n${meta.label}示意正在解讀，請稍候…`,
+    );
+
+    // 呼叫 AI
+    let aiText = "";
+    try {
+      const { systemPrompt, userPrompt } = buildFortuneAIPrompts(
+        deity,
+        poem,
+        question,
+      );
+      aiText = await AI_Reading(userPrompt, systemPrompt);
+    } catch (err) {
+      console.error("[fortune] AI_Reading failed:", err);
+      aiText =
+        `籤示：第 ${poem.id} 籤 · ${poem.level}\n籤詩：\n${(poem.poem || []).map((s) => "　" + s).join("\n")}\n\n（AI 解讀暫不可用，請稍後再來看完整解讀。）`;
+    }
+
+    // 寫紀錄
+    try {
+      await recordFortuneDraw({
+        userId,
+        deity,
+        jiaoResult: "shengjiao",
+        poemId: poem.id,
+        questionText: question,
+        aiResponse: aiText,
+      });
+    } catch (err) {
+      console.error("[fortune] shengjiao record failed:", err);
+    }
+
+    // 顯示結果（純文字訊息，較長解讀適合）
+    await pushText(userId, aiText);
+
+    // 結尾 CTA
+    await sendFortuneCTAFlex(userId);
+
+    // 清掉 state
+    delete conversationStates[userId];
+    return;
+  }
+
+  /* ============================================
+     fortune_to_booking：CTA 接付費預約
+     ============================================ */
+  if (action === "fortune_to_booking") {
+    delete conversationStates[userId];
+    conversationStates[userId] = {
+      mode: "booking",
+      stage: "idle",
+      data: {},
+    };
+    await sendServiceSelectFlex(userId);
+    return;
+  }
+
+  /* ============================================
+     fortune_change_deity：陰筊後換神明（MVP 只有月老，暫不實作）
+     ============================================ */
+  if (action === "fortune_change_deity") {
+    await pushText(
+      userId,
+      "目前僅開放月老占卜，其他神明陸續加入中。\n明日 00:00 後可再來請示月老。",
+    );
+    delete conversationStates[userId];
+    return;
+  }
+
+  // 其他未知 action
+  await pushText(userId, `占卜流程出現未知操作（${action}），請重新開始。`);
+  delete conversationStates[userId];
 }
 
 // --- Start server ---
