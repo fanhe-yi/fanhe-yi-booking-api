@@ -9866,6 +9866,19 @@ async function handleFortuneFlow(userId, text, state /* event */) {
   - 處理 mode="fortune" 下的 button 點擊
 ========================== */
 async function handleFortunePostback(userId, action, params, state) {
+  /* ============================================
+     fortune_to_booking：CTA 接付費預約（離開占卜的出口）
+     - 即使 state 已被清掉也應該能用（占卜結束後使用者才會點）
+     - 所以 state 檢查之前先處理
+     ============================================ */
+  if (action === "fortune_to_booking") {
+    if (state && state.mode === "fortune") {
+      delete conversationStates[userId];
+    }
+    await sendQuestionCategoryCarouselFlex(userId);
+    return;
+  }
+
   if (!state || state.mode !== "fortune") {
     // 過期按鈕
     await pushText(
@@ -10187,17 +10200,6 @@ async function handleFortunePostback(userId, action, params, state) {
 
     // 清掉 state
     delete conversationStates[userId];
-    return;
-  }
-
-  /* ============================================
-     fortune_to_booking：CTA 接付費預約
-     - 走 QuestionCategory 流程（跟使用者輸入「預約諮詢」一致）
-     - 不直接跳 sendServiceSelectFlex，因為從占卜過來的用戶通常先想釐清問題
-     ============================================ */
-  if (action === "fortune_to_booking") {
-    delete conversationStates[userId];
-    await sendQuestionCategoryCarouselFlex(userId);
     return;
   }
 
