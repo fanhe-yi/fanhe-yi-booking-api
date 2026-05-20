@@ -621,6 +621,91 @@ ${poem.interpretation_hint || "（無）"}
 ========================== */
 
 /* =========================
+  【parser】把 AI 回應分段成結構化 sections
+  - AI 應該回傳固定格式（籤示／籤詩／籤意／請者宜／請者忌／神明示）
+  - 用 regex 容錯解析
+  - 解析失敗的部分留在 raw，由呼叫方決定 fallback
+========================== */
+function parseFortuneResponse(text) {
+  const sections = {
+    title: "", // 籤示行（不含「籤示：」前綴）
+    poem: [], // 籤詩四句（陣列）
+    meaning: "", // 籤意
+    doList: "", // 請者宜
+    avoidList: "", // 請者忌
+    closing: "", // 神明示「...」+ 僅供參考
+    raw: text, // 保留原文 fallback
+  };
+
+  if (!text || typeof text !== "string") return sections;
+
+  const lines = text.split("\n");
+  let cur = null;
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/[　\s]+$/u, ""); // 去尾端空白
+
+    // 偵測 section 標頭：行頭 = "XX："（含中文：和半形:）
+    const m = line.match(/^\s*([^\s：:]{1,5})[：:]\s*(.*)$/);
+    if (m) {
+      const head = m[1];
+      const tail = m[2] || "";
+
+      if (head === "籤示") {
+        cur = "title";
+        sections.title = tail.trim();
+        continue;
+      }
+      if (head === "籤詩") {
+        cur = "poem";
+        if (tail.trim()) sections.poem.push(tail.trim());
+        continue;
+      }
+      if (head === "籤意") {
+        cur = "meaning";
+        if (tail.trim()) sections.meaning = tail.trim();
+        continue;
+      }
+      if (head === "請者宜") {
+        cur = "doList";
+        if (tail.trim()) sections.doList = tail.trim();
+        continue;
+      }
+      if (head === "請者忌") {
+        cur = "avoidList";
+        if (tail.trim()) sections.avoidList = tail.trim();
+        continue;
+      }
+      // 「月老示」「文昌示」之類
+      if (/示$/u.test(head)) {
+        cur = "closing";
+        // 把「神明名 + 示」整段含進來
+        sections.closing = (head + "：" + tail).trim();
+        continue;
+      }
+    }
+
+    // 非 section 標頭 → append 到當前 section
+    if (cur === "poem") {
+      const cleaned = line.replace(/^[　\s]+/u, "");
+      if (cleaned) sections.poem.push(cleaned);
+    } else if (cur === "meaning") {
+      sections.meaning += (sections.meaning ? "\n" : "") + line;
+    } else if (cur === "doList") {
+      sections.doList += (sections.doList ? "\n" : "") + line;
+    } else if (cur === "avoidList") {
+      sections.avoidList += (sections.avoidList ? "\n" : "") + line;
+    } else if (cur === "closing") {
+      sections.closing += (sections.closing ? "\n" : "") + line;
+    }
+  }
+
+  // 籤詩只保留前 4 句（防 AI 多送）
+  if (sections.poem.length > 4) sections.poem = sections.poem.slice(0, 4);
+
+  return sections;
+}
+
+/* =========================
   【DB helpers from fortuneStore.pg.js】
 ========================== */
 const {
@@ -5455,6 +5540,7 @@ async function routeGeneralCommands(userId, text) {
    * ========================= */
   if (
     text === "預約諮詢" ||
+    text === "我想預約諮詢" ||
     text === "常見問題" ||
     text === "問題" ||
     text === "我想問"
@@ -9461,6 +9547,167 @@ async function sendFortuneQuestionConfirm(userId, question) {
 }
 
 /* =========================
+  【Flex】籤詩結果（取代純文字 pushText）
+  視覺結構：
+    header  → 月老籤 + 第 X 籤 · 等級
+    body    → 籤詩四句（古典縮排灰底）
+            → 籤意
+            → 請者宜（金）
+            → 請者忌（紅）
+            → 月老示「短語」
+    footer  → 「籤詩僅供參考方向」
+  fallback：解析失敗 → 直接 pushText raw
+========================== */
+async function sendFortuneResultFlex(userId, deity, poem, aiText) {
+  const meta = DEITY_META[deity];
+  const deityLabel = meta?.label || deity;
+  const parsed = parseFortuneResponse(aiText);
+
+  // 解析品質檢查：核心欄位若都失敗，fallback 純文字
+  const parseOk =
+    parsed.poem.length >= 2 && (parsed.meaning || parsed.doList);
+
+  if (!parseOk) {
+    console.warn("[fortune] parse poor, fallback to text");
+    await pushText(userId, aiText);
+    return;
+  }
+
+  // 用 parsed 資料優先，若空就用原本 poem 物件（demo 籤詩）填回去
+  const titleLine =
+    parsed.title || `第 ${poem.id} 籤 · ${poem.level}`;
+  const poemLines =
+    parsed.poem.length === 4
+      ? parsed.poem
+      : (poem.poem || []).slice(0, 4);
+
+  /* ========== 組 bubble ========== */
+  const sectionLabel = (text, color) => ({
+    type: "text",
+    text,
+    size: "sm",
+    weight: "bold",
+    color,
+    margin: "md",
+  });
+
+  const sectionBody = (text) => ({
+    type: "text",
+    text,
+    size: "sm",
+    wrap: true,
+    color: "#3A3A3A",
+    margin: "sm",
+  });
+
+  const bodyContents = [];
+
+  // 籤詩四句（古典感）
+  bodyContents.push({
+    type: "box",
+    layout: "vertical",
+    backgroundColor: "#FAF3E8",
+    cornerRadius: "md",
+    paddingAll: "md",
+    spacing: "xs",
+    contents: poemLines.map((line) => ({
+      type: "text",
+      text: "　" + line,
+      size: "md",
+      weight: "bold",
+      color: "#5A4633",
+      wrap: true,
+    })),
+  });
+
+  // 籤意
+  if (parsed.meaning) {
+    bodyContents.push({ type: "separator", margin: "lg" });
+    bodyContents.push(sectionLabel("籤意", "#8B6F47"));
+    bodyContents.push(sectionBody(parsed.meaning));
+  }
+
+  // 請者宜（金）
+  if (parsed.doList) {
+    bodyContents.push({ type: "separator", margin: "lg" });
+    bodyContents.push(sectionLabel("請者宜", "#A68A6A"));
+    bodyContents.push(sectionBody(parsed.doList));
+  }
+
+  // 請者忌（紅）
+  if (parsed.avoidList) {
+    bodyContents.push({ type: "separator", margin: "lg" });
+    bodyContents.push(sectionLabel("請者忌", "#A85751"));
+    bodyContents.push(sectionBody(parsed.avoidList));
+  }
+
+  // 神明示
+  if (parsed.closing) {
+    bodyContents.push({ type: "separator", margin: "lg" });
+    bodyContents.push({
+      type: "text",
+      text: parsed.closing,
+      size: "sm",
+      wrap: true,
+      color: "#6A4C93",
+      margin: "md",
+      style: "italic",
+    });
+  }
+
+  const bubble = {
+    type: "bubble",
+    size: "giga",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#A85751",
+      paddingAll: "lg",
+      contents: [
+        {
+          type: "text",
+          text: `🌸 ${deityLabel}籤`,
+          size: "sm",
+          color: "#FFE8D6",
+          weight: "bold",
+        },
+        {
+          type: "text",
+          text: titleLine,
+          size: "xl",
+          weight: "bold",
+          color: "#FFFFFF",
+          margin: "sm",
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingAll: "lg",
+      contents: bodyContents,
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "── 籤詩僅供參考方向 ──",
+          size: "xs",
+          color: "#999999",
+          align: "center",
+          wrap: true,
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, `${deityLabel}籤 · ${titleLine}`, bubble);
+}
+
+/* =========================
   【Flex】結尾 CTA 軟推
 ========================== */
 async function sendFortuneCTAFlex(userId) {
@@ -9511,7 +9758,7 @@ async function sendFortuneCTAFlex(userId) {
             type: "postback",
             label: "預約諮詢",
             data: "action=fortune_to_booking",
-            displayText: "我想預約諮詢",
+            displayText: "預約諮詢",
           },
         },
         {
@@ -9519,10 +9766,15 @@ async function sendFortuneCTAFlex(userId) {
           style: "link",
           height: "sm",
           action: {
+            /* LINE 內建分享 URL scheme：開啟分享選擇器讓使用者挑朋友
+               https://developers.line.biz/en/docs/line-login/using-line-url-scheme/ */
             type: "uri",
             label: "分享給朋友",
             uri:
-              (process.env.OFFICIAL_LINE_URL || "https://line.me/R/ti/p/@415kfyus"),
+              "https://line.me/R/msg/text/?" +
+              encodeURIComponent(
+                "我剛在梵和易學抽了一支月老籤 🌸\n你也試試免費占卜：\nhttps://line.me/R/ti/p/@415kfyus",
+              ),
           },
         },
       ],
@@ -9927,8 +10179,8 @@ async function handleFortunePostback(userId, action, params, state) {
       console.error("[fortune] shengjiao record failed:", err);
     }
 
-    // 顯示結果（純文字訊息，較長解讀適合）
-    await pushText(userId, aiText);
+    // 顯示結果（Flex bubble；解析失敗自動 fallback 純文字）
+    await sendFortuneResultFlex(userId, deity, poem, aiText);
 
     // 結尾 CTA
     await sendFortuneCTAFlex(userId);
@@ -9940,15 +10192,12 @@ async function handleFortunePostback(userId, action, params, state) {
 
   /* ============================================
      fortune_to_booking：CTA 接付費預約
+     - 走 QuestionCategory 流程（跟使用者輸入「預約諮詢」一致）
+     - 不直接跳 sendServiceSelectFlex，因為從占卜過來的用戶通常先想釐清問題
      ============================================ */
   if (action === "fortune_to_booking") {
     delete conversationStates[userId];
-    conversationStates[userId] = {
-      mode: "booking",
-      stage: "idle",
-      data: {},
-    };
-    await sendServiceSelectFlex(userId);
+    await sendQuestionCategoryCarouselFlex(userId);
     return;
   }
 
