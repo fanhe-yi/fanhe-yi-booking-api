@@ -708,13 +708,10 @@ function parseFortuneResponse(text) {
 /* =========================
   【DB helpers from fortuneStore.pg.js】
 ========================== */
-const {
-  canCastFortuneToday,
-  recordFortuneDraw,
-} = require("./fortuneStore.pg");
+const { canCastFortuneToday, recordFortuneDraw } = require("./fortuneStore.pg");
 
 //AI 訊息回覆相關
-const { AI_Reading } = require("./aiClient");
+const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
 /* =========================================================
@@ -8821,9 +8818,11 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
     `\n` +
     `${sixLinesText}\n` +
     `\n` +
-    `不要用爻辭解卦，用五行生剋，日月動爻為能量最高，以繁體中文回覆。`;
+    `不要用爻辭解卦，用五行生剋，日月動爻為能量最高，看日月動爻跟用神之間的生剋制化論卦主題吉凶\n` +
+    `次第為，1.自身狀態 (世爻)強弱 2.卦題的對境 (應爻)強弱 3.動爻的生剋，以繁體中文回覆。`;
 
-  const aiText = await AI_Reading(userPrompt, systemPrompt);
+  // 六爻用 DeepSeek 為主（推理較複雜），失敗 fallback OpenAI/Gemini
+  const aiText = await AI_Reading_LiuYao(userPrompt, systemPrompt);
 
   return { aiText, userPrompt, systemPrompt };
 }
@@ -9564,8 +9563,7 @@ async function sendFortuneResultFlex(userId, deity, poem, aiText) {
   const parsed = parseFortuneResponse(aiText);
 
   // 解析品質檢查：核心欄位若都失敗，fallback 純文字
-  const parseOk =
-    parsed.poem.length >= 2 && (parsed.meaning || parsed.doList);
+  const parseOk = parsed.poem.length >= 2 && (parsed.meaning || parsed.doList);
 
   if (!parseOk) {
     console.warn("[fortune] parse poor, fallback to text");
@@ -9574,12 +9572,9 @@ async function sendFortuneResultFlex(userId, deity, poem, aiText) {
   }
 
   // 用 parsed 資料優先，若空就用原本 poem 物件（demo 籤詩）填回去
-  const titleLine =
-    parsed.title || `第 ${poem.id} 籤 · ${poem.level}`;
+  const titleLine = parsed.title || `第 ${poem.id} 籤 · ${poem.level}`;
   const poemLines =
-    parsed.poem.length === 4
-      ? parsed.poem
-      : (poem.poem || []).slice(0, 4);
+    parsed.poem.length === 4 ? parsed.poem : (poem.poem || []).slice(0, 4);
 
   /* ========== 組 bubble ========== */
   const sectionLabel = (text, color) => ({
@@ -9926,10 +9921,7 @@ async function handleFortunePostback(userId, action, params, state) {
     } catch (err) {
       console.error("[fortune] canCastFortuneToday failed:", err);
       // DB 故障時保守拒絕（避免無限抽）
-      await pushText(
-        userId,
-        "占卜系統短暫不穩，請稍後再試 🙏",
-      );
+      await pushText(userId, "占卜系統短暫不穩，請稍後再試 🙏");
       delete conversationStates[userId];
       return;
     }
@@ -10149,10 +10141,7 @@ async function handleFortunePostback(userId, action, params, state) {
     const poem = drawPoemFromDeity(deity);
     if (!poem) {
       console.error(`[fortune] no poems available for ${deity}`);
-      await pushText(
-        userId,
-        "占卜系統暫時無法抽籤，請稍後再試 🙏",
-      );
+      await pushText(userId, "占卜系統暫時無法抽籤，請稍後再試 🙏");
       delete conversationStates[userId];
       return;
     }
@@ -10174,8 +10163,7 @@ async function handleFortunePostback(userId, action, params, state) {
       aiText = await AI_Reading(userPrompt, systemPrompt);
     } catch (err) {
       console.error("[fortune] AI_Reading failed:", err);
-      aiText =
-        `籤示：第 ${poem.id} 籤 · ${poem.level}\n籤詩：\n${(poem.poem || []).map((s) => "　" + s).join("\n")}\n\n（AI 解讀暫不可用，請稍後再來看完整解讀。）`;
+      aiText = `籤示：第 ${poem.id} 籤 · ${poem.level}\n籤詩：\n${(poem.poem || []).map((s) => "　" + s).join("\n")}\n\n（AI 解讀暫不可用，請稍後再來看完整解讀。）`;
     }
 
     // 寫紀錄
