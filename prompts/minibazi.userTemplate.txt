@@ -7,5 +7,6 @@
 {{timePhraseHintBlock}}【命盤結構摘要（請以此為準）】
 {{baziSummaryText}}
 
-{{flowingGzTextBlock}}【請你這樣做】
+{{flowingGzTextBlock}}{{monthDayStemAdviceBlock}}
+【請你這樣做】
 {{howToBlock}}

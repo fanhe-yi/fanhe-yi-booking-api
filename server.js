@@ -780,6 +780,9 @@ function parseFortuneResponse(text) {
 ========================== */
 const { canCastFortuneToday, recordFortuneDraw } = require("./fortuneStore.pg");
 
+// 🌟 minibazi 命理師審定資料 (DB-backed lookup + admin CRUD)
+const minibaziAdviceStore = require("./minibaziAdviceStore.pg");
+
 //AI 訊息回覆相關
 const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -3921,6 +3924,62 @@ app.get("/api/admin/prompts/backups/download", requireAdmin, (req, res) => {
     res.sendFile(fullPath);
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message || "error" });
+  }
+});
+
+//==========================================================
+// ✅ MiniBazi Advice 後台管理 API：日主 × 月支 審定資料
+// 權限：requireAdmin（x-admin-token header）
+// 詳細設計：/Users/casper/.claude/plans/articles-https-www-chen-yi-tw-articles-cuddly-moore.md
+//==========================================================
+
+// 列表：admin UI 用，全部 120 格（含 content_len 讓前端判斷已填/未填）
+app.get("/api/admin/minibazi-advice", requireAdmin, async (req, res) => {
+  try {
+    const rows = await minibaziAdviceStore.listAll();
+    res.json({ items: rows, total: rows.length });
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+// 取單一格完整資料（含 notes）
+// 用 query string 避免中文 path encode 問題
+app.get("/api/admin/minibazi-advice/cell", requireAdmin, async (req, res) => {
+  try {
+    const dayStem = String(req.query.dayStem || "").trim();
+    const monthBranch = String(req.query.monthBranch || "").trim();
+    if (!dayStem || !monthBranch) {
+      return res.status(400).json({ error: "missing dayStem/monthBranch" });
+    }
+    const row = await minibaziAdviceStore.getCell(dayStem, monthBranch);
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+// Upsert 一筆內容
+app.put("/api/admin/minibazi-advice", requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { dayStem, monthBranch, content, notes, updatedBy } = req.body || {};
+    if (!dayStem || !monthBranch) {
+      return res.status(400).json({ error: "missing dayStem/monthBranch" });
+    }
+    // 嚴格驗證單字元（PG schema 是 CHAR(1)，怕誤輸入兩字）
+    if (String(dayStem).length !== 1 || String(monthBranch).length !== 1) {
+      return res.status(400).json({ error: "dayStem/monthBranch must be single CJK char" });
+    }
+    await minibaziAdviceStore.upsert({
+      dayStem,
+      monthBranch,
+      content: typeof content === "string" ? content : "",
+      notes: typeof notes === "string" ? notes : "",
+      updatedBy: typeof updatedBy === "string" ? updatedBy : null,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
   }
 });
 
@@ -7581,9 +7640,43 @@ async function callMiniReadingAI(
 
   // --- 先向 youhualao 取得八字摘要（已組成給 AI 用的文字） ---
   let baziSummaryText = "";
+  // 🌟 命理師審定資料 block（依日主×月支從 DB 查，組好的整段文字含衝突仲裁提示）
+  // 不查到 / 空格 → 維持空字串 → userTemplate 的 placeholder 被替換成 ""
+  let monthDayStemAdviceBlock = "";
   try {
-    const { summaryText } = await getBaziSummaryForAI(birthObj);
+    const { summaryText, structured } = await getBaziSummaryForAI(birthObj);
     baziSummaryText = summaryText;
+
+    /* =========================
+       依 structured.ganzhi 取得日主 + 月支 → 查 DB
+       - ganzhi[2] = 日柱（如 "丙寅"）→ 第 1 字 = 日主
+       - ganzhi[1] = 月柱（如 "庚子"）→ 第 2 字 = 月支
+       - DB 查到 → 組成 block；查不到 / 空白 → block 為 ""
+    ========================== */
+    try {
+      const ganzhi = (structured && structured.ganzhi) || [];
+      const dayStem = String(ganzhi[2] || "").slice(0, 1);
+      const monthBranch = String(ganzhi[1] || "").slice(1, 2);
+      if (dayStem && monthBranch) {
+        const advice = await minibaziAdviceStore.getOne(dayStem, monthBranch);
+        if (advice) {
+          monthDayStemAdviceBlock =
+            `\n【命理師審定資料：${dayStem}日生於${monthBranch}月】\n` +
+            advice +
+            `\n\n⚠️ 上述為命理師親自審定的對應資料。` +
+            `若你（AI）的知識與此資料衝突，**一律以此資料為準**。\n`;
+          console.log(
+            `[minibazi] advice injected: ${dayStem}日生於${monthBranch}月 (${advice.length} chars)`,
+          );
+        }
+      }
+    } catch (lookupErr) {
+      // 查表失敗不影響主流程，block 留空，AI 走原邏輯
+      console.warn(
+        "[minibazi] advice lookup failed:",
+        lookupErr?.message || lookupErr,
+      );
+    }
   } catch (err) {
     console.error("[youhualao API error]", err);
 
@@ -7706,6 +7799,7 @@ async function callMiniReadingAI(
     .replaceAll("{{timePhraseHintBlock}}", timePhraseHintBlock)
     .replaceAll("{{baziSummaryText}}", baziSummaryText || "")
     .replaceAll("{{flowingGzTextBlock}}", flowingGzTextBlock)
+    .replaceAll("{{monthDayStemAdviceBlock}}", monthDayStemAdviceBlock || "")
     .replaceAll("{{howToBlock}}", howToBlock || "");
 
   //console.log("[callMiniReadingAI] systemPrompt:\n", systemPrompt);
