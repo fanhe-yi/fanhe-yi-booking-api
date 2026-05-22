@@ -72,7 +72,17 @@ function readJsonSafe(filePath, fallback) {
 ========================== */
 function writeJsonPretty(filePath, data) {
   const raw = JSON.stringify(data, null, 2);
-  fs.writeFileSync(filePath, raw, "utf-8");
+
+  /* =========================
+    ✅ 原子寫入：先寫到 .tmp 再 rename
+    目的：
+    - 避免其他 process 在我們 writeFileSync 寫到一半時讀到不完整 JSON
+    - rename 在同檔案系統內是 atomic（POSIX 保證）
+    - 配合 readJsonSafe / loadArticlesIndex 嚴格 parse，杜絕「半寫狀態被讀進去」
+  ========================== */
+  const tmp = filePath + ".tmp";
+  fs.writeFileSync(tmp, raw, "utf-8");
+  fs.renameSync(tmp, filePath);
 }
 
 /* =========================
@@ -129,10 +139,39 @@ function backupFileIfExists(filePath, note = "") {
 function loadArticlesIndex() {
   ensureDir(ARTICLES_DIR);
 
-  const idx = readJsonSafe(ARTICLES_INDEX_PATH, { items: [] });
+  /* =========================
+    ✅ 檔案不存在：第一次部署的合理狀態 → 回空 items
+    （admin POST 新增第一篇文章時會走這條）
+  ========================== */
+  if (!fs.existsSync(ARTICLES_INDEX_PATH)) return { items: [] };
 
-  // ✅ 防呆：確保 items 一定是陣列
-  if (!idx || !Array.isArray(idx.items)) return { items: [] };
+  /* =========================
+    ✅ 檔案存在但讀失敗 / JSON parse 失敗 → 必須 throw
+    為什麼不能默默回 { items: [] }：
+    - admin PATCH/DELETE 流程是「load → modify → save」
+    - 如果 load 回空，後續 .map()/.filter() 都會得到空陣列
+    - 再 save 就會把既有 index.json 整批洗掉（這就是 2026-05-21 的事故根因）
+  ========================== */
+  let raw, idx;
+  try {
+    raw = fs.readFileSync(ARTICLES_INDEX_PATH, "utf-8");
+  } catch (err) {
+    throw new Error(
+      `ARTICLES_INDEX_READ_FAILED: ${err?.message || err}（拒絕用 fallback 繼續，避免覆寫既有資料）`,
+    );
+  }
+
+  try {
+    idx = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `ARTICLES_INDEX_PARSE_FAILED: ${err?.message || err}（檔案內容已損毀，請從 _backups/ 還原；拒絕用 fallback 繼續）`,
+    );
+  }
+
+  if (!idx || !Array.isArray(idx.items)) {
+    throw new Error("ARTICLES_INDEX_CORRUPT: items 欄位不是陣列");
+  }
   return idx;
 }
 
@@ -141,6 +180,37 @@ function loadArticlesIndex() {
 ========================== */
 function saveArticlesIndex(nextIndex, note = "index_save") {
   ensureDir(ARTICLES_DIR);
+
+  /* =========================
+    ✅ 防呆：拒絕把「非空 index」整批寫成空
+    觸發時機：
+    - admin PATCH/DELETE 流程因為某種 race / IO 瞬斷 load 到空 items，
+      但既有 index.json 實際上是非空的 → .map() 出空陣列 → 寫回 = 整批洗掉
+    - 這是 2026-05-21 事故的直接成因
+    保守處理：
+    - 既有檔案有 N 筆，但這次要寫 0 筆 → throw 阻擋
+    - 如果真的要清空，請手動刪檔或用其他 API（admin DELETE 是逐筆操作，不會走這裡）
+  ========================== */
+  if (fs.existsSync(ARTICLES_INDEX_PATH)) {
+    try {
+      const currentRaw = fs.readFileSync(ARTICLES_INDEX_PATH, "utf-8");
+      const current = JSON.parse(currentRaw);
+      const wasN = Array.isArray(current?.items) ? current.items.length : 0;
+      const nextN = Array.isArray(nextIndex?.items) ? nextIndex.items.length : 0;
+
+      if (wasN > 0 && nextN === 0) {
+        throw new Error(
+          `REFUSE_TO_EMPTY_INDEX: 既有 index 有 ${wasN} 筆，這次要寫 0 筆 → 拒絕（note=${note}）`,
+        );
+      }
+    } catch (err) {
+      // 故意只 re-throw 我們自己的拒絕；其他 read/parse 錯誤放行
+      // （讓後續寫入有機會「修好」壞掉的 index 檔）
+      if (String(err.message || "").startsWith("REFUSE_TO_EMPTY_INDEX")) {
+        throw err;
+      }
+    }
+  }
 
   // ✅ 寫入前備份，避免手滑改爆
   backupFileIfExists(ARTICLES_INDEX_PATH, note);
@@ -8819,7 +8889,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
     `${sixLinesText}\n` +
     `\n` +
     `不要用爻辭解卦，用五行生剋，日月動爻為能量最高，看日月動爻跟用神之間的生剋制化論卦主題吉凶\n` +
-    `次第為，1.自身狀態 (世爻)強弱 2.卦題的對境 (應爻)強弱 3.動爻的生剋，以繁體中文回覆。`;
+    `次第為1.自身狀態(世爻)強弱 2.卦題的對境、或目前問的事情的環境(應爻)強弱 3.動爻的生剋，以繁體中文回覆。`;
 
   // 六爻用 DeepSeek 為主（推理較複雜），失敗 fallback OpenAI/Gemini
   const aiText = await AI_Reading_LiuYao(userPrompt, systemPrompt);
