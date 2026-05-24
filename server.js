@@ -8985,6 +8985,28 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
     `不要用爻辭解卦，用五行生剋，日月動爻為能量最高，看日月動爻跟用神之間的生剋制化論卦主題吉凶\n` +
     `次第為1.自身狀態(世爻)強弱 2.卦題的對境、或目前問的事情的環境(應爻)強弱 3.動爻的生剋，以繁體中文回覆。`;
 
+  /* ==========================================================
+     🌟 把送給 AI 的 prompt 先推一份給管理員（debug / 評估用）
+     - 用既有 ADMIN_LIUYAO_USER_ID（六爻專屬 admin LINE）
+     - 失敗一律靜默，不影響主流程
+     - LINE 單則文字上限 5000 字，這裡 prompt 通常 800-1500 字內，安全
+  ========================== */
+  try {
+    if (ADMIN_LIUYAO_USER_ID) {
+      const preview =
+        `【六爻 AI 輸入預覽】\n` +
+        `（送給 AI 前的 prompt，給老師檢視用）\n\n` +
+        `▌System Prompt：\n${systemPrompt || "(空)"}\n\n` +
+        `▌User Prompt：\n${userPrompt}`;
+      await pushText(ADMIN_LIUYAO_USER_ID, preview);
+    }
+  } catch (e) {
+    console.warn(
+      "[liuyao] admin prompt preview push failed:",
+      e?.message || e,
+    );
+  }
+
   // 六爻用 DeepSeek 為主（推理較複雜），失敗 fallback OpenAI/Gemini
   const aiText = await AI_Reading_LiuYao(userPrompt, systemPrompt);
 
