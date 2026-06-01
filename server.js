@@ -1684,7 +1684,7 @@ if (typeof chunkArray !== "function") {
  */
 const QUESTION_BANK = {
   name: [
-    { qid: "reconcile", full: "姓名鑑定 600元/30分" },
+    { qid: "reconcile", full: "姓名鑑定 800元/30分" },
     { qid: "ex_contact", full: "改名諮詢 3000元/50分" },
     { qid: "amb_next", full: "新生兒取名 1600元/45分" },
   ],
@@ -1697,13 +1697,13 @@ const QUESTION_BANK = {
   money: [
     { qid: "fortune", full: "文王卦占卜 600元/小時" },
     { qid: "loss", full: "紫微斗數 1200元/50分" },
-    { qid: "side", full: "姓名論斷 600元/30分" },
+    { qid: "side", full: "姓名論斷 800元/30分" },
   ],
 
   career: [
     { qid: "stay", full: "文王卦占卜 600元/小時" },
     { qid: "valued", full: "紫微斗數 1200元/50分" },
-    { qid: "raise", full: "姓名論斷 600元/30分" },
+    { qid: "raise", full: "姓名論斷 800元/30分" },
   ],
 
   house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
@@ -1714,7 +1714,7 @@ const QUESTION_BANK = {
   ],
 
   year: [
-    { qid: "zim_2026", full: "姓名論斷 600元/30分" },
+    { qid: "zim_2026", full: "姓名論斷 800元/30分" },
     { qid: "name_2026", full: "紫微斗數 1200元/50分" },
   ],
 
@@ -2077,7 +2077,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "name",
       label: "姓名學",
-      badges: ["🏷️ 姓名鑑定 600元/30分", "🏷️ 取名、改名 3000元/50分"],
+      badges: ["🏷️ 姓名鑑定 800元/30分", "🏷️ 取名、改名 3000元/50分"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg",
       descriptionList: [
         "解析名字對運勢與人際的關係影響",
