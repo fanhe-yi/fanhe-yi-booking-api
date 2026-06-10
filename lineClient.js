@@ -43,6 +43,7 @@ function getServiceName(serviceId) {
     liuyao: "六爻占卜",
     fengshui: "風水勘察",
     cezi: "測字", // 🌟 脆友測字（hero/匯款卡片用簡短名稱）
+    newborn: "新生兒取名", // 1600 / 45 分
     chat_line: "命理諮詢",
   };
   return map[serviceId] || `命理諮詢（${serviceId || "未指定"}）`;
