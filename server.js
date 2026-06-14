@@ -3305,6 +3305,53 @@ app.get("/api/test-line", async (req, res) => {
   }
 });
 
+/* ==========================================================
+   中文筆劃代理（給前端 /nameology 用）
+
+   為什麼要代理：
+   superiorapis 要求用 custom header `token: ...`，但他們的
+   CORS preflight 的 Allow-Headers 沒列 `token`，瀏覽器直打必
+   被擋。把 token 藏在後端，前端打同源 endpoint 即可。
+
+   入：{ text: "陳" }  （單一中文字；對方 API 最多 5 字）
+   出：{ stroke: 16 }  （不洩漏對方回傳的 grade/detail，前端只
+        需要 stroke 來跑公式）
+   ========================================================== */
+app.post("/api/stroke", async (req, res) => {
+  const { text } = req.body || {};
+  if (typeof text !== "string" || !text.trim()) {
+    return res.status(400).json({ error: "缺少 text" });
+  }
+
+  const url = process.env.STROKE_API_URL;
+  const token = process.env.STROKE_API_TOKEN;
+  if (!url || !token) {
+    console.error("[stroke] missing STROKE_API_URL / STROKE_API_TOKEN env");
+    return res.status(500).json({ error: "後端尚未設定筆劃 API" });
+  }
+
+  try {
+    const upstream = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", token },
+      body: JSON.stringify({ text }),
+    });
+    const data = await upstream.json().catch(() => ({}));
+
+    if (!upstream.ok || !Number.isInteger(data.stroke)) {
+      console.warn("[stroke] upstream failure", upstream.status, data);
+      return res
+        .status(upstream.status || 502)
+        .json({ error: data.error_msg || "筆劃查詢失敗" });
+    }
+
+    res.json({ stroke: data.stroke });
+  } catch (err) {
+    console.error("[stroke] proxy error:", err);
+    res.status(502).json({ error: "筆劃 API 連線失敗" });
+  }
+});
+
 // 後台：讀取所有預約
 app.get("/api/admin/bookings", requireAdmin, (req, res) => {
   const bookings = loadBookings();
