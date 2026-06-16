@@ -3352,6 +3352,45 @@ app.post("/api/stroke", async (req, res) => {
   }
 });
 
+/* ==========================================================
+   康熙字典筆劃查詢（給 /nameology 工具雙來源比對用）
+
+   啟動時一次讀完整份 CSV 進記憶體（~1.3MB Map）。
+   POST /api/stroke-kangxi { text: "成" } → { stroke: 7 | null }
+
+   資料源：https://github.com/breezyreeds/kangxi-strokecount
+   MIT License © 2018 Kawai Lo
+   ========================================================== */
+const KANGXI_MAP = (() => {
+  const map = new Map();
+  try {
+    const csvPath = path.join(__dirname, "data/kangxi-strokecount.csv");
+    const raw = fs.readFileSync(csvPath, "utf-8").replace(/^﻿/, "");
+    for (const line of raw.split(/\r?\n/)) {
+      const parts = line.split(",");
+      if (parts.length !== 4) continue;
+      const [, , ch, n] = parts;
+      if (ch && /^\d+$/.test(n)) {
+        map.set(ch, parseInt(n, 10));
+      }
+    }
+    console.log(`[kangxi] loaded ${map.size} chars`);
+  } catch (e) {
+    console.warn("[kangxi] CSV load failed (endpoint will return null):", e.message);
+  }
+  return map;
+})();
+
+app.post("/api/stroke-kangxi", (req, res) => {
+  const { text } = req.body || {};
+  if (typeof text !== "string" || !text.trim()) {
+    return res.status(400).json({ error: "缺少 text" });
+  }
+  const ch = Array.from(text.trim())[0];
+  const stroke = KANGXI_MAP.get(ch);
+  res.json({ stroke: typeof stroke === "number" ? stroke : null });
+});
+
 // 後台：讀取所有預約
 app.get("/api/admin/bookings", requireAdmin, (req, res) => {
   const bookings = loadBookings();
