@@ -582,6 +582,64 @@ const DEITY_META = {
       "健康",
     ],
   },
+  guansheng: {
+    label: "關聖帝君",
+    desc: "司掌事業前途｜問工作、升遷、決斷、談判",
+    offTopicKeywords: [
+      "感情",
+      "桃花",
+      "姻緣",
+      "復合",
+      "結婚",
+      "曖昧",
+      "考試",
+      "升學",
+      "學運",
+      "疾病",
+      "健康",
+    ],
+  },
+  mazu: {
+    label: "媽祖",
+    desc: "司掌平安護佑｜問出行、健康、避險、化險",
+    offTopicKeywords: [
+      "感情",
+      "桃花",
+      "姻緣",
+      "復合",
+      "結婚",
+      "財運",
+      "投資",
+      "股票",
+      "投機",
+      "創業",
+      "考試",
+      "升學",
+    ],
+  },
+  guanyin: {
+    label: "觀音",
+    desc: "慈悲普渡｜綜合問事、心靈方向、生命大哉問",
+    // 觀音為兜底神明，不限主題，故 offTopicKeywords 為空
+    offTopicKeywords: [],
+  },
+  tudi: {
+    label: "土地公",
+    desc: "司掌財運家宅｜問財運、投資、事業財、地緣",
+    offTopicKeywords: [
+      "感情",
+      "桃花",
+      "姻緣",
+      "復合",
+      "結婚",
+      "曖昧",
+      "考試",
+      "升學",
+      "學運",
+      "疾病",
+      "健康",
+    ],
+  },
 };
 
 /* =========================
@@ -9676,8 +9734,12 @@ async function sendFortuneConsentFlex(userId) {
   - accent：淺色小字，放在 btn 深色背景上時用（例如 result flex 的 eyebrow）
 ========================== */
 const DEITY_UI = {
-  yuelao:   { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
-  wenchang: { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
+  yuelao:    { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
+  wenchang:  { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
+  guansheng: { emoji: "⚔",  bg: "#FDF3F0", btn: "#8B2C1F", accent: "#F5D98A" },
+  mazu:      { emoji: "🌊", bg: "#EAF2F9", btn: "#1B4B7A", accent: "#F5D98A" },
+  guanyin:   { emoji: "🪷", bg: "#F5F1EA", btn: "#8067A8", accent: "#E9D9A3" },
+  tudi:      { emoji: "💰", bg: "#FAF4E4", btn: "#B8860B", accent: "#FBEEC0" },
 };
 
 /* =========================
@@ -9696,6 +9758,30 @@ const FORTUNE_CTA_CONTENT = {
     intro: "但學業前程的關鍵時刻，建議透過命盤深入看：",
     services: "✦ 八字｜看你的天賦五行與學運\n✦ 紫微｜看命宮官祿宮的走勢",
     shareLabel: "文昌籤",
+  },
+  guansheng: {
+    heading: "籤詩指了方向",
+    intro: "但事業前程的關鍵時刻，建議透過命盤深入看：",
+    services: "✦ 八字｜看你的事業格局與大運轉折\n✦ 紫微｜看官祿宮與遷移宮的走勢",
+    shareLabel: "關聖帝君籤",
+  },
+  mazu: {
+    heading: "籤詩指了方向",
+    intro: "平安護佑之外，人生大方向仍建議透過命盤深入分析：",
+    services: "✦ 八字｜看你的健康格局與流年風險\n✦ 紫微｜看命宮田宅宮的守護走勢",
+    shareLabel: "媽祖籤",
+  },
+  guanyin: {
+    heading: "籤詩指了方向",
+    intro: "觀音示現方向，人生節點建議透過命盤深入看：",
+    services: "✦ 八字｜綜觀你的人生格局與五行走勢\n✦ 紫微｜看 12 宮位的互動與流年",
+    shareLabel: "觀音籤",
+  },
+  tudi: {
+    heading: "籤詩指了方向",
+    intro: "但財運家宅的關鍵時刻，建議透過命盤深入看：",
+    services: "✦ 八字｜看你的財星格局與大運走勢\n✦ 紫微｜看財帛宮田宅宮的走勢",
+    shareLabel: "土地公籤",
   },
 };
 
