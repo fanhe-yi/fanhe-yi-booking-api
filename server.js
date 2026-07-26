@@ -9671,13 +9671,32 @@ async function sendFortuneConsentFlex(userId) {
 /* =========================
   【神明 UI 配色】新增神明時在此加一條
   - emoji：卡片標題前的圖示
-  - bg：卡片背景色
-  - btn：按鈕主色
-  - titleColor（optional）：標題文字色，預設用 btn
+  - bg：淺色卡片背景（select carousel 用）
+  - btn：主色，用於 button、深色 header 背景
+  - accent：淺色小字，放在 btn 深色背景上時用（例如 result flex 的 eyebrow）
 ========================== */
 const DEITY_UI = {
-  yuelao: { emoji: "❤", bg: "#FFF5F0", btn: "#A85751" },
-  wenchang: { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78" },
+  yuelao:   { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
+  wenchang: { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
+};
+
+/* =========================
+  【CTA 文案】依神明分流（結尾軟推）
+  未來加神明時對應補一條，若沒補 → fallback 用月老版
+========================== */
+const FORTUNE_CTA_CONTENT = {
+  yuelao: {
+    heading: "籤詩給了你方向",
+    intro: "但人生關鍵節點，建議透過命盤深入分析：",
+    services: "✦ 八字｜看你的感情格局與大運\n✦ 紫微｜看 12 宮位的關係互動",
+    shareLabel: "月老籤",
+  },
+  wenchang: {
+    heading: "籤詩指了方向",
+    intro: "但學業前程的關鍵時刻，建議透過命盤深入看：",
+    services: "✦ 八字｜看你的天賦五行與學運\n✦ 紫微｜看命宮官祿宮的走勢",
+    shareLabel: "文昌籤",
+  },
 };
 
 /* =========================
@@ -9796,7 +9815,8 @@ async function sendDeitySelectFlex(userId) {
 /* =========================
   【Flex】問題確認卡
 ========================== */
-async function sendFortuneQuestionConfirm(userId, question) {
+async function sendFortuneQuestionConfirm(userId, deity, question) {
+  const ui = DEITY_UI[deity] || DEITY_UI.yuelao;
   const bubble = {
     type: "bubble",
     size: "mega",
@@ -9847,7 +9867,7 @@ async function sendFortuneQuestionConfirm(userId, question) {
         {
           type: "button",
           style: "primary",
-          color: "#A85751",
+          color: ui.btn, // 🌟 deity 主色
           height: "sm",
           action: {
             type: "postback",
@@ -9978,20 +9998,21 @@ async function sendFortuneResultFlex(userId, deity, poem, aiText) {
     });
   }
 
+  const ui = DEITY_UI[deity] || DEITY_UI.yuelao;
   const bubble = {
     type: "bubble",
     size: "giga",
     header: {
       type: "box",
       layout: "vertical",
-      backgroundColor: "#A85751",
+      backgroundColor: ui.btn, // 🌟 deity 主色
       paddingAll: "lg",
       contents: [
         {
           type: "text",
-          text: `🌸 ${deityLabel}籤`,
+          text: `${ui.emoji} ${deityLabel}籤`,
           size: "sm",
-          color: "#FFE8D6",
+          color: ui.accent, // 🌟 對應 deity 的淺色小字
           weight: "bold",
         },
         {
@@ -10033,7 +10054,13 @@ async function sendFortuneResultFlex(userId, deity, poem, aiText) {
 /* =========================
   【Flex】結尾 CTA 軟推
 ========================== */
-async function sendFortuneCTAFlex(userId) {
+async function sendFortuneCTAFlex(userId, deity) {
+  const ui = DEITY_UI[deity] || DEITY_UI.yuelao;
+  const cta = FORTUNE_CTA_CONTENT[deity] || FORTUNE_CTA_CONTENT.yuelao;
+  const shareText =
+    `我剛在梵和易學抽了一支${cta.shareLabel} ${ui.emoji}\n` +
+    `你也試試免費占卜：\nhttps://line.me/R/ti/p/@415kfyus`;
+
   const bubble = {
     type: "bubble",
     size: "mega",
@@ -10044,14 +10071,14 @@ async function sendFortuneCTAFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "🌸 籤詩給了你方向",
+          text: `${ui.emoji} ${cta.heading}`,
           weight: "bold",
           size: "lg",
           color: "#8B6F47",
         },
         {
           type: "text",
-          text: "但人生關鍵節點，建議透過命盤深入分析：",
+          text: cta.intro,
           size: "sm",
           wrap: true,
           margin: "md",
@@ -10059,7 +10086,7 @@ async function sendFortuneCTAFlex(userId) {
         },
         {
           type: "text",
-          text: "✦ 八字｜看你的感情格局與大運\n✦ 紫微｜看 12 宮位的關係互動",
+          text: cta.services,
           size: "sm",
           wrap: true,
           margin: "md",
@@ -10075,7 +10102,7 @@ async function sendFortuneCTAFlex(userId) {
         {
           type: "button",
           style: "primary",
-          color: "#8B6F47",
+          color: ui.btn, // 🌟 deity 主色
           height: "sm",
           action: {
             type: "postback",
@@ -10089,15 +10116,12 @@ async function sendFortuneCTAFlex(userId) {
           style: "link",
           height: "sm",
           action: {
-            /* LINE 內建分享 URL scheme：開啟分享選擇器讓使用者挑朋友
-               https://developers.line.biz/en/docs/line-login/using-line-url-scheme/ */
+            /* LINE 內建分享 URL scheme */
             type: "uri",
             label: "分享給朋友",
             uri:
               "https://line.me/R/msg/text/?" +
-              encodeURIComponent(
-                "我剛在梵和易學抽了一支月老籤 🌸\n你也試試免費占卜：\nhttps://line.me/R/ti/p/@415kfyus",
-              ),
+              encodeURIComponent(shareText),
           },
         },
       ],
@@ -10160,7 +10184,7 @@ async function handleFortuneFlow(userId, text, state /* event */) {
     state.data.question = trimmed;
     state.stage = "confirm_question";
     conversationStates[userId] = state;
-    await sendFortuneQuestionConfirm(userId, trimmed);
+    await sendFortuneQuestionConfirm(userId, state.data.deity, trimmed);
     return true;
   }
 
@@ -10324,6 +10348,7 @@ async function handleFortunePostback(userId, action, params, state) {
       }
 
       // 回笑筊 flex（簡單版用文字 + button）
+      const xiaoUi = DEITY_UI[deity] || DEITY_UI.yuelao;
       await pushFlex(userId, "笑筊", {
         type: "bubble",
         size: "kilo",
@@ -10337,7 +10362,7 @@ async function handleFortunePostback(userId, action, params, state) {
               text: "🪨 笑筊",
               weight: "bold",
               size: "lg",
-              color: "#A85751",
+              color: xiaoUi.btn, // 🌟 deity 主色
             },
             { type: "separator", margin: "md" },
             {
@@ -10376,7 +10401,7 @@ async function handleFortunePostback(userId, action, params, state) {
             {
               type: "button",
               style: "primary",
-              color: "#A85751",
+              color: xiaoUi.btn, // 🌟 deity 主色
               height: "sm",
               action: {
                 type: "postback",
@@ -10446,7 +10471,7 @@ async function handleFortunePostback(userId, action, params, state) {
             },
             {
               type: "text",
-              text: "請者宜：靜待時機，或明日再來。今日仍可改向其他神明請示（未開放）。",
+              text: "請者宜：靜待時機，或明日再來；亦可改向其他神明請示。",
               size: "xs",
               wrap: true,
               margin: "md",
@@ -10511,8 +10536,8 @@ async function handleFortunePostback(userId, action, params, state) {
     // 顯示結果（Flex bubble；解析失敗自動 fallback 純文字）
     await sendFortuneResultFlex(userId, deity, poem, aiText);
 
-    // 結尾 CTA
-    await sendFortuneCTAFlex(userId);
+    // 結尾 CTA（依 deity 分流文案與配色）
+    await sendFortuneCTAFlex(userId, deity);
 
     // 清掉 state
     delete conversationStates[userId];
