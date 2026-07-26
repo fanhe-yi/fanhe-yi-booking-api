@@ -541,7 +541,9 @@ const FORTUNE_QUESTION_MAX = 150;
 const FORTUNE_XIAOJIAO_MAX_RETRY = 2; // 笑筊最多重試 2 次，第 3 次強制聖筊
 
 /* =========================
-  【神明 metadata】MVP 只做月老
+  【神明 metadata】月老 + 文昌
+  - 新增神明時：加一個 entry，並在 DEITY_UI（sendDeitySelectFlex 附近）加對應配色，
+    以及 fortune-deities/<deity>-poems.json
 ========================== */
 const DEITY_META = {
   yuelao: {
@@ -560,6 +562,24 @@ const DEITY_META = {
       "買房",
       "健康",
       "疾病",
+    ],
+  },
+  wenchang: {
+    label: "文昌帝君",
+    desc: "司掌功名學業｜問考試、升學、學運、證照",
+    offTopicKeywords: [
+      "感情",
+      "桃花",
+      "姻緣",
+      "復合",
+      "結婚",
+      "曖昧",
+      "財運",
+      "投資",
+      "股票",
+      "創業",
+      "疾病",
+      "健康",
     ],
   },
 };
@@ -9649,92 +9669,128 @@ async function sendFortuneConsentFlex(userId) {
 }
 
 /* =========================
-  【Flex】選神明（MVP 只有月老一張）
+  【神明 UI 配色】新增神明時在此加一條
+  - emoji：卡片標題前的圖示
+  - bg：卡片背景色
+  - btn：按鈕主色
+  - titleColor（optional）：標題文字色，預設用 btn
+========================== */
+const DEITY_UI = {
+  yuelao: { emoji: "❤", bg: "#FFF5F0", btn: "#A85751" },
+  wenchang: { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78" },
+};
+
+/* =========================
+  【Flex】選神明（Carousel）
+  - 每位神明一張 bubble
+  - header 共用「請選擇要請示的神明」+ 每天 1 次提示
+  - 未來加神明：只要在 DEITY_META + DEITY_UI + fortune-deities/<deity>-poems.json
+    三處各補一條，這個函式會自動把新神明也 render 進 carousel
 ========================== */
 async function sendDeitySelectFlex(userId) {
-  const yuelao = DEITY_META.yuelao;
-  const bubble = {
-    type: "bubble",
-    size: "mega",
-    header: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        {
-          type: "text",
-          text: "🌸 請選擇要請示的神明",
-          weight: "bold",
-          size: "lg",
-          color: "#8B6F47",
-        },
-        {
-          type: "text",
-          text: "每人每天可請示一次",
-          size: "xs",
-          color: "#A68A6A",
-          margin: "sm",
-        },
-      ],
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
-        {
-          type: "box",
-          layout: "vertical",
-          paddingAll: "md",
-          backgroundColor: "#FFF5F0",
-          cornerRadius: "md",
-          contents: [
-            {
-              type: "text",
-              text: "❤ " + yuelao.label,
-              weight: "bold",
-              size: "md",
-              color: "#A85751",
-            },
-            {
-              type: "text",
-              text: yuelao.desc,
-              size: "xs",
-              color: "#4A4A4A",
-              wrap: true,
-              margin: "sm",
-            },
-          ],
-        },
-        {
-          type: "text",
-          text: "未來將陸續開放文昌、關聖帝君、媽祖、觀音…",
-          size: "xs",
-          color: "#888888",
-          wrap: true,
-          margin: "md",
-        },
-      ],
-    },
-    footer: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        {
-          type: "button",
-          style: "primary",
-          color: "#A85751",
-          height: "sm",
-          action: {
-            type: "postback",
-            label: "請示月老",
-            data: "action=fortune_deity&id=yuelao",
-            displayText: "我想請示月老",
+  const buildBubble = (deityId) => {
+    const meta = DEITY_META[deityId];
+    const ui = DEITY_UI[deityId];
+    if (!meta || !ui) return null;
+    return {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "🌸 請選擇要請示的神明",
+            weight: "bold",
+            size: "lg",
+            color: "#8B6F47",
           },
-        },
-      ],
-    },
+          {
+            type: "text",
+            text: "每人每天可請示一次",
+            size: "xs",
+            color: "#A68A6A",
+            margin: "sm",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "md",
+            backgroundColor: ui.bg,
+            cornerRadius: "md",
+            contents: [
+              {
+                type: "text",
+                text: `${ui.emoji} ${meta.label}`,
+                weight: "bold",
+                size: "md",
+                color: ui.btn,
+              },
+              {
+                type: "text",
+                text: meta.desc,
+                size: "xs",
+                color: "#4A4A4A",
+                wrap: true,
+                margin: "sm",
+              },
+            ],
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: ui.btn,
+            height: "sm",
+            action: {
+              type: "postback",
+              label: `請示${meta.label}`,
+              data: `action=fortune_deity&id=${deityId}`,
+              displayText: `我想請示${meta.label}`,
+            },
+          },
+        ],
+      },
+    };
   };
-  await pushFlex(userId, "選擇神明", bubble);
+
+  // 依 DEITY_UI 的 key 順序 render（未來加神明只要調 DEITY_UI 順序即可）
+  const bubbles = Object.keys(DEITY_UI)
+    .map(buildBubble)
+    .filter(Boolean);
+
+  if (bubbles.length === 0) {
+    await pushText(userId, "目前沒有可請示的神明 🙏");
+    return;
+  }
+
+  // 只有 1 張直接 push single bubble；2+ 用 carousel
+  if (bubbles.length === 1) {
+    await pushFlex(userId, "選擇神明", bubbles[0]);
+    return;
+  }
+
+  const labels = Object.keys(DEITY_UI)
+    .map((k) => DEITY_META[k]?.label)
+    .filter(Boolean)
+    .join(" / ");
+  await pushFlex(userId, `選擇神明（${labels}）`, {
+    type: "carousel",
+    contents: bubbles,
+  });
 }
 
 /* =========================
