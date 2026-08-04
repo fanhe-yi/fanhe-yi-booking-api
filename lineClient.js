@@ -2126,6 +2126,7 @@ async function sendQimenResultFlex(userId, userNumber, question, aiData) {
 module.exports = {
   pushText,
   pushFlex,
+  pushImage,
   notifyNewBooking,
   notifyCustomerBooking,
   sendBookingSuccessHero,
