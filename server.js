@@ -314,6 +314,14 @@ function isBotUserAgent(ua) {
 ========================== */
 const CEZI_ALL_TIME_SLOTS = ["19:00-19:20", "19:30-19:50", "20:00-20:20"];
 
+/* ==========================================================
+  ✅ 命理課程宣傳（LINE Bot 觸發詞「命理課程」自動回覆）
+  用途：使用者輸入「命理課程」→ 回一張 Flex 卡片，含姓名學課程海報 + Google Form 報名連結
+========================== */
+const COURSE_INTRO_IMAGE_URL =
+  "https://assets.chen-yi.tw/tenants/a/course/naming-class.jpg";
+const COURSE_SIGNUP_URL = "https://forms.gle/i7nMYTu4nhiNRCBt7";
+
 /* =========================
   【config】cezi-config.json
   - openWeekdays：0=日,1=一,...,6=六；每週開放哪幾天
@@ -2832,6 +2840,100 @@ async function sendCeziIntroFlex(userId) {
   };
 
   await pushFlex(userId, "測字", bubble);
+}
+
+/* ==========================================================
+  ✅ 命理課程宣傳 Flex
+  觸發詞：「命理課程」
+  結構：hero 課程海報 + body 三行說明 + footer 立即報名 button
+========================== */
+async function sendCourseIntroFlex(userId) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+
+    /* 主視覺圖（直式海報）*/
+    hero: {
+      type: "image",
+      url: COURSE_INTRO_IMAGE_URL,
+      size: "full",
+      aspectRatio: "3:5",
+      aspectMode: "cover",
+    },
+
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingTop: "md",
+      paddingBottom: "md",
+      contents: [
+        {
+          type: "text",
+          text: "姓名學小班授課",
+          weight: "bold",
+          size: "lg",
+          color: "#5A3A1F",
+        },
+        {
+          type: "text",
+          text: "何必耗費數月相處？看名字，就能讀懂一個人。",
+          size: "sm",
+          color: "#4A4A4A",
+          wrap: true,
+          margin: "sm",
+        },
+        {
+          type: "text",
+          text: "✦ 快速看出性格、優勢",
+          size: "xs",
+          color: "#6B4F2A",
+          margin: "md",
+        },
+        {
+          type: "text",
+          text: "✦ 相處時最該注意的地方",
+          size: "xs",
+          color: "#6B4F2A",
+        },
+        {
+          type: "text",
+          text: "✦ 名額有限，額滿即止",
+          size: "xs",
+          color: "#A85751",
+          weight: "bold",
+        },
+      ],
+    },
+
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#A85751",
+          height: "sm",
+          action: {
+            type: "uri",
+            label: "立即報名",
+            uri: COURSE_SIGNUP_URL,
+          },
+        },
+        {
+          type: "text",
+          text: "* 立即填表，優先保留席位",
+          size: "xs",
+          color: "#9C9C9C",
+          align: "center",
+        },
+      ],
+    },
+  };
+
+  await pushFlex(userId, "命理課程 · 立即報名", bubble);
 }
 
 /* ==========================================================
@@ -5789,6 +5891,15 @@ async function routeGeneralCommands(userId, text) {
     text === "脆友福利"
   ) {
     await sendCeziIntroFlex(userId);
+    return;
+  }
+
+  /* =========================
+    🌟 命理課程宣傳（單一觸發詞）
+    - 回一張 Flex 卡片：課程海報 + 立即報名 button 連 Google Form
+  ========================== */
+  if (text === "命理課程") {
+    await sendCourseIntroFlex(userId);
     return;
   }
 
