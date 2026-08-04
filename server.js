@@ -2873,14 +2873,14 @@ async function sendCourseIntroFlex(userId) {
       contents: [
         {
           type: "text",
-          text: "姓名學小班授課",
+          text: "姓名學課程資訊",
           weight: "bold",
           size: "lg",
           color: "#5A3A1F",
         },
         {
           type: "text",
-          text: "何必耗費數月相處？看名字，就能讀懂一個人。",
+          text: "何必耗費數月相處？\n看名字，就能讀懂一個人。",
           size: "sm",
           color: "#4A4A4A",
           wrap: true,
