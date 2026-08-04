@@ -15,6 +15,7 @@ const {
   notifyCustomerBooking,
   pushText,
   pushFlex,
+  pushImage,
   sendBookingSuccessHero,
   sendBookingPaymentAndNoticeCarousel,
   sendBaziMenuFlex,
@@ -319,7 +320,7 @@ const CEZI_ALL_TIME_SLOTS = ["19:00-19:20", "19:30-19:50", "20:00-20:20"];
   用途：使用者輸入「命理課程」→ 回一張 Flex 卡片，含姓名學課程海報 + Google Form 報名連結
 ========================== */
 const COURSE_INTRO_IMAGE_URL =
-  "https://assets.chen-yi.tw/tenants/a/course/naming-class.jpg";
+  "https://www.chen-yi.tw/images/course/naming-class.png";
 const COURSE_SIGNUP_URL = "https://forms.gle/i7nMYTu4nhiNRCBt7";
 
 /* =========================
@@ -2843,23 +2844,25 @@ async function sendCeziIntroFlex(userId) {
 }
 
 /* ==========================================================
-  ✅ 命理課程宣傳 Flex
+  ✅ 命理課程宣傳（兩則訊息版）
   觸發詞：「命理課程」
-  結構：hero 課程海報 + body 三行說明 + footer 立即報名 button
+  設計：
+    1) pushImage 送整張直式海報（LINE 自動處理縮圖、無 aspectRatio 顧慮）
+    2) pushFlex 送小卡：body 說明 + 立即報名 button（無 hero 保持輕量）
+  改為兩則的原因：原本 Flex hero 塞 2.17 MB 直式 PNG 在 LINE 顯示不理想
 ========================== */
 async function sendCourseIntroFlex(userId) {
+  /* 第 1 則：整張海報以 image message 送
+     pushImage(to, originalContentUrl, previewImageUrl)
+     LINE 規範：original 上限 10 MB / preview 上限 1 MB
+     實務上 2 MB PNG 兩個 URL 用同一張通常 OK；若日後 preview 被 reject
+     再單獨壓一張 naming-class-thumb.jpg 傳 <500 KB 給 preview */
+  await pushImage(userId, COURSE_INTRO_IMAGE_URL, COURSE_INTRO_IMAGE_URL);
+
+  /* 第 2 則：小 Flex 卡（無 hero），只有說明文字 + 立即報名 button */
   const bubble = {
     type: "bubble",
-    size: "mega",
-
-    /* 主視覺圖（直式海報）*/
-    hero: {
-      type: "image",
-      url: COURSE_INTRO_IMAGE_URL,
-      size: "full",
-      aspectRatio: "3:5",
-      aspectMode: "cover",
-    },
+    size: "kilo",
 
     body: {
       type: "box",
