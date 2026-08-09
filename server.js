@@ -9851,7 +9851,7 @@ const DEITY_UI = {
   yuelao:    { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
   wenchang:  { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
   guansheng: { emoji: "⚔",  bg: "#FDF3F0", btn: "#8B2C1F", accent: "#F5D98A" },
-  mazu:      { emoji: "🌊", bg: "#EAF2F9", btn: "#1B4B7A", accent: "#F5D98A" },
+  mazu:      { emoji: "🌊", bg: "#E6F0EE", btn: "#2A6F63", accent: "#F5D98A" },
   guanyin:   { emoji: "🪷", bg: "#F5F1EA", btn: "#8067A8", accent: "#E9D9A3" },
   tudi:      { emoji: "💰", bg: "#FAF4E4", btn: "#B8860B", accent: "#FBEEC0" },
 };
@@ -9920,7 +9920,7 @@ async function sendDeitySelectFlex(userId) {
         contents: [
           {
             type: "text",
-            text: "🌸 請選擇要請示的神明",
+            text: "請選擇要請示的神明",
             weight: "bold",
             size: "lg",
             color: "#8B6F47",
