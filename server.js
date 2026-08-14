@@ -9849,9 +9849,9 @@ async function sendFortuneConsentFlex(userId) {
 ========================== */
 const DEITY_UI = {
   yuelao:    { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
-  wenchang:  { emoji: "📚", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
+  wenchang:  { emoji: "📚", bg: "#E6F0EE", btn: "#2A6F63", accent: "#F5D98A" },
   guansheng: { emoji: "⚔",  bg: "#FDF3F0", btn: "#8B2C1F", accent: "#F5D98A" },
-  mazu:      { emoji: "🌊", bg: "#E6F0EE", btn: "#2A6F63", accent: "#F5D98A" },
+  mazu:      { emoji: "🌊", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
   guanyin:   { emoji: "🪷", bg: "#F5F1EA", btn: "#8067A8", accent: "#E9D9A3" },
   tudi:      { emoji: "💰", bg: "#FAF4E4", btn: "#B8860B", accent: "#FBEEC0" },
 };
@@ -10256,10 +10256,13 @@ async function sendFortuneResultFlex(userId, deity, poem, aiText) {
 ========================== */
 async function sendFortuneCTAFlex(userId, deity) {
   const ui = DEITY_UI[deity] || DEITY_UI.yuelao;
+  const meta = DEITY_META[deity] || DEITY_META.yuelao;
   const cta = FORTUNE_CTA_CONTENT[deity] || FORTUNE_CTA_CONTENT.yuelao;
   const shareText =
     `我剛在梵和易學抽了一支${cta.shareLabel} ${ui.emoji}\n` +
     `你也試試免費占卜：\nhttps://line.me/R/ti/p/@415kfyus`;
+  /* 🌟 altText：deity 分流，會顯示在 LINE 聊天列表最後訊息預覽 & 推播通知 */
+  const altText = `${meta.label}示現方向｜可預約諮詢`;
 
   const bubble = {
     type: "bubble",
@@ -10327,7 +10330,7 @@ async function sendFortuneCTAFlex(userId, deity) {
       ],
     },
   };
-  await pushFlex(userId, "結尾 CTA", bubble);
+  await pushFlex(userId, altText, bubble);
 }
 
 /* =========================
