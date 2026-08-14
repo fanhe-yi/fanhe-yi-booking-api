@@ -5914,9 +5914,8 @@ async function routeGeneralCommands(userId, text) {
   if (
     text === "免費籤詩" ||
     text === "籤詩" ||
-    text === "占卜" ||
     text === "求籤" ||
-    text === "求神問卜"
+    text === "求神問籤"
   ) {
     conversationStates[userId] = {
       mode: "fortune",
