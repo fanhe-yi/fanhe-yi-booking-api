@@ -537,7 +537,7 @@ function getNextAvailableCeziDays(showCount, scanDays = 60) {
 
 /* ==========================================================
   ✅ 占卜（fortune）— 免費引流功能
-  目的：使用者輸入「免費占卜」可選神明、擲筊、抽籤、AI 解讀
+  目的：使用者輸入「免費籤詩」/「籤詩」可選神明、擲筊、抽籤、AI 解讀
   - 詳細設計：docs/fortune-design.md
   - DB schema：migrations/001_fortune_draws.sql
   - 籤詩資料：fortune-deities/<deity>-poems.json
@@ -5912,7 +5912,8 @@ async function routeGeneralCommands(userId, text) {
     詳細設計：docs/fortune-design.md
   ========================== */
   if (
-    text === "免費占卜" ||
+    text === "免費籤詩" ||
+    text === "籤詩" ||
     text === "占卜" ||
     text === "求籤" ||
     text === "求神問卜"
@@ -10260,7 +10261,7 @@ async function sendFortuneCTAFlex(userId, deity) {
   const cta = FORTUNE_CTA_CONTENT[deity] || FORTUNE_CTA_CONTENT.yuelao;
   const shareText =
     `我剛在梵和易學抽了一支${cta.shareLabel} ${ui.emoji}\n` +
-    `你也試試免費占卜：\nhttps://line.me/R/ti/p/@415kfyus`;
+    `你也試試免費籤詩：\nhttps://line.me/R/ti/p/@415kfyus`;
   /* 🌟 altText：deity 分流，會顯示在 LINE 聊天列表最後訊息預覽 & 推播通知 */
   const altText = `${meta.label}示現方向｜可預約諮詢`;
 
@@ -10346,7 +10347,7 @@ async function handleFortuneFlow(userId, text, state /* event */) {
   /* 中斷詞 → 清掉 state，讓 routeGeneralCommands 接手 */
   if (isAbortCommand(trimmed)) {
     delete conversationStates[userId];
-    await pushText(userId, "已退出占卜。需要時可再輸入「免費占卜」開始。");
+    await pushText(userId, "已退出。需要時可再輸入「免費籤詩」開始。");
     return true;
   }
 
@@ -10433,7 +10434,7 @@ async function handleFortunePostback(userId, action, params, state) {
     // 過期按鈕
     await pushText(
       userId,
-      "這個占卜選單看起來已過期。\n請重新輸入「免費占卜」開始。",
+      "這個選單看起來已過期。\n請重新輸入「免費籤詩」開始。",
     );
     return;
   }
@@ -10522,7 +10523,7 @@ async function handleFortunePostback(userId, action, params, state) {
     const meta = DEITY_META[deity];
     if (!deity || !question || !meta) {
       delete conversationStates[userId];
-      await pushText(userId, "占卜資料缺失，請重新輸入「免費占卜」開始。");
+      await pushText(userId, "資料缺失，請重新輸入「免費籤詩」開始。");
       return;
     }
 
