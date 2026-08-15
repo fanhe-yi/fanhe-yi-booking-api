@@ -9880,6 +9880,14 @@ async function sendFreeServiceSelectFlex(userId) {
               color: "#A68A6A",
               margin: "sm",
             },
+            {
+              type: "text",
+              text: "透過未來時空的你給卦",
+              size: "xs",
+              color: "#A68A6A",
+              margin: "sm",
+              wrap: true,
+            },
           ],
         },
         body: {
@@ -9889,11 +9897,10 @@ async function sendFreeServiceSelectFlex(userId) {
           contents: [
             {
               type: "text",
-              text: "透過未來時空的你給卦",
+              text: "輸入一句你想問的話",
               weight: "bold",
               size: "md",
               color: "#4A4A4A",
-              wrap: true,
             },
             {
               type: "text",
