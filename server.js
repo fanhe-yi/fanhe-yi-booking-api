@@ -5907,6 +5907,16 @@ async function routeGeneralCommands(userId, text) {
   }
 
   /* =========================
+    🌟 免費占卜總入口 — 出 2 選 1 選單（籤詩 / 時空占卜）
+    讓新使用者一次看到兩個免費服務
+    直達 shortcut 保持不動（籤詩、奇門觸發詞仍能直接進）
+  ========================== */
+  if (text === "免費占卜") {
+    await sendFreeServiceSelectFlex(userId);
+    return;
+  }
+
+  /* =========================
     🌟 占卜（fortune）— 免費引流
     觸發詞進入後先給隱私同意卡，同意才進選神明
     詳細設計：docs/fortune-design.md
@@ -6236,6 +6246,39 @@ async function routePostback(userId, data) {
   ) {
     const state = getState();
     return await handleFortunePostback(userId, action, params, state);
+  }
+
+  /* =========================
+    🌟 免費占卜總入口分流：free_go
+    - target=fortune  → 完全複製「籤詩」觸發詞行為
+    - target=qimen    → 完全複製「奇門問事」觸發詞行為
+    - 不重造 flow，只設 conversationStates + 送對應 intro
+  ========================== */
+  if (action === "free_go") {
+    const target = params.get("target");
+    if (target === "fortune") {
+      conversationStates[userId] = {
+        mode: "fortune",
+        stage: "waiting_consent",
+        data: {},
+      };
+      await sendFortuneConsentFlex(userId);
+      return;
+    }
+    if (target === "qimen") {
+      conversationStates[userId] = {
+        mode: "qimen",
+        stage: "waiting_question",
+        data: {},
+      };
+      await pushText(
+        userId,
+        "好,開始時空占卜。\n\n請直接輸入你想問的一句話：\n例如:\n- 是否有升遷或加薪的機會\n- 是否有偏財運或額外收入\n- 這段關係該不該繼續走下去\n- 換工作會比現在更好嗎\n- 他會回來找我嗎\n- 身體健康嗎\n\n(輸入「取消」可退出)",
+      );
+      return;
+    }
+    // target 值不對就當沒事，不干擾
+    return;
   }
 
   /* =========================
@@ -9730,6 +9773,169 @@ async function handleLyNav(userId, text) {
   資料：fortune-deities/<deity>-poems.json
   DB：fortune_draws 表（migrations/001_fortune_draws.sql）
 ========================== */
+
+/* =========================
+  【Flex】免費占卜總入口 — 2 選 1 選單
+  觸發詞：「免費占卜」
+  用戶點按後 postback action=free_go&target=fortune|qimen
+  → 走跟直達觸發詞完全一樣的行為（不重造 flow）
+========================== */
+async function sendFreeServiceSelectFlex(userId) {
+  const bubble = {
+    type: "carousel",
+    contents: [
+      /* --- Bubble 1: 免費籤詩（月老 / 文昌 / 關聖 / 媽祖 / 觀音 / 土地公） --- */
+      {
+        type: "bubble",
+        size: "mega",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "🌸 免費籤詩",
+              weight: "bold",
+              size: "lg",
+              color: "#8B6F47",
+            },
+            {
+              type: "text",
+              text: "每天 1 次",
+              size: "xs",
+              color: "#A68A6A",
+              margin: "sm",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: "選擇一位神明請示",
+              weight: "bold",
+              size: "md",
+              color: "#4A4A4A",
+            },
+            {
+              type: "text",
+              text: "月老 / 文昌 / 關聖 / 媽祖 / 觀音 / 土地公",
+              size: "sm",
+              color: "#6A6A6A",
+              wrap: true,
+            },
+            { type: "separator", margin: "md" },
+            {
+              type: "text",
+              text: "流程：擲筊 → 抽籤 → AI 解讀",
+              size: "xs",
+              color: "#888888",
+              margin: "md",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#A85751",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "開始求籤",
+                data: "action=free_go&target=fortune",
+                displayText: "我想求籤",
+              },
+            },
+          ],
+        },
+      },
+
+      /* --- Bubble 2: 時空占卜（奇門） --- */
+      {
+        type: "bubble",
+        size: "mega",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "🎋 時空占卜",
+              weight: "bold",
+              size: "lg",
+              color: "#8B6F47",
+            },
+            {
+              type: "text",
+              text: "奇門遁甲問事",
+              size: "xs",
+              color: "#A68A6A",
+              margin: "sm",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: "輸入一句你想問的話",
+              weight: "bold",
+              size: "md",
+              color: "#4A4A4A",
+            },
+            {
+              type: "text",
+              text: "例：該不該換工作？他會回來嗎？",
+              size: "sm",
+              color: "#6A6A6A",
+              wrap: true,
+            },
+            { type: "separator", margin: "md" },
+            {
+              type: "text",
+              text: "流程：輸入問題 → 起時空盤 → AI 解讀",
+              size: "xs",
+              color: "#888888",
+              margin: "md",
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#4A6F5A",
+              height: "sm",
+              action: {
+                type: "postback",
+                label: "開始問事",
+                data: "action=free_go&target=qimen",
+                displayText: "我想問事",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  await pushFlex(userId, "免費占卜 · 選一個服務", bubble);
+}
 
 /* =========================
   【Flex】隱私同意卡
