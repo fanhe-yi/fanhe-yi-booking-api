@@ -9830,7 +9830,7 @@ async function sendFreeServiceSelectFlex(userId) {
             { type: "separator", margin: "md" },
             {
               type: "text",
-              text: "流程：擲筊 → 抽籤 → AI 解讀",
+              text: "流程：輸入問題 → 擲筊 → 抽籤",
               size: "xs",
               color: "#888888",
               margin: "md",
@@ -9875,7 +9875,7 @@ async function sendFreeServiceSelectFlex(userId) {
             },
             {
               type: "text",
-              text: "奇門遁甲問事",
+              text: "奇門遁甲占卜",
               size: "xs",
               color: "#A68A6A",
               margin: "sm",
@@ -9889,10 +9889,11 @@ async function sendFreeServiceSelectFlex(userId) {
           contents: [
             {
               type: "text",
-              text: "輸入一句你想問的話",
+              text: "透過未來時空的你給卦",
               weight: "bold",
               size: "md",
               color: "#4A4A4A",
+              wrap: true,
             },
             {
               type: "text",
@@ -9904,7 +9905,7 @@ async function sendFreeServiceSelectFlex(userId) {
             { type: "separator", margin: "md" },
             {
               type: "text",
-              text: "流程：輸入問題 → 起時空盤 → AI 解讀",
+              text: "流程：輸入問題 → 起時空盤 → 解卦",
               size: "xs",
               color: "#888888",
               margin: "md",
