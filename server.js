@@ -197,7 +197,9 @@ function saveArticlesIndex(nextIndex, note = "index_save") {
       const currentRaw = fs.readFileSync(ARTICLES_INDEX_PATH, "utf-8");
       const current = JSON.parse(currentRaw);
       const wasN = Array.isArray(current?.items) ? current.items.length : 0;
-      const nextN = Array.isArray(nextIndex?.items) ? nextIndex.items.length : 0;
+      const nextN = Array.isArray(nextIndex?.items)
+        ? nextIndex.items.length
+        : 0;
 
       if (wasN > 0 && nextN === 0) {
         throw new Error(
@@ -3559,7 +3561,10 @@ const KANGXI_MAP = (() => {
     }
     console.log(`[kangxi] loaded ${map.size} chars`);
   } catch (e) {
-    console.warn("[kangxi] CSV load failed (endpoint will return null):", e.message);
+    console.warn(
+      "[kangxi] CSV load failed (endpoint will return null):",
+      e.message,
+    );
   }
   return map;
 })();
@@ -4229,28 +4234,36 @@ app.get("/api/admin/minibazi-advice/cell", requireAdmin, async (req, res) => {
 });
 
 // Upsert 一筆內容
-app.put("/api/admin/minibazi-advice", requireAdmin, express.json(), async (req, res) => {
-  try {
-    const { dayStem, monthBranch, content, notes, updatedBy } = req.body || {};
-    if (!dayStem || !monthBranch) {
-      return res.status(400).json({ error: "missing dayStem/monthBranch" });
+app.put(
+  "/api/admin/minibazi-advice",
+  requireAdmin,
+  express.json(),
+  async (req, res) => {
+    try {
+      const { dayStem, monthBranch, content, notes, updatedBy } =
+        req.body || {};
+      if (!dayStem || !monthBranch) {
+        return res.status(400).json({ error: "missing dayStem/monthBranch" });
+      }
+      // 嚴格驗證單字元（PG schema 是 CHAR(1)，怕誤輸入兩字）
+      if (String(dayStem).length !== 1 || String(monthBranch).length !== 1) {
+        return res
+          .status(400)
+          .json({ error: "dayStem/monthBranch must be single CJK char" });
+      }
+      await minibaziAdviceStore.upsert({
+        dayStem,
+        monthBranch,
+        content: typeof content === "string" ? content : "",
+        notes: typeof notes === "string" ? notes : "",
+        updatedBy: typeof updatedBy === "string" ? updatedBy : null,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err?.message || err) });
     }
-    // 嚴格驗證單字元（PG schema 是 CHAR(1)，怕誤輸入兩字）
-    if (String(dayStem).length !== 1 || String(monthBranch).length !== 1) {
-      return res.status(400).json({ error: "dayStem/monthBranch must be single CJK char" });
-    }
-    await minibaziAdviceStore.upsert({
-      dayStem,
-      monthBranch,
-      content: typeof content === "string" ? content : "",
-      notes: typeof notes === "string" ? notes : "",
-      updatedBy: typeof updatedBy === "string" ? updatedBy : null,
-    });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: String(err?.message || err) });
-  }
-});
+  },
+);
 
 //==========================================================
 // ✅ Articles 後台管理 API：文章列表（含 tag 篩選 / 關鍵字搜尋 / 狀態篩選）
@@ -5818,7 +5831,7 @@ async function handleLineEvent(event) {
       delete conversationStates[userId];
       await pushText(
         userId,
-        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字分析 / 時空占卜",
+        "已中斷目前流程 ✅\n\n你可以輸入：常見問題 / 八字分析 / 免費占卜",
       );
       return;
     }
@@ -9323,10 +9336,7 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
       await pushText(ADMIN_LIUYAO_USER_ID, preview);
     }
   } catch (e) {
-    console.warn(
-      "[liuyao] admin prompt preview push failed:",
-      e?.message || e,
-    );
+    console.warn("[liuyao] admin prompt preview push failed:", e?.message || e);
   }
 
   // 六爻用 DeepSeek 為主（推理較複雜），失敗 fallback OpenAI/Gemini
@@ -10062,13 +10072,14 @@ async function sendFortuneConsentFlex(userId) {
   - btn：主色，用於 button、深色 header 背景
   - accent：淺色小字，放在 btn 深色背景上時用（例如 result flex 的 eyebrow）
 ========================== */
+const DEITY_HERO_BASE = "https://www.chen-yi.tw/images/deity";
 const DEITY_UI = {
-  yuelao:    { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6" },
-  wenchang:  { emoji: "📚", bg: "#E6F0EE", btn: "#2A6F63", accent: "#F5D98A" },
-  guansheng: { emoji: "⚔",  bg: "#FDF3F0", btn: "#8B2C1F", accent: "#F5D98A" },
-  mazu:      { emoji: "🌊", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7" },
-  guanyin:   { emoji: "🪷", bg: "#F5F1EA", btn: "#8067A8", accent: "#E9D9A3" },
-  tudi:      { emoji: "💰", bg: "#FAF4E4", btn: "#B8860B", accent: "#FBEEC0" },
+  yuelao:    { emoji: "❤",  bg: "#FFF5F0", btn: "#A85751", accent: "#FFE8D6", hero: `${DEITY_HERO_BASE}/deity-yuelao-hero-compressed.jpg` },
+  wenchang:  { emoji: "📚", bg: "#E6F0EE", btn: "#2A6F63", accent: "#F5D98A", hero: `${DEITY_HERO_BASE}/deity-wenchang-hero-compressed.jpg` },
+  guansheng: { emoji: "⚔",  bg: "#FDF3F0", btn: "#8B2C1F", accent: "#F5D98A", hero: `${DEITY_HERO_BASE}/deity-guansheng-hero-compressed.jpg` },
+  mazu:      { emoji: "🌊", bg: "#F5EFDF", btn: "#2C4A78", accent: "#E1EBF7", hero: `${DEITY_HERO_BASE}/deity-mazu-hero-compressed.jpg` },
+  guanyin:   { emoji: "🪷", bg: "#F5F1EA", btn: "#8067A8", accent: "#E9D9A3", hero: `${DEITY_HERO_BASE}/deity-guanyin-hero-compressed.jpg` },
+  tudi:      { emoji: "💰", bg: "#FAF4E4", btn: "#B8860B", accent: "#FBEEC0", hero: `${DEITY_HERO_BASE}/deity-tudi-hero-compressed.jpg` },
 };
 
 /* =========================
@@ -10091,19 +10102,22 @@ const FORTUNE_CTA_CONTENT = {
   guansheng: {
     heading: "籤詩指了方向",
     intro: "但事業前程的關鍵時刻，建議透過命盤深入看：",
-    services: "✦ 八字｜看你的事業格局與大運轉折\n✦ 紫微｜看官祿宮與遷移宮的走勢",
+    services:
+      "✦ 八字｜看你的事業格局與大運轉折\n✦ 紫微｜看官祿宮與遷移宮的走勢",
     shareLabel: "關聖帝君籤",
   },
   mazu: {
     heading: "籤詩指了方向",
     intro: "平安護佑之外，人生大方向仍建議透過命盤深入分析：",
-    services: "✦ 八字｜看你的健康格局與流年風險\n✦ 紫微｜看命宮田宅宮的守護走勢",
+    services:
+      "✦ 八字｜看你的健康格局與流年風險\n✦ 紫微｜看命宮田宅宮的守護走勢",
     shareLabel: "媽祖籤",
   },
   guanyin: {
     heading: "籤詩指了方向",
     intro: "觀音示現方向，人生節點建議透過命盤深入看：",
-    services: "✦ 八字｜綜觀你的人生格局與五行走勢\n✦ 紫微｜看 12 宮位的互動與流年",
+    services:
+      "✦ 八字｜綜觀你的人生格局與五行走勢\n✦ 紫微｜看 12 宮位的互動與流年",
     shareLabel: "觀音籤",
   },
   tudi: {
@@ -10129,6 +10143,18 @@ async function sendDeitySelectFlex(userId) {
     return {
       type: "bubble",
       size: "mega",
+      /* 🌟 hero 圖：ui.hero 沒設時自動跳過（避免破圖） */
+      ...(ui.hero
+        ? {
+            hero: {
+              type: "image",
+              url: ui.hero,
+              size: "full",
+              aspectRatio: "20:13",
+              aspectMode: "cover",
+            },
+          }
+        : {}),
       header: {
         type: "box",
         layout: "vertical",
@@ -10202,9 +10228,7 @@ async function sendDeitySelectFlex(userId) {
   };
 
   // 依 DEITY_UI 的 key 順序 render（未來加神明只要調 DEITY_UI 順序即可）
-  const bubbles = Object.keys(DEITY_UI)
-    .map(buildBubble)
-    .filter(Boolean);
+  const bubbles = Object.keys(DEITY_UI).map(buildBubble).filter(Boolean);
 
   if (bubbles.length === 0) {
     await pushText(userId, "目前沒有可請示的神明 🙏");
@@ -10537,9 +10561,7 @@ async function sendFortuneCTAFlex(userId, deity) {
             /* LINE 內建分享 URL scheme */
             type: "uri",
             label: "分享給朋友",
-            uri:
-              "https://line.me/R/msg/text/?" +
-              encodeURIComponent(shareText),
+            uri: "https://line.me/R/msg/text/?" + encodeURIComponent(shareText),
           },
         },
       ],
