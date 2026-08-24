@@ -872,6 +872,9 @@ const { canCastFortuneToday, recordFortuneDraw } = require("./fortuneStore.pg");
 // 🌟 minibazi 命理師審定資料 (DB-backed lookup + admin CRUD)
 const minibaziAdviceStore = require("./minibaziAdviceStore.pg");
 
+// 🌟 六爻卜卦紀錄持久化（送 AI 前資訊 + AI 回覆 → liuyao_records 表）
+const { insertLiuYaoRecord } = require("./liuyaoStore.pg");
+
 //AI 訊息回覆相關
 const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
@@ -6975,8 +6978,10 @@ async function routePostback(userId, data) {
       currState.data.hexData = hexData;
 
       const { aiText } = await callLiuYaoAI({
+        userId, // 🌟 給 liuyao_records 紀錄用
         genderText: currState.data.gender === "female" ? "女命" : "男命",
         topicText: (currState.data?.topicLabel || "這件事情").trim(),
+        hexCode: finalCode, // 🌟 起卦碼寫進 record
         hexData: currState.data.hexData,
       });
 
@@ -8488,8 +8493,10 @@ async function handleLiuYaoFlow(userId, text, state, event) {
 
       // ⬇️ 呼叫 AI 解卦
       const { aiText } = await callLiuYaoAI({
+        userId, // 🌟 給 liuyao_records 紀錄用
         genderText: state.data.gender === "female" ? "女命" : "男命",
         topicText: LIU_YAO_TOPIC_LABEL[state.data.topic] || "感情",
+        hexCode: finalCode, // 🌟 起卦碼寫進 record
         hexData: state.data.hexData,
       });
 
@@ -9269,7 +9276,13 @@ function inferUseGod({ topicText, genderText }) {
 /***************************************
  * ✅ 呼叫AI收六爻（改版：不推用神，交給AI自行判斷）
  ***************************************/
-async function callLiuYaoAI({ genderText, topicText, hexData }) {
+async function callLiuYaoAI({
+  userId,
+  genderText,
+  topicText,
+  hexCode,
+  hexData,
+}) {
   // 1) 基本資料
   const gzArr = (hexData && hexData.ganzhi) || [];
   const gzLabels = ["年", "月", "日", "時"];
@@ -9341,6 +9354,28 @@ async function callLiuYaoAI({ genderText, topicText, hexData }) {
 
   // 六爻用 DeepSeek 為主（推理較複雜），失敗 fallback OpenAI/Gemini
   const aiText = await AI_Reading_LiuYao(userPrompt, systemPrompt);
+
+  /* ============================================
+     🌟 落地：把送 AI 前的資訊 + AI 回覆存 DB
+     - 用途：老師未來在 admin 前端可查看／編輯／補心得
+     - fire-and-forget：DB 掛掉不影響已成功的 AI 回覆
+     - store 內部已 try/catch，這裡 .catch 是雙保險
+     - schema：migrations/003_liuyao_records.sql
+  ============================================ */
+  insertLiuYaoRecord({
+    userId,
+    genderText,
+    topicText,
+    hexCode,
+    ganzhiText: gzText,
+    phaseText,
+    xunkongText: xkText,
+    sixLinesText,
+    hexData,
+    aiResponse: aiText,
+  }).catch((err) => {
+    console.error("[liuyao] record insert unexpected error:", err);
+  });
 
   return { aiText, userPrompt, systemPrompt };
 }
