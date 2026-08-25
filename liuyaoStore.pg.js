@@ -61,6 +61,138 @@ async function insertLiuYaoRecord(record) {
   }
 }
 
+/**
+ * 分頁列表 + 可選搜尋 / verified filter
+ * @param {object} opts
+ * @param {number} [opts.page=1]
+ * @param {number} [opts.pageSize=20]
+ * @param {string} [opts.q]              跨 user_id / topic / ganzhi / querent 模糊搜
+ * @param {boolean} [opts.verifiedOnly]  true 只回已驗證
+ * @returns {Promise<{items: Array, total: number, page: number, pageSize: number}>}
+ */
+async function listLiuYaoRecords({
+  page = 1,
+  pageSize = 20,
+  q = "",
+  verifiedOnly = false,
+} = {}) {
+  const p = Math.max(1, Number(page) || 1);
+  const ps = Math.min(100, Math.max(1, Number(pageSize) || 20));
+  const offset = (p - 1) * ps;
+
+  const conds = [];
+  const params = [];
+
+  if (q && q.trim()) {
+    params.push(`%${q.trim()}%`);
+    // 同一個 $1 用 4 個欄位，避免多算 params 位置
+    const i = params.length;
+    conds.push(
+      `(user_id ILIKE $${i} OR topic_text ILIKE $${i} ` +
+        `OR ganzhi_text ILIKE $${i} OR querent_name ILIKE $${i})`,
+    );
+  }
+  if (verifiedOnly) conds.push("is_verified = TRUE");
+
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+
+  const { rows: cnt } = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM liuyao_records ${where}`,
+    params,
+  );
+  const total = cnt[0]?.total || 0;
+
+  const p2 = [...params, ps, offset];
+  const limitIdx = p2.length - 1;
+  const offsetIdx = p2.length;
+  const { rows } = await pool.query(
+    `SELECT id, user_id, querent_name, is_verified,
+            gender_text, topic_text, hex_code,
+            LEFT(ganzhi_text, 40) AS ganzhi_preview,
+            LEFT(ai_response, 60) AS ai_preview,
+            (admin_notes <> '') AS has_notes,
+            created_at, updated_at
+       FROM liuyao_records
+       ${where}
+       ORDER BY id DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    p2,
+  );
+  return { items: rows, total, page: p, pageSize: ps };
+}
+
+/**
+ * 取單筆完整 row（含 admin_notes / hex_data 等所有欄位）
+ * @param {number|string} id
+ * @returns {Promise<object|null>}
+ */
+async function getLiuYaoRecord(id) {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM liuyao_records WHERE id = $1`,
+      [n],
+    );
+    return rows[0] || null;
+  } catch (err) {
+    console.error(
+      "[liuyaoStore] getLiuYaoRecord failed:",
+      err?.message || err,
+    );
+    return null;
+  }
+}
+
+/**
+ * 部分更新（PATCH pattern）— 只更新有傳的欄位
+ * @param {number|string} id
+ * @param {object} fields
+ * @param {string} [fields.querent_name]
+ * @param {boolean} [fields.is_verified]
+ * @param {string} [fields.admin_notes]
+ * @returns {Promise<boolean>} true = 更新成功；false = id 無效 / 沒欄位 / 找不到
+ */
+async function updateLiuYaoRecord(id, fields = {}) {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return false;
+
+  const sets = [];
+  const params = [];
+  if (typeof fields.querent_name === "string") {
+    params.push(fields.querent_name);
+    sets.push(`querent_name = $${params.length}`);
+  }
+  if (typeof fields.is_verified === "boolean") {
+    params.push(fields.is_verified);
+    sets.push(`is_verified = $${params.length}`);
+  }
+  if (typeof fields.admin_notes === "string") {
+    params.push(fields.admin_notes);
+    sets.push(`admin_notes = $${params.length}`);
+  }
+  if (sets.length === 0) return false;
+
+  sets.push("updated_at = NOW()");
+  params.push(n);
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE liuyao_records SET ${sets.join(", ")} WHERE id = $${params.length}`,
+      params,
+    );
+    return rowCount > 0;
+  } catch (err) {
+    console.error(
+      "[liuyaoStore] updateLiuYaoRecord failed:",
+      err?.message || err,
+    );
+    return false;
+  }
+}
+
 module.exports = {
   insertLiuYaoRecord,
+  listLiuYaoRecords,
+  getLiuYaoRecord,
+  updateLiuYaoRecord,
 };

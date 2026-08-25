@@ -873,7 +873,9 @@ const { canCastFortuneToday, recordFortuneDraw } = require("./fortuneStore.pg");
 const minibaziAdviceStore = require("./minibaziAdviceStore.pg");
 
 // 🌟 六爻卜卦紀錄持久化（送 AI 前資訊 + AI 回覆 → liuyao_records 表）
-const { insertLiuYaoRecord } = require("./liuyaoStore.pg");
+// - 用 namespace form 拿到 list / getOne / update，同時保留 insertLiuYaoRecord 的既有用法
+const liuyaoStore = require("./liuyaoStore.pg");
+const { insertLiuYaoRecord } = liuyaoStore;
 
 //AI 訊息回覆相關
 const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
@@ -4261,6 +4263,56 @@ app.put(
         notes: typeof notes === "string" ? notes : "",
         updatedBy: typeof updatedBy === "string" ? updatedBy : null,
       });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err?.message || err) });
+    }
+  },
+);
+
+//==========================================================
+// ✅ 六爻卜卦紀錄 admin API（liuyao_records 表）
+//    - GET  /api/admin/liuyao-records            分頁列表 + 搜尋 + verified filter
+//    - GET  /api/admin/liuyao-records/:id        完整單筆
+//    - PATCH /api/admin/liuyao-records/:id       只更新 querent_name / is_verified / admin_notes
+//    權限：requireAdmin
+//==========================================================
+app.get("/api/admin/liuyao-records", requireAdmin, async (req, res) => {
+  try {
+    const result = await liuyaoStore.listLiuYaoRecords({
+      page: Number(req.query.page) || 1,
+      pageSize: Number(req.query.pageSize) || 20,
+      q: String(req.query.q || ""),
+      verifiedOnly:
+        req.query.verified === "1" || req.query.verified === "true",
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/admin/liuyao-records/:id", requireAdmin, async (req, res) => {
+  try {
+    const row = await liuyaoStore.getLiuYaoRecord(req.params.id);
+    if (!row) return res.status(404).json({ error: "NOT_FOUND" });
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+app.patch(
+  "/api/admin/liuyao-records/:id",
+  requireAdmin,
+  express.json(),
+  async (req, res) => {
+    try {
+      const ok = await liuyaoStore.updateLiuYaoRecord(
+        req.params.id,
+        req.body || {},
+      );
+      if (!ok) return res.status(404).json({ error: "NOT_FOUND_OR_NO_FIELDS" });
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: String(err?.message || err) });
