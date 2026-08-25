@@ -111,6 +111,7 @@ async function listLiuYaoRecords({
             LEFT(ganzhi_text, 40) AS ganzhi_preview,
             LEFT(ai_response, 60) AS ai_preview,
             (admin_notes <> '') AS has_notes,
+            (shensha_notes <> '') AS has_shensha,
             created_at, updated_at
        FROM liuyao_records
        ${where}
@@ -170,6 +171,10 @@ async function updateLiuYaoRecord(id, fields = {}) {
   if (typeof fields.admin_notes === "string") {
     params.push(fields.admin_notes);
     sets.push(`admin_notes = $${params.length}`);
+  }
+  if (typeof fields.shensha_notes === "string") {
+    params.push(fields.shensha_notes);
+    sets.push(`shensha_notes = $${params.length}`);
   }
   if (sets.length === 0) return false;
 
