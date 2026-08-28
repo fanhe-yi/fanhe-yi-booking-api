@@ -112,6 +112,7 @@ async function listLiuYaoRecords({
             LEFT(ai_response, 60) AS ai_preview,
             (admin_notes <> '') AS has_notes,
             (shensha_notes <> '') AS has_shensha,
+            hex_data->>'gongli' AS gongli,
             created_at, updated_at
        FROM liuyao_records
        ${where}
