@@ -10,6 +10,22 @@
 
 const { pool } = require("./db");
 
+let ensuredSourceColumns = false;
+
+async function ensureLiuYaoRecordSourceColumns() {
+  if (ensuredSourceColumns) return;
+  await pool.query(`
+    ALTER TABLE liuyao_records
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'line_paid',
+      ADD COLUMN IF NOT EXISTS booking_id TEXT NOT NULL DEFAULT ''
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_liuyao_records_source_created
+      ON liuyao_records(source, created_at DESC)
+  `);
+  ensuredSourceColumns = true;
+}
+
 /**
  * 寫入一筆六爻紀錄。
  * @param {object} record
@@ -23,6 +39,8 @@ const { pool } = require("./db");
  * @param {string} [record.sixLinesText]  六爻六條
  * @param {object} [record.hexData]       原始 hexData（含 ganzhi / xunkong / 卦爻結構）
  * @param {string} [record.aiResponse]    AI 解讀全文
+ * @param {string} [record.source]        來源：line_paid / web_paid
+ * @param {string} [record.bookingId]     關聯預約 ID（Web 付款用）
  * @returns {Promise<{id: number} | null>}
  */
 async function insertLiuYaoRecord(record) {
@@ -31,12 +49,13 @@ async function insertLiuYaoRecord(record) {
     return null;
   }
   try {
+    await ensureLiuYaoRecordSourceColumns();
     const { rows } = await pool.query(
       `INSERT INTO liuyao_records
          (user_id, gender_text, topic_text, hex_code, ganzhi_text,
           phase_text, xunkong_text, six_lines_text,
-          hex_data, ai_response)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          hex_data, ai_response, source, booking_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         record.userId,
@@ -49,6 +68,8 @@ async function insertLiuYaoRecord(record) {
         record.sixLinesText || "",
         record.hexData || null,
         record.aiResponse || "",
+        record.source || "line_paid",
+        record.bookingId || "",
       ],
     );
     return { id: rows[0].id };

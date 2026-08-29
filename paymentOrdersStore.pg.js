@@ -4,21 +4,52 @@
 
 const { pool } = require("./db");
 
+let ensuredWebColumns = false;
+
+async function ensureWebPaymentColumns() {
+  if (ensuredWebColumns) return;
+  await pool.query(`
+    ALTER TABLE payment_orders
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'line_quota',
+      ADD COLUMN IF NOT EXISTS booking_id TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS meta JSONB
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_payment_orders_booking_id
+      ON payment_orders(booking_id)
+      WHERE booking_id <> ''
+  `);
+  ensuredWebColumns = true;
+}
+
 async function createPaymentOrder({
   merchantTradeNo,
   userId,
   feature,
   qty,
   amount,
+  source = "line_quota",
+  bookingId = "",
+  meta = null,
 }) {
+  await ensureWebPaymentColumns();
   await pool.query(
     `
     INSERT INTO payment_orders
-      (merchant_trade_no, user_id, feature, qty, amount, status, created_at)
+      (merchant_trade_no, user_id, feature, qty, amount, status, source, booking_id, meta, created_at)
     VALUES
-      ($1, $2, $3, $4, $5, 'INIT', NOW())
+      ($1, $2, $3, $4, $5, 'INIT', $6, $7, $8, NOW())
     `,
-    [merchantTradeNo, userId, feature, qty, amount]
+    [
+      merchantTradeNo,
+      userId,
+      feature,
+      qty,
+      amount,
+      source,
+      bookingId,
+      meta ? JSON.stringify(meta) : null,
+    ]
   );
   return { merchantTradeNo };
 }

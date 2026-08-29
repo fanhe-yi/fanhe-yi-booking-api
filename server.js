@@ -876,6 +876,7 @@ const minibaziAdviceStore = require("./minibaziAdviceStore.pg");
 // - 用 namespace form 拿到 list / getOne / update，同時保留 insertLiuYaoRecord 的既有用法
 const liuyaoStore = require("./liuyaoStore.pg");
 const { insertLiuYaoRecord } = liuyaoStore;
+const { consumeDailyFreeUse } = require("./webLiuYaoUsage.pg");
 
 //AI 訊息回覆相關
 const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
@@ -990,6 +991,10 @@ const PRICE_MAP = {
   bazimatch: 99,
 };
 
+const WEB_BOOKING_PRICE_MAP = {
+  liuyao: 600,
+};
+
 function genMerchantTradeNo() {
   return `FH${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
@@ -1046,6 +1051,75 @@ function generateCheckMacValue(params, hashKey, hashIV, algo = "sha256") {
     .replace(/%29/g, ")");
 
   return crypto.createHash(algo).update(encoded).digest("hex").toUpperCase();
+}
+
+function buildEcpayCheckoutParams({
+  merchantTradeNo,
+  amount,
+  tradeDesc,
+  itemName,
+  customField1 = "",
+  customField2 = "",
+  customField3 = "",
+  clientBackUrl,
+}) {
+  const MerchantID = process.env.ECPAY_MERCHANT_ID;
+  const HashKey = process.env.ECPAY_HASH_KEY;
+  const HashIV = process.env.ECPAY_HASH_IV;
+  const BASE_URL = process.env.BASE_URL;
+
+  if (!MerchantID || !HashKey || !HashIV || !BASE_URL) {
+    throw new Error("ECPAY_MISCONFIG");
+  }
+
+  const params = {
+    MerchantID,
+    MerchantTradeNo: merchantTradeNo,
+    MerchantTradeDate: formatEcpayDate(),
+    PaymentType: "aio",
+    TotalAmount: amount,
+    TradeDesc: tradeDesc,
+    ItemName: itemName,
+    ChoosePayment: "Credit",
+    ReturnURL: `${BASE_URL}/ecpay/return`,
+    ClientBackURL: clientBackUrl || `${BASE_URL}/pay/success`,
+    CustomField1: customField1,
+    CustomField2: customField2,
+    CustomField3: customField3,
+    EncryptType: 1,
+  };
+
+  params.CheckMacValue = generateCheckMacValue(
+    params,
+    HashKey,
+    HashIV,
+    "sha256",
+  );
+
+  return params;
+}
+
+function sendEcpayAutoSubmit(res, params) {
+  const ecpayUrl = "https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5";
+  const inputs = Object.entries(params)
+    .map(([k, v]) => {
+      const safeVal = String(v ?? "").replace(/"/g, "&quot;");
+      return `<input type="hidden" name="${k}" value="${safeVal}" />`;
+    })
+    .join("\n");
+
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.send(`
+    <html>
+      <body>
+        <p>正在前往付款頁...</p>
+        <form id="f" method="post" action="${ecpayUrl}">
+          ${inputs}
+        </form>
+        <script>document.getElementById('f').submit();</script>
+      </body>
+    </html>
+  `);
 }
 
 // ==========================
@@ -1311,6 +1385,26 @@ function saveBookings(bookings) {
   } catch (err) {
     console.error("寫入 bookings.json 發生錯誤：", err);
   }
+}
+
+function findBookingById(bookingId) {
+  const id = String(bookingId || "");
+  if (!id) return null;
+  return loadBookings().find((b) => String(b.id) === id) || null;
+}
+
+function patchBookingById(bookingId, patch) {
+  const id = String(bookingId || "");
+  const bookings = loadBookings();
+  const idx = bookings.findIndex((b) => String(b.id) === id);
+  if (idx < 0) return null;
+  bookings[idx] = {
+    ...bookings[idx],
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  saveBookings(bookings);
+  return bookings[idx];
 }
 
 // 讀取不開放設定（沒有檔案時回傳預設空物件）
@@ -3435,22 +3529,211 @@ app.get("/api/slots", (req, res) => {
   res.json(slots);
 });
 
+app.post("/api/liuyao/free-reading", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const visitorId = String(body.visitorId || "").trim();
+    const topicText = String(body.topicText || "").trim();
+    const prayerKey = String(body.prayerKey || "daoist").trim();
+    const hexCode = String(body.hexCode || "").trim();
+    const gender = normalizeWebGender(body.gender);
+    const timeParams = parseWebLiuYaoTime({
+      timeMode: body.timeMode,
+      questionTime: body.questionTime,
+      customTime: body.customTime,
+    });
+
+    if (!/^[a-zA-Z0-9_-]{16,80}$/.test(visitorId)) {
+      return res.status(400).json({ error: "INVALID_VISITOR_ID" });
+    }
+    if (!topicText || topicText.length > 120) {
+      return res.status(400).json({ error: "INVALID_TOPIC" });
+    }
+    if (!gender) {
+      return res.status(400).json({ error: "INVALID_GENDER" });
+    }
+    if (!/^[0-3]{6}$/.test(hexCode)) {
+      return res.status(400).json({ error: "INVALID_HEX_CODE" });
+    }
+    if (!timeParams) {
+      return res.status(400).json({ error: "INVALID_TIME" });
+    }
+    if (!["daoist", "buddhist", "christian", "guardian"].includes(prayerKey)) {
+      return res.status(400).json({ error: "INVALID_PRAYER" });
+    }
+
+    const usage = await consumeDailyFreeUse(visitorId);
+    if (!usage.ok) {
+      return res.status(429).json({ error: usage.reason || "DAILY_LIMIT_REACHED" });
+    }
+
+    const hexData = await getLiuYaoHexagram({
+      y: timeParams.y,
+      m: timeParams.m,
+      d: timeParams.d,
+      h: timeParams.h,
+      mi: timeParams.mi,
+      yy: hexCode,
+    });
+
+    const ai = await callLiuYaoFreeAI({
+      genderText: gender.text,
+      topicText,
+      hexCode,
+      hexData,
+      timeDesc: timeParams.desc,
+    });
+
+    res.json({
+      ok: true,
+      source: "web_free",
+      topicText,
+      gender: gender.value,
+      genderText: gender.text,
+      prayerKey,
+      hexCode,
+      time: timeParams,
+      createdAt: new Date().toISOString(),
+      hexData,
+      ganzhiText: ai.ganzhiText,
+      phaseText: ai.phaseText,
+      xunkongText: ai.xunkongText,
+      sixLinesText: ai.sixLinesText,
+      ai: {
+        summary: ai.summary,
+        fullText: ai.fullText,
+      },
+    });
+  } catch (err) {
+    console.error("[web liuyao free] error:", err);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+function normalizeWebLiuYaoBookingContext(input) {
+  if (!input || typeof input !== "object") return null;
+  const topicText = String(input.topicText || "").trim();
+  const hexCode = String(input.hexCode || "").trim();
+  const gender = normalizeWebGender(input.gender);
+  const timeMode = String(input.timeMode || "").trim();
+  const prayerKey = String(input.prayerKey || "daoist").trim();
+  const customTime = String(input.customTime || "").trim();
+  const questionTime = String(input.questionTime || "").trim();
+
+  if (!topicText || topicText.length > 120) return null;
+  if (!/^[0-3]{6}$/.test(hexCode)) return null;
+  if (!gender) return null;
+  if (!["now", "custom"].includes(timeMode)) return null;
+  if (!["daoist", "buddhist", "christian", "guardian"].includes(prayerKey)) {
+    return null;
+  }
+
+  const timeParams = parseWebLiuYaoTime({ timeMode, questionTime, customTime });
+  if (!timeParams) return null;
+
+  return {
+    topicText,
+    hexCode,
+    gender: gender.value,
+    genderText: gender.text,
+    timeMode,
+    questionTime,
+    customTime,
+    prayerKey,
+    timeDesc: timeParams.desc,
+  };
+}
+
+function buildWebLiuYaoBookingNote(existingNote, context) {
+  const base = String(existingNote || "").trim();
+  if (base.includes("【網頁六爻卜卦】")) return base;
+  const ctxLines = [
+    "【網頁六爻卜卦】",
+    `問題：${context.topicText}`,
+    `性別：${context.genderText}`,
+    `起卦碼：${context.hexCode}`,
+    `起卦時間：${context.timeDesc}`,
+    `請神文：${context.prayerKey}`,
+  ].join("\n");
+
+  return base ? `${base}\n\n${ctxLines}` : ctxLines;
+}
+
 // 接收預約資料，新增預約，並檢查是否衝突（給前端表單用）
-app.post("/api/bookings", (req, res) => {
+app.post("/api/bookings", async (req, res) => {
   console.log("收到一筆預約（來自前端）：");
   console.log(req.body);
 
   const bookings = loadBookings();
+  const isWebLiuYaoPaid =
+    req.body?.source === "liuyao_web_free_cta" &&
+    req.body?.serviceId === "liuyao";
+  const liuyaoContext = isWebLiuYaoPaid
+    ? normalizeWebLiuYaoBookingContext(req.body?.liuyaoContext)
+    : null;
+
+  if (isWebLiuYaoPaid && !liuyaoContext) {
+    return res.status(400).json({
+      success: false,
+      message: "六爻卜卦資料不完整，請回結果頁重新送出預約。",
+    });
+  }
 
   const newBooking = {
     id: Date.now(),
     createdAt: new Date().toISOString(),
-    status: "pending",
     ...req.body,
+    status: isWebLiuYaoPaid ? "pending_payment" : "pending",
+    note: isWebLiuYaoPaid
+      ? buildWebLiuYaoBookingNote(req.body?.note, liuyaoContext)
+      : req.body?.note,
+    liuyaoContext: liuyaoContext || req.body?.liuyaoContext || null,
   };
 
   bookings.push(newBooking);
   saveBookings(bookings);
+
+  if (isWebLiuYaoPaid) {
+    try {
+      if (!process.env.BASE_URL) {
+        throw new Error("BASE_URL_MISSING");
+      }
+      const merchantTradeNo = genMerchantTradeNo();
+      const amount = WEB_BOOKING_PRICE_MAP.liuyao;
+      await paymentOrders.createPaymentOrder({
+        merchantTradeNo,
+        userId: `web_booking:${newBooking.id}`,
+        feature: "liuyao",
+        qty: 1,
+        amount,
+        source: "web_liuyao_paid",
+        bookingId: String(newBooking.id),
+        meta: {
+          bookingId: String(newBooking.id),
+          liuyaoContext,
+          contact: newBooking.contact || "",
+          name: newBooking.name || "",
+        },
+      });
+
+      return res.json({
+        success: true,
+        requiresPayment: true,
+        message: "預約已建立，請完成付款後由老師正式解卦。",
+        bookingId: newBooking.id,
+        paymentUrl: `${process.env.BASE_URL}/pay/order/${encodeURIComponent(
+          merchantTradeNo,
+        )}`,
+      });
+    } catch (err) {
+      console.error("[web liuyao booking payment] create order failed:", err);
+      patchBookingById(newBooking.id, { status: "payment_init_failed" });
+      return res.status(500).json({
+        success: false,
+        message: "付款單建立失敗，請稍後再試。",
+      });
+    }
+  }
 
   console.log(">>> 準備呼叫 notifyNewBooking()");
   notifyNewBooking(newBooking)
@@ -5387,6 +5670,41 @@ app.get("/pay", async (req, res) => {
   }
 });
 
+app.get("/pay/order/:merchantTradeNo", async (req, res) => {
+  try {
+    const merchantTradeNo = String(req.params.merchantTradeNo || "").trim();
+    const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
+    if (!order || order.status !== "INIT") {
+      res.status(404).send("Payment order not found or expired");
+      return;
+    }
+
+    if (order.source !== "web_liuyao_paid") {
+      res.status(400).send("Unsupported payment order");
+      return;
+    }
+
+    const BASE_URL = process.env.BASE_URL;
+    const params = buildEcpayCheckoutParams({
+      merchantTradeNo,
+      amount: Number(order.amount || WEB_BOOKING_PRICE_MAP.liuyao),
+      tradeDesc: "六爻老師解卦預約",
+      itemName: "六爻老師解卦 x 1",
+      customField1: String(order.booking_id || ""),
+      customField2: "web_liuyao_paid",
+      customField3: "1",
+      clientBackUrl: `${BASE_URL}/pay/success?type=web_liuyao&bookingId=${encodeURIComponent(
+        order.booking_id || "",
+      )}`,
+    });
+
+    sendEcpayAutoSubmit(res, params);
+  } catch (err) {
+    console.error("[pay/order] error:", err);
+    res.status(500).send("Server Error");
+  }
+});
+
 // ==========================
 // ✅ 金流：綠界付款結果回呼（ReturnURL）
 // 用途：綠界付款完成後 POST 回來 → 驗證 CheckMacValue → INIT→PAID → 補 quota
@@ -5448,6 +5766,12 @@ app.post(
       // ⑤ 讀訂單內容 → 補 quota + 推播通知
       const order = await paymentOrders.getPaymentOrder(merchantTradeNo);
       if (order) {
+        if (order.source === "web_liuyao_paid") {
+          await completeWebLiuYaoPaidOrder(order);
+          res.send("1|OK");
+          return;
+        }
+
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
 
         ////以下為付款後做的事------------
@@ -5464,6 +5788,8 @@ app.post(
           order.feature === "bazimatch"
         ) {
           await sendServiceIntroFlex(order.user_id, "bazimatch");
+        } else if (order.feature === "六爻占卜" || order.feature === "liuyao") {
+          await sendServiceIntroFlex(order.user_id, "liuyao");
         } else {
           // 萬一未來有其他新服務，留個備用的基本通知
           await pushText(
@@ -5495,6 +5821,24 @@ app.post(
 app.get("/pay/success", (req, res) => {
   const officialLineUrl =
     process.env.OFFICIAL_LINE_URL || "line://ti/p/@415kfyus";
+  const isWebLiuYao = req.query.type === "web_liuyao";
+  const title = isWebLiuYao ? "預約已成立" : "付款完成";
+  const bodyHtml = isWebLiuYao
+    ? `
+          <h2>✅ 預約已成立</h2>
+          <p>付款已完成，老師會依照你留下的聯絡方式回覆正式解卦安排。</p>
+          <p>你可以關閉此視窗，保留剛剛填寫的聯絡方式即可。</p>
+          <p class="hint">老師版解卦不會顯示在此頁，避免資料外流或誤讀。</p>
+        `
+    : `
+          <h2>✅ 付款完成</h2>
+          <p>你可以關閉此視窗，回到 LINE 繼續使用服務。</p>
+          <p>或點擊下方按鈕返回 LINE。</p>
+
+          <a class="btn" href="${officialLineUrl}">回到 LINE</a>
+
+          <p class="hint">若未自動跳回，請手動關閉此頁並回到 LINE 對話。</p>
+        `;
 
   res.set("Content-Type", "text/html; charset=utf-8");
   res.send(`
@@ -5503,7 +5847,7 @@ app.get("/pay/success", (req, res) => {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>付款完成</title>
+        <title>${title}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", Arial, "PingFang TC", sans-serif;
                  background:#f6f7fb; margin:0; padding:24px; }
@@ -5518,13 +5862,7 @@ app.get("/pay/success", (req, res) => {
       </head>
       <body>
         <div class="card">
-          <h2>✅ 付款完成</h2>
-          <p>你可以關閉此視窗，回到 LINE 繼續使用服務。</p>
-          <p>或點擊下方按鈕返回 LINE。</p>
-
-          <a class="btn" href="${officialLineUrl}">回到 LINE</a>
-
-          <p class="hint">若未自動跳回，請手動關閉此頁並回到 LINE 對話。</p>
+          ${bodyHtml}
         </div>
       </body>
     </html>
@@ -5731,6 +6069,163 @@ function buildLiuYaoTimeParams(state) {
   }
 
   return { y, m, d, h, mi, desc };
+}
+
+function normalizeWebGender(gender) {
+  if (gender === "male") return { value: "male", text: "男命" };
+  if (gender === "female") return { value: "female", text: "女命" };
+  return null;
+}
+
+function parseWebLiuYaoTime({ timeMode, questionTime, customTime }) {
+  if (timeMode === "now") {
+    const d = questionTime ? new Date(questionTime) : new Date();
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (n) => String(n).padStart(2, "0");
+    return {
+      y: d.getFullYear(),
+      m: d.getMonth() + 1,
+      d: d.getDate(),
+      h: d.getHours(),
+      mi: d.getMinutes(),
+      desc: `起卦時間（現在）：${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    };
+  }
+
+  if (timeMode !== "custom") return null;
+
+  const raw = String(customTime || "").trim();
+  if (!raw) return null;
+
+  const isoLike = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})$/,
+  );
+  if (isoLike) {
+    const [, yy, mm, dd, hh, minute] = isoLike;
+    const y = Number(yy);
+    const m = Number(mm);
+    const d = Number(dd);
+    const h = Number(hh);
+    const mi = Number(minute);
+    if (h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+    const check = new Date(y, m - 1, d, h, mi);
+    if (
+      check.getFullYear() !== y ||
+      check.getMonth() + 1 !== m ||
+      check.getDate() !== d
+    ) {
+      return null;
+    }
+    return {
+      y,
+      m,
+      d,
+      h,
+      mi,
+      desc: `起卦時間（指定）：${yy}-${mm}-${dd} ${hh}:${minute}`,
+    };
+  }
+
+  const birth = parseMiniBirthInput(raw);
+  if (!birth || !birth.date || birth.timeType === "unknown") return null;
+  const state = {
+    data: {
+      timeMode: "custom",
+      customBirth: birth,
+    },
+  };
+  return buildLiuYaoTimeParams(state);
+}
+
+function buildLiuYaoTechnicalTexts(hexData) {
+  const gzArr = Array.isArray(hexData?.ganzhi) ? hexData.ganzhi : [];
+  const gzLabels = ["年", "月", "日", "時"];
+  const ganzhiText = gzArr.length
+    ? gzArr
+        .slice(0, 4)
+        .map((v, i) => `${v}${gzLabels[i] || ""}`)
+        .join("，")
+    : "（干支資料缺失）";
+
+  let phaseText = "";
+  try {
+    const phase = buildElementPhase(gzArr);
+    phaseText = phase?.text || "";
+  } catch (e) {
+    phaseText = "";
+  }
+
+  const xk = Array.isArray(hexData?.xunkong) ? hexData.xunkong[2] : "";
+  const xunkongText = xk ? `旬空：${xk}空` : "";
+  const sixLinesText = describeSixLines(hexData);
+
+  return { ganzhiText, phaseText, xunkongText, sixLinesText };
+}
+
+function splitFreeLiuYaoAiText(aiText) {
+  const text = String(aiText || "").trim();
+  if (!text) {
+    return {
+      summary: "這一卦已成立。建議先把問題收斂成一件事，再看目前阻力與下一步行動。",
+      fullText: "",
+    };
+  }
+
+  const summaryMatch = text.match(/(?:摘要|重點|簡要結論)[：:\s]*([\s\S]*?)(?:\n\s*\n|(?:\n#{1,6}\s)|$)/);
+  const summary = summaryMatch
+    ? summaryMatch[1].trim().slice(0, 220)
+    : text
+        .split(/\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("\n")
+        .slice(0, 220);
+
+  return { summary, fullText: text };
+}
+
+async function callLiuYaoFreeAI({
+  genderText,
+  topicText,
+  hexCode,
+  hexData,
+  timeDesc,
+}) {
+  const { ganzhiText, phaseText, xunkongText, sixLinesText } =
+    buildLiuYaoTechnicalTexts(hexData);
+
+  const systemPrompt =
+    "你是六爻占卜的簡易解讀助理。回覆要務實、溫和、清楚，不恐嚇、不宿命論，不假裝能替代真人老師。請用繁體中文。";
+
+  const userPrompt =
+    `提問者：${genderText}\n` +
+    `問題：${topicText}\n` +
+    `起卦碼：${hexCode}\n` +
+    `${timeDesc || ""}\n` +
+    `${ganzhiText}\n` +
+    (phaseText ? `${phaseText}\n` : "") +
+    (xunkongText ? `${xunkongText}\n` : "") +
+    `\n${sixLinesText}\n\n` +
+    "請輸出：\n" +
+    "1. 簡要結論：80字內。\n" +
+    "2. 目前狀態：2到3句。\n" +
+    "3. 接下來提醒：2到3句。\n" +
+    "4. 若要精準判斷，建議預約老師正式解卦。\n" +
+    "整體不超過450字，少用術語。";
+
+  const aiText = await AI_Reading(userPrompt, systemPrompt);
+  const parsed = splitFreeLiuYaoAiText(aiText);
+
+  return {
+    ...parsed,
+    userPrompt,
+    systemPrompt,
+    ganzhiText,
+    phaseText,
+    xunkongText,
+    sixLinesText,
+  };
 }
 
 // 中文指令 → section key 對照表
@@ -9334,6 +9829,8 @@ async function callLiuYaoAI({
   topicText,
   hexCode,
   hexData,
+  source = "line_paid",
+  bookingId = "",
 }) {
   // 1) 基本資料
   const gzArr = (hexData && hexData.ganzhi) || [];
@@ -9414,7 +9911,7 @@ async function callLiuYaoAI({
      - store 內部已 try/catch，這裡 .catch 是雙保險
      - schema：migrations/003_liuyao_records.sql
   ============================================ */
-  insertLiuYaoRecord({
+  const record = await insertLiuYaoRecord({
     userId,
     genderText,
     topicText,
@@ -9425,11 +9922,88 @@ async function callLiuYaoAI({
     sixLinesText,
     hexData,
     aiResponse: aiText,
-  }).catch((err) => {
-    console.error("[liuyao] record insert unexpected error:", err);
+    source,
+    bookingId,
   });
 
-  return { aiText, userPrompt, systemPrompt };
+  return { aiText, userPrompt, systemPrompt, recordId: record?.id || null };
+}
+
+async function completeWebLiuYaoPaidOrder(order) {
+  const bookingId = String(order.booking_id || order.meta?.bookingId || "");
+  const booking = findBookingById(bookingId);
+  if (!booking) {
+    console.error("[web liuyao paid] booking not found:", bookingId);
+    return;
+  }
+
+  const context =
+    normalizeWebLiuYaoBookingContext(booking.liuyaoContext) ||
+    normalizeWebLiuYaoBookingContext(order.meta?.liuyaoContext);
+  if (!context) {
+    console.error("[web liuyao paid] invalid context:", bookingId);
+    patchBookingById(bookingId, { status: "paid_context_invalid" });
+    return;
+  }
+
+  const timeParams = parseWebLiuYaoTime({
+    timeMode: context.timeMode,
+    questionTime: context.questionTime,
+    customTime: context.customTime,
+  });
+  if (!timeParams) {
+    console.error("[web liuyao paid] invalid time:", bookingId);
+    patchBookingById(bookingId, { status: "paid_context_invalid" });
+    return;
+  }
+
+  const paidBooking = patchBookingById(bookingId, {
+    status: "paid",
+    paidAt: new Date().toISOString(),
+    paymentMerchantTradeNo: order.merchant_trade_no,
+  });
+
+  const hexData = await getLiuYaoHexagram({
+    y: timeParams.y,
+    m: timeParams.m,
+    d: timeParams.d,
+    h: timeParams.h,
+    mi: timeParams.mi,
+    yy: context.hexCode,
+  });
+
+  const { aiText, recordId } = await callLiuYaoAI({
+    userId: `web:${bookingId}`,
+    genderText: context.genderText,
+    topicText: context.topicText,
+    hexCode: context.hexCode,
+    hexData,
+    source: "web_paid",
+    bookingId,
+  });
+
+  patchBookingById(bookingId, {
+    liuyaoRecordId: recordId,
+    liuyaoTeacherAiCreatedAt: new Date().toISOString(),
+  });
+
+  const b = paidBooking || booking;
+  const adminMsg =
+    `【網頁六爻付費新單】\n` +
+    `bookingId：${bookingId}\n` +
+    `recordId：${recordId || "（寫入失敗，請查 log）"}\n` +
+    `姓名：${b.name || "（未填）"}\n` +
+    `聯絡方式：${b.contact || b.phone || b.email || b.lineId || "（未填）"}\n` +
+    `預約：${b.date || "（未選日期）"} ${Array.isArray(b.timeSlots) ? b.timeSlots.join("、") : b.timeSlot || ""}\n` +
+    `提問：${context.topicText}\n` +
+    `性別：${context.genderText}\n` +
+    `起卦時間：${context.timeDesc}\n` +
+    `起卦碼：${context.hexCode}\n` +
+    `本卦：${hexData?.bengua || "（缺）"}\n` +
+    `變卦：${hexData?.biangua || "（缺）"}\n\n` +
+    `【老師版 AI 解卦】\n${aiText}`;
+
+  await pushText(ADMIN_LIUYAO_USER_ID, adminMsg);
 }
 
 /***************************************
