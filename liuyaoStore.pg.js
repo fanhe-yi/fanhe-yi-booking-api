@@ -217,9 +217,33 @@ async function updateLiuYaoRecord(id, fields = {}) {
   }
 }
 
+/**
+ * 硬刪一筆紀錄
+ * @param {number|string} id
+ * @returns {Promise<boolean>} true = 有刪到；false = id 無效 / 找不到
+ */
+async function deleteLiuYaoRecord(id) {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return false;
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM liuyao_records WHERE id = $1`,
+      [n],
+    );
+    return rowCount > 0;
+  } catch (err) {
+    console.error(
+      "[liuyaoStore] deleteLiuYaoRecord failed:",
+      err?.message || err,
+    );
+    return false;
+  }
+}
+
 module.exports = {
   insertLiuYaoRecord,
   listLiuYaoRecords,
   getLiuYaoRecord,
   updateLiuYaoRecord,
+  deleteLiuYaoRecord,
 };

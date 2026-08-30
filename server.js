@@ -4621,6 +4621,20 @@ app.patch(
   },
 );
 
+app.delete(
+  "/api/admin/liuyao-records/:id",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const ok = await liuyaoStore.deleteLiuYaoRecord(req.params.id);
+      if (!ok) return res.status(404).json({ error: "NOT_FOUND" });
+      res.json({ ok: true, id: Number(req.params.id) });
+    } catch (err) {
+      res.status(500).json({ error: String(err?.message || err) });
+    }
+  },
+);
+
 //==========================================================
 // ✅ Articles 後台管理 API：文章列表（含 tag 篩選 / 關鍵字搜尋 / 狀態篩選）
 // GET /api/admin/articles
