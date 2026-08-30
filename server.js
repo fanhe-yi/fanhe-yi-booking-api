@@ -3659,6 +3659,11 @@ function buildWebLiuYaoBookingNote(existingNote, context) {
   return base ? `${base}\n\n${ctxLines}` : ctxLines;
 }
 
+function isValidBookingEmail(email) {
+  const s = String(email || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 // 接收預約資料，新增預約，並檢查是否衝突（給前端表單用）
 app.post("/api/bookings", async (req, res) => {
   console.log("收到一筆預約（來自前端）：");
@@ -3677,6 +3682,16 @@ app.post("/api/bookings", async (req, res) => {
       success: false,
       message: "六爻卜卦資料不完整，請回結果頁重新送出預約。",
     });
+  }
+  if (isWebLiuYaoPaid) {
+    const name = String(req.body?.name || "").trim();
+    const email = String(req.body?.email || "").trim();
+    if (!name || !isValidBookingEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "預約老師解卦需填寫姓名與有效 Email，方便老師後續聯絡。",
+      });
+    }
   }
 
   const newBooking = {
@@ -3713,6 +3728,9 @@ app.post("/api/bookings", async (req, res) => {
           liuyaoContext,
           contact: newBooking.contact || "",
           name: newBooking.name || "",
+          email: newBooking.email || "",
+          phone: newBooking.phone || "",
+          lineId: newBooking.lineId || "",
         },
       });
 
@@ -9993,7 +10011,10 @@ async function completeWebLiuYaoPaidOrder(order) {
     `bookingId：${bookingId}\n` +
     `recordId：${recordId || "（寫入失敗，請查 log）"}\n` +
     `姓名：${b.name || "（未填）"}\n` +
-    `聯絡方式：${b.contact || b.phone || b.email || b.lineId || "（未填）"}\n` +
+    `Email：${b.email || order.meta?.email || "（未填）"}\n` +
+    `電話：${b.phone || order.meta?.phone || "（未填）"}\n` +
+    `LINE：${b.lineId || order.meta?.lineId || "（未填）"}\n` +
+    `聯絡彙整：${b.contact || order.meta?.contact || "（未填）"}\n` +
     `預約：${b.date || "（未選日期）"} ${Array.isArray(b.timeSlots) ? b.timeSlots.join("、") : b.timeSlot || ""}\n` +
     `提問：${context.topicText}\n` +
     `性別：${context.genderText}\n` +
