@@ -1062,6 +1062,7 @@ function buildEcpayCheckoutParams({
   customField2 = "",
   customField3 = "",
   clientBackUrl,
+  orderResultUrl,
 }) {
   const MerchantID = process.env.ECPAY_MERCHANT_ID;
   const HashKey = process.env.ECPAY_HASH_KEY;
@@ -1088,6 +1089,9 @@ function buildEcpayCheckoutParams({
     CustomField3: customField3,
     EncryptType: 1,
   };
+  if (orderResultUrl) {
+    params.OrderResultURL = orderResultUrl;
+  }
 
   params.CheckMacValue = generateCheckMacValue(
     params,
@@ -5717,6 +5721,9 @@ app.get("/pay/order/:merchantTradeNo", async (req, res) => {
     }
 
     const BASE_URL = process.env.BASE_URL;
+    const successUrl = `${BASE_URL}/pay/success?type=web_liuyao&bookingId=${encodeURIComponent(
+      order.booking_id || "",
+    )}`;
     const params = buildEcpayCheckoutParams({
       merchantTradeNo,
       amount: Number(order.amount || WEB_BOOKING_PRICE_MAP.liuyao),
@@ -5725,9 +5732,8 @@ app.get("/pay/order/:merchantTradeNo", async (req, res) => {
       customField1: String(order.booking_id || ""),
       customField2: "web_liuyao_paid",
       customField3: "1",
-      clientBackUrl: `${BASE_URL}/pay/success?type=web_liuyao&bookingId=${encodeURIComponent(
-        order.booking_id || "",
-      )}`,
+      clientBackUrl: successUrl,
+      orderResultUrl: successUrl,
     });
 
     sendEcpayAutoSubmit(res, params);
@@ -5848,9 +5854,9 @@ app.post(
 
 // ==========================
 // ✅ 付款完成導引頁（給使用者看的）
-// 用途：綠界付款完成後，ClientBackURL 會把使用者導回這頁
+// 用途：綠界付款完成後，ClientBackURL / OrderResultURL 會把使用者導回這頁
 // ==========================
-app.get("/pay/success", (req, res) => {
+function renderPaySuccessPage(req, res) {
   const officialLineUrl =
     process.env.OFFICIAL_LINE_URL || "line://ti/p/@415kfyus";
   const isWebLiuYao = req.query.type === "web_liuyao";
@@ -5859,6 +5865,7 @@ app.get("/pay/success", (req, res) => {
     ? `
           <h2>✅ 預約已成立</h2>
           <p>付款已完成，老師會依照你留下的聯絡方式回覆正式解卦安排。</p>
+          <p>系統會以綠界付款通知為準建立老師版解卦資料。</p>
           <p>你可以關閉此視窗，保留剛剛填寫的聯絡方式即可。</p>
           <p class="hint">老師版解卦不會顯示在此頁，避免資料外流或誤讀。</p>
         `
@@ -5899,7 +5906,10 @@ app.get("/pay/success", (req, res) => {
       </body>
     </html>
   `);
-});
+}
+
+app.get("/pay/success", renderPaySuccessPage);
+app.post("/pay/success", express.urlencoded({ extended: true }), renderPaySuccessPage);
 
 // LINE Webhook 入口
 app.post("/line/webhook", async (req, res) => {
