@@ -3560,7 +3560,7 @@ app.post("/api/tools/bazi/chart", async (req, res) => {
 
 app.post("/api/tools/ziwei/chart", async (req, res) => {
   try {
-    const chart = createZiweiChart(req.body || {});
+    const chart = await createZiweiChart(req.body || {});
     res.json(chart);
   } catch (err) {
     if (err?.status === 400) {

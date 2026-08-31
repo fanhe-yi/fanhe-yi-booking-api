@@ -4,8 +4,6 @@ const { baziService } = require("mingpan/dist/services/bazi/index.js");
 
 const toTW = OpenCC.Converter({ from: "cn", to: "tw" });
 
-const STEMS = "甲乙丙丁戊己庚辛壬癸".split("");
-const BRANCHES = "子丑寅卯辰巳午未申酉戌亥".split("");
 const FIVE_ELEMENT_MAP = {
   甲: "木",
   乙: "木",
@@ -31,6 +29,13 @@ const FIVE_ELEMENT_MAP = {
   亥: "水",
 };
 
+const ZIWEI_GRID_BRANCHES = [
+  ["巳", "午", "未", "申"],
+  ["辰", null, null, "酉"],
+  ["卯", null, null, "戌"],
+  ["寅", "丑", "子", "亥"],
+];
+
 const SHICHEN_OPTIONS = [
   { key: "zi_early", branch: "子", hour: 0, minute: 0, label: "子時", range: "00:00-00:59" },
   { key: "chou", branch: "丑", hour: 1, minute: 0, label: "丑時", range: "01:00-02:59" },
@@ -50,6 +55,10 @@ const SHICHEN_OPTIONS = [
 function tw(value) {
   if (value === null || value === undefined) return "";
   return toTW(String(value));
+}
+
+function earthly(value) {
+  return tw(value).replace(/醜/g, "丑");
 }
 
 function normalizeGender(value) {
@@ -108,13 +117,116 @@ function normalizeBirthInput(input) {
   };
 }
 
-function toGanZhi(chartPillar) {
-  if (!chartPillar) return "";
-  return `${tw(chartPillar.stem)}${tw(chartPillar.branch)}`;
-}
-
 function elementOf(ch) {
   return FIVE_ELEMENT_MAP[ch] || "";
+}
+
+function uniqueTruthy(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function virtualAge(birth) {
+  return Math.max(1, new Date().getFullYear() - Number(birth.year) + 1);
+}
+
+function findCurrentRange(items, age) {
+  return (items || []).find((item) => {
+    const range = Array.isArray(item.decadal?.range)
+      ? item.decadal.range
+      : [item.startAge, item.endAge];
+    const start = Number(range?.[0]);
+    const end = Number(range?.[1]);
+    return Number.isFinite(start) && Number.isFinite(end) && age >= start && age <= end;
+  });
+}
+
+function fiveElementSummary(fiveElements = [], balance = null) {
+  const sorted = [...fiveElements].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const strongest = sorted[0]?.name || "";
+  const weakest = sorted[sorted.length - 1]?.name || "";
+  const missing = sorted.filter((item) => Number(item.value || 0) === 0).map((item) => item.name);
+  const balanceText = balance?.type ? tw(balance.type) : "";
+  return {
+    strongest,
+    weakest,
+    missing,
+    balanceText,
+    line: [
+      strongest ? `偏顯：${strongest}` : "",
+      missing.length ? `未見：${missing.join("、")}` : weakest ? `相對少：${weakest}` : "",
+      balanceText ? `平衡：${balanceText}` : "",
+    ].filter(Boolean).join("；"),
+  };
+}
+
+function buildBaziGuide(chart) {
+  const visibleTenGods = uniqueTruthy(
+    (chart.pillars || []).map((pillar) => (pillar.tenGod === "日主" ? "" : pillar.tenGod)),
+  );
+  const hiddenStems = uniqueTruthy(
+    (chart.pillars || []).flatMap((pillar) =>
+      (pillar.hiddenStems || []).map((stem) => `${stem.stem}${stem.tenGod ? ` ${stem.tenGod}` : ""}`),
+    ),
+  ).slice(0, 8);
+  const elementInfo = fiveElementSummary(chart.fiveElements, chart.fiveElementBalance);
+  const age = virtualAge(chart.birth);
+  const currentDayun = findCurrentRange(chart.dayun, age);
+
+  return [
+    {
+      title: "日主",
+      body: `此盤日主為 ${chart.dayMaster}${chart.dayMasterElement || ""}，八字解讀會以日主作為核心，再看月令、四柱十神與五行生剋。`,
+    },
+    {
+      title: "五行",
+      body: elementInfo.line
+        ? `五行分布可先看盤面的氣勢與偏枯方向，本盤${elementInfo.line}。`
+        : "五行分布用來觀察盤面氣勢，需再配合季節、藏干與大運判斷。",
+    },
+    {
+      title: "十神",
+      body: visibleTenGods.length
+        ? `天干可見十神有 ${visibleTenGods.join("、")}，代表盤面外顯的關係與事件入口。`
+        : "此盤天干十神資訊較少，需多看地支藏干與大運引動。",
+    },
+    {
+      title: "藏干",
+      body: hiddenStems.length
+        ? `地支藏干可見 ${hiddenStems.join("、")} 等，代表盤面內層氣勢，正式解讀會再分主氣與餘氣。`
+        : "地支藏干是判斷根氣與內層結構的重要依據，需配合月令與全盤一起看。",
+    },
+    {
+      title: "大運",
+      body: currentDayun
+        ? `目前約 ${age} 虛歲，落在 ${currentDayun.startAge}-${currentDayun.endAge} 歲 ${currentDayun.ganzhi} 大運；此處只標示運程區段，不直接斷吉凶。`
+        : "大運用來看人生階段的十年氣勢，目前頁面先列出區段，完整判斷需合看流年與原局。",
+    },
+  ];
+}
+
+function buildBaziChartText(chart) {
+  const pillarLine = (chart.pillars || [])
+    .map((p) => `${p.label}${p.ganzhi}${p.tenGod ? `(${p.tenGod})` : ""}`)
+    .join(" / ");
+  const elementLine = (chart.fiveElements || [])
+    .map((item) => `${item.name}${Number(item.value || 0)}`)
+    .join("、");
+  const dayunLine = (chart.dayun || [])
+    .slice(0, 6)
+    .map((item) => `${item.startAge}-${item.endAge}歲 ${item.ganzhi}`)
+    .join(" / ");
+  const guideLine = (chart.guide || []).map((item) => `${item.title}：${item.body}`).join("\n");
+
+  return [
+    "【八字文字盤摘要】",
+    `${chart.birth.genderLabel}｜${chart.birth.dateLabel}｜${chart.birth.timeLabel}`,
+    `日主：${chart.dayMaster}${chart.dayMasterElement || ""}`,
+    `四柱：${pillarLine}`,
+    `五行：${elementLine}`,
+    `命宮：${chart.mingGong || "未載入"}｜胎元：${chart.taiYuan || "未載入"}｜生肖：${chart.zodiac || "未載入"}`,
+    `大運：${dayunLine || "未載入"}`,
+    guideLine,
+  ].filter(Boolean).join("\n");
 }
 
 function visibleTenGodsMap(tenGods = []) {
@@ -248,7 +360,7 @@ async function createBaziChart(input) {
   const pillars = positions.map(([key, label]) => {
     const p = chart[key];
     const gan = tw(p?.stem);
-    const zhi = tw(p?.branch);
+    const zhi = earthly(p?.branch);
     return {
       key,
       label,
@@ -282,7 +394,7 @@ async function createBaziChart(input) {
     tenGod: tw(item.tenGod),
   }));
 
-  return {
+  const chartData = {
     ok: true,
     source: "web_bazi_chart",
     birth,
@@ -299,6 +411,10 @@ async function createBaziChart(input) {
     dayun,
     generatedAt: new Date().toISOString(),
   };
+  chartData.guide = buildBaziGuide(chartData);
+  chartData.chartText = buildBaziChartText(chartData);
+  chartData.currentDayun = findCurrentRange(chartData.dayun, virtualAge(birth)) || null;
+  return chartData;
 }
 
 function hourToShichenIndex(hour) {
@@ -318,7 +434,100 @@ function starName(star) {
   };
 }
 
-function createZiweiChart(input) {
+function buildZiweiGrid(palaces) {
+  const byBranch = new Map((palaces || []).map((palace) => [palace.earthlyBranch, palace]));
+  return ZIWEI_GRID_BRANCHES.map((row, rowIndex) =>
+    row.map((branch, colIndex) => {
+      if (!branch) return null;
+      const palace = byBranch.get(branch) || null;
+      return {
+        row: rowIndex,
+        col: colIndex,
+        branch,
+        palace,
+        empty: !palace,
+      };
+    }),
+  );
+}
+
+function palaceStarText(palace) {
+  if (!palace) return "未載入";
+  return [...(palace.majorStars || []), ...(palace.minorStars || [])]
+    .slice(0, 6)
+    .map((star) => star.label || star.name)
+    .join("、") || "空宮";
+}
+
+function buildZiweiGuide(chart) {
+  const age = virtualAge(chart.birth);
+  const soulPalace = (chart.palaces || []).find((p) => p.isSoulPalace);
+  const bodyPalace = (chart.palaces || []).find((p) => p.isBodyPalace);
+  const currentDecadal = findCurrentRange(chart.palaces, age);
+  const sihuaText = (chart.sihua || [])
+    .map((item) => `${item.palace}${item.star}${item.hua}`)
+    .join("、");
+
+  return [
+    {
+      title: "命宮",
+      body: soulPalace
+        ? `命宮在 ${soulPalace.earthlyBranch} 位 ${soulPalace.name}，主星為 ${palaceStarText(soulPalace)}；命宮是看個性底色與人生主軸的入口。`
+        : "命宮是紫微盤的閱讀入口，用來看個性底色與人生主軸。",
+    },
+    {
+      title: "身宮",
+      body: bodyPalace
+        ? `身宮落在 ${bodyPalace.earthlyBranch} 位 ${bodyPalace.name}，主星為 ${palaceStarText(bodyPalace)}；身宮偏向後天行動方式與實際著力處。`
+        : "身宮偏向後天行動方式與實際著力處，需和命宮合看。",
+    },
+    {
+      title: "五行局",
+      body: chart.fiveElementsClass
+        ? `此盤為 ${chart.fiveElementsClass}，用來標示盤局氣質與大限起運框架，不單獨作吉凶判斷。`
+        : "五行局用來標示盤局氣質與大限起運框架，不單獨作吉凶判斷。",
+    },
+    {
+      title: "生年四化",
+      body: sihuaText
+        ? `生年四化為 ${sihuaText}，代表本命盤中特別需要觀察的能量轉折點。`
+        : "生年四化代表本命盤中特別需要觀察的能量轉折點。",
+    },
+    {
+      title: "大限",
+      body: currentDecadal?.decadal?.range?.length
+        ? `目前約 ${age} 虛歲，落在 ${currentDecadal.decadal.range[0]}-${currentDecadal.decadal.range[1]} 歲 ${currentDecadal.name} 大限；此處只提示階段位置。`
+        : "大限用來看十年階段主題，目前頁面先標示區段，完整判斷仍需合看流年與四化。",
+    },
+  ];
+}
+
+function buildZiweiChartText(chart) {
+  const palaceLines = (chart.palaces || [])
+    .map((p) => {
+      const flags = [p.isSoulPalace ? "命" : "", p.isBodyPalace ? "身" : ""].filter(Boolean).join("/");
+      return `${p.earthlyBranch}${p.name}${flags ? `(${flags})` : ""}：${palaceStarText(p)}`;
+    })
+    .join("\n");
+  const sihuaLine = (chart.sihua || [])
+    .map((item) => `${item.palace}${item.star}${item.hua}`)
+    .join("、");
+  const guideLine = (chart.guide || []).map((item) => `${item.title}：${item.body}`).join("\n");
+
+  return [
+    "【紫微文字盤摘要】",
+    `${chart.birth.genderLabel}｜${chart.birth.dateLabel}｜${chart.birth.timeLabel}`,
+    `農曆：${chart.lunarDate || "未載入"}`,
+    `四柱：${chart.chineseDate || "未載入"}`,
+    `五行局：${chart.fiveElementsClass || "未載入"}｜命主：${chart.soul || "未載入"}｜身主：${chart.body || "未載入"}`,
+    `命宮：${chart.earthlyBranchOfSoulPalace || "未載入"}｜身宮：${chart.earthlyBranchOfBodyPalace || "未載入"}`,
+    `生年四化：${sihuaLine || "未載入"}`,
+    palaceLines,
+    guideLine,
+  ].filter(Boolean).join("\n");
+}
+
+async function createZiweiChart(input) {
   const birth = normalizeBirthInput(input);
   if (!birth) {
     const err = new Error("INVALID_BIRTH_INPUT");
@@ -338,9 +547,10 @@ function createZiweiChart(input) {
     index: p.index,
     name: tw(p.name),
     heavenlyStem: tw(p.heavenlyStem),
-    earthlyBranch: tw(p.earthlyBranch),
+    earthlyBranch: earthly(p.earthlyBranch),
     isBodyPalace: !!p.isBodyPalace,
-    isSoulPalace: tw(p.earthlyBranch) === tw(astrolabe.earthlyBranchOfSoulPalace),
+    isSoulPalace:
+      tw(p.name) === "命宮" || earthly(p.earthlyBranch) === earthly(astrolabe.earthlyBranchOfSoulPalace),
     majorStars: (p.majorStars || []).map(starName),
     minorStars: (p.minorStars || []).map(starName),
     adjectiveStars: (p.adjectiveStars || []).map(starName),
@@ -352,7 +562,7 @@ function createZiweiChart(input) {
       ? {
           range: Array.isArray(p.decadal.range) ? p.decadal.range : [],
           heavenlyStem: tw(p.decadal.heavenlyStem),
-          earthlyBranch: tw(p.decadal.earthlyBranch),
+          earthlyBranch: earthly(p.decadal.earthlyBranch),
         }
       : null,
     ages: Array.isArray(p.ages) ? p.ages : [],
@@ -367,13 +577,15 @@ function createZiweiChart(input) {
     });
   });
 
-  return {
+  const baziChart = await createBaziChart(input);
+  const baziPillarText = (baziChart.pillars || []).map((pillar) => pillar.ganzhi).join(" ");
+  const chartData = {
     ok: true,
     source: "web_ziwei_chart",
     birth,
     solarDate: tw(astrolabe.solarDate),
     lunarDate: tw(astrolabe.lunarDate),
-    chineseDate: tw(astrolabe.chineseDate),
+    chineseDate: baziPillarText || tw(astrolabe.chineseDate),
     zodiac: tw(astrolabe.zodiac),
     sign: tw(astrolabe.sign),
     time: tw(astrolabe.time),
@@ -381,12 +593,18 @@ function createZiweiChart(input) {
     fiveElementsClass: tw(astrolabe.fiveElementsClass),
     soul: tw(astrolabe.soul),
     body: tw(astrolabe.body),
-    earthlyBranchOfSoulPalace: tw(astrolabe.earthlyBranchOfSoulPalace),
-    earthlyBranchOfBodyPalace: tw(astrolabe.earthlyBranchOfBodyPalace),
+    earthlyBranchOfSoulPalace: earthly(astrolabe.earthlyBranchOfSoulPalace),
+    earthlyBranchOfBodyPalace: earthly(astrolabe.earthlyBranchOfBodyPalace),
+    baziPillars: baziChart.pillars,
     palaces,
     sihua,
     generatedAt: new Date().toISOString(),
   };
+  chartData.grid = buildZiweiGrid(palaces);
+  chartData.guide = buildZiweiGuide(chartData);
+  chartData.chartText = buildZiweiChartText(chartData);
+  chartData.currentDecadal = findCurrentRange(palaces, virtualAge(birth)) || null;
+  return chartData;
 }
 
 module.exports = {
