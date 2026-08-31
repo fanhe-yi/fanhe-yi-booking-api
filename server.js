@@ -882,6 +882,11 @@ const { consumeDailyFreeUse } = require("./webLiuYaoUsage.pg");
 const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
+const {
+  createBaziChart,
+  createZiweiChart,
+  SHICHEN_OPTIONS,
+} = require("./toolsChartEngine");
 /* =========================================================
    引入 prompt 讀取器
    目的：
@@ -3531,6 +3536,39 @@ app.get("/api/slots", (req, res) => {
 
   const slots = getSlotsForDate(date);
   res.json(slots);
+});
+
+app.get("/api/tools/time-options", (req, res) => {
+  res.json({
+    ok: true,
+    shichenOptions: SHICHEN_OPTIONS,
+  });
+});
+
+app.post("/api/tools/bazi/chart", async (req, res) => {
+  try {
+    const chart = await createBaziChart(req.body || {});
+    res.json(chart);
+  } catch (err) {
+    if (err?.status === 400) {
+      return res.status(400).json({ ok: false, error: "INVALID_BIRTH_INPUT" });
+    }
+    console.error("[web bazi chart] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/tools/ziwei/chart", async (req, res) => {
+  try {
+    const chart = createZiweiChart(req.body || {});
+    res.json(chart);
+  } catch (err) {
+    if (err?.status === 400) {
+      return res.status(400).json({ ok: false, error: "INVALID_BIRTH_INPUT" });
+    }
+    console.error("[web ziwei chart] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
 });
 
 app.post("/api/liuyao/free-reading", async (req, res) => {
