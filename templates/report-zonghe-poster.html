@@ -6,194 +6,107 @@
   <title>{{meta.archetype_name}} · 梵和易學綜合命理報告</title>
   <style>
     :root {
-      --bg: #f4f2ee;
-      --paper: #fffefd;
-      --ink: #171717;
-      --soft-ink: #3f3a36;
-      --muted: #746d66;
-      --line: #ded7ce;
-      --line-strong: #bcae9d;
-      --red: #a7342a;
-      --teal: #24675e;
-      --indigo: #374f7d;
-      --gold: #9a783e;
-      --wash-red: #fff2f0;
-      --wash-teal: #edf8f6;
-      --wash-indigo: #f0f3fb;
+      --paper: #f6f1e7;
+      --paper-card: #fffaf0;
+      --ink: #2d2722;
+      --muted: #6f655b;
+      --line: #c9bca8;
+      --red: #b83d31;
+      --green: #326b4e;
+      --blue: #315f89;
+      --gold: #9d7a45;
     }
     * { box-sizing: border-box; }
-    html { background: var(--bg); }
     body {
       margin: 0;
-      background:
-        linear-gradient(90deg, rgba(167, 52, 42, .07), transparent 30%, rgba(36, 103, 94, .06)),
-        var(--bg);
+      padding: 24px;
+      background: var(--paper);
       color: var(--ink);
-      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.72;
+      font-family: "Noto Serif TC", "Noto Serif CJK TC", "PingFang TC", serif;
+      line-height: 1.7;
     }
     .report {
-      width: min(1120px, calc(100% - 28px));
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 28px 0 40px;
-    }
-    .cover {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr);
-      gap: 18px;
-      align-items: stretch;
-      margin-bottom: 18px;
-    }
-    .cover-main,
-    .cover-side,
-    .panel,
-    .section {
-      background: rgba(255, 254, 253, .96);
       border: 1px solid var(--line);
-      box-shadow: 0 18px 50px rgba(40, 32, 24, .07);
+      background: rgba(255, 250, 240, 0.82);
+      padding: 28px;
     }
-    .cover-main {
-      padding: 32px;
-      position: relative;
-      overflow: hidden;
+    .hero {
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 22px;
+      margin-bottom: 22px;
     }
-    .cover-main::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 6px;
-      background: linear-gradient(90deg, var(--red), var(--gold), var(--teal), var(--indigo));
-    }
-    .eyebrow {
-      margin: 0 0 12px;
+    .seal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--red);
       color: var(--red);
+      margin-bottom: 12px;
+      letter-spacing: 3px;
+      transform: rotate(-3deg);
       font-size: 13px;
-      font-weight: 800;
-      letter-spacing: .12em;
     }
     h1 {
       margin: 0;
-      max-width: 760px;
-      font-size: clamp(30px, 5vw, 56px);
-      line-height: 1.08;
+      font-size: 42px;
       letter-spacing: 0;
-      font-weight: 900;
-    }
-    .axis {
-      margin: 14px 0 0;
-      color: var(--soft-ink);
-      font-size: 18px;
       font-weight: 600;
     }
-    .birth-line {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 22px;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 34px;
-      padding: 6px 11px;
-      border: 1px solid var(--line-strong);
-      background: #fff;
-      color: var(--soft-ink);
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .cover-side {
-      padding: 24px;
-      display: grid;
-      align-content: space-between;
-      gap: 18px;
-    }
-    .stamp {
-      width: 70px;
-      height: 70px;
-      display: grid;
-      place-items: center;
-      margin-left: auto;
-      border: 2px solid var(--red);
-      color: var(--red);
-      font-weight: 900;
-      letter-spacing: .18em;
-      transform: rotate(-5deg);
-    }
-    .metric {
-      display: grid;
-      gap: 8px;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-    }
-    .metric strong {
-      font-size: 24px;
-      line-height: 1.2;
-    }
-    .metric span {
+    .axis {
+      margin: 8px 0 0;
       color: var(--muted);
+      font-size: 18px;
+    }
+    .meta-line {
+      margin-top: 10px;
+      color: var(--gold);
       font-size: 13px;
     }
-    .grid-2,
-    .grid-3,
+    .top-grid,
+    .dual-grid,
     .final-grid {
       display: grid;
-      gap: 14px;
-      margin-top: 14px;
-    }
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .final-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .panel,
-    .section {
-      padding: 20px;
-    }
-    .section {
-      margin-top: 14px;
-    }
-    h2 {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 0 0 14px;
-      font-size: 20px;
-      line-height: 1.3;
-      letter-spacing: 0;
-    }
-    h2::before {
-      content: "";
-      width: 8px;
-      height: 26px;
-      background: var(--red);
-    }
-    h3 {
-      margin: 22px 0 8px;
-      color: var(--red);
-      font-size: 18px;
-      line-height: 1.35;
-    }
-    p {
-      margin: 8px 0;
-      color: var(--soft-ink);
-    }
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .summary {
-      display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 14px;
+      margin-top: 16px;
     }
-    .summary-item {
-      padding: 14px;
-      border-left: 4px solid var(--teal);
-      background: var(--wash-teal);
+    .card,
+    .section {
+      border: 1px solid var(--line);
+      background: var(--paper-card);
+      padding: 16px;
     }
-    .summary-item:nth-child(2) {
-      border-left-color: var(--indigo);
-      background: var(--wash-indigo);
+    .card h2,
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: var(--red);
     }
+    .badge {
+      display: inline-flex;
+      padding: 4px 10px;
+      border: 1px solid var(--green);
+      color: var(--green);
+      margin-top: 8px;
+      font-weight: 700;
+    }
+    .list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .list li {
+      border-top: 1px dashed var(--line);
+      padding-top: 8px;
+    }
+    .muted { color: var(--muted); }
     .ziwei-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -202,233 +115,125 @@
         "chen center center you"
         "mao center center xu"
         "yin chou zi hai";
-      gap: 6px;
+      gap: 4px;
     }
     .palace {
-      min-height: 112px;
+      min-height: 88px;
       border: 1px solid var(--line);
-      padding: 9px;
-      background: #fff;
-      color: var(--soft-ink);
+      padding: 7px;
+      background: #fffdf8;
       font-size: 12px;
-      line-height: 1.55;
-      overflow-wrap: anywhere;
     }
-    .palace strong {
-      display: block;
-      color: var(--ink);
-      font-size: 13px;
-      margin-bottom: 4px;
-    }
-    .palace.ming {
-      border-color: var(--red);
-      background: var(--wash-red);
-      box-shadow: inset 0 0 0 1px rgba(167, 52, 42, .28);
-    }
+    .palace.ming { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
     .center {
       grid-area: center;
-      display: grid;
-      place-items: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
-      border: 1px solid var(--line-strong);
-      background: linear-gradient(145deg, #fff, #f8f5ef);
-      padding: 18px;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+      padding: 12px;
       color: var(--muted);
-      font-size: 14px;
-      font-weight: 700;
     }
     .bazi-pillars {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      border: 1px solid var(--line-strong);
-      background: #fff;
+      border: 1px solid var(--line);
     }
     .pillar {
-      min-height: 124px;
       text-align: center;
-      padding: 14px 8px;
+      padding: 10px 6px;
       border-right: 1px solid var(--line);
     }
     .pillar:last-child { border-right: 0; }
-    .pillar span {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .gz {
-      margin: 7px 0 4px;
-      font-size: 34px;
-      line-height: 1;
-      font-weight: 900;
-      color: var(--red);
-    }
-    .list {
-      display: grid;
-      gap: 10px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .list li {
-      padding: 10px 0 0;
-      border-top: 1px solid var(--line);
-      color: var(--soft-ink);
-    }
+    .gz { font-size: 28px; font-weight: 700; }
     .dims {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
     .dim {
-      min-height: 180px;
       border: 1px solid var(--line);
-      padding: 14px;
-      background: #fff;
+      padding: 10px;
+      background: #fffdf8;
       font-size: 13px;
     }
-    .dim strong {
-      display: block;
-      margin-bottom: 8px;
-      color: var(--ink);
-      font-size: 16px;
-    }
-    .verdict-yes,
-    .verdict-partial,
-    .verdict-no {
-      display: inline-flex;
-      margin: 6px 0;
-      padding: 3px 8px;
-      border: 1px solid currentColor;
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .verdict-yes { color: var(--teal); }
+    .verdict-yes { color: var(--green); }
     .verdict-partial { color: var(--gold); }
     .verdict-no { color: var(--red); }
-    .article {
-      max-width: 860px;
-      margin: 0 auto;
-      font-size: 16px;
-    }
-    .article p {
-      margin: 10px 0;
-    }
-    .article ul {
-      margin: 10px 0 10px 1.2em;
-      padding: 0;
-    }
-    .article li {
-      margin: 5px 0;
-      color: var(--soft-ink);
+    .analysis {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #3d342d;
     }
     .footer {
-      margin-top: 18px;
-      padding: 16px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .75);
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
       color: var(--muted);
       font-size: 12px;
       text-align: center;
     }
-    @media (max-width: 880px) {
-      .report { width: min(100% - 20px, 1120px); padding: 16px 0 28px; }
-      .cover,
-      .grid-2,
-      .grid-3,
-      .summary,
+    @media (max-width: 760px) {
+      body { padding: 12px; }
+      .report { padding: 16px; }
+      h1 { font-size: 30px; }
+      .top-grid,
+      .dual-grid,
       .final-grid,
       .dims { grid-template-columns: 1fr; }
-      .cover-main { padding: 24px 20px; }
-      .cover-side { padding: 20px; }
-      .ziwei-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-areas:
-          "si wu"
-          "wei shen"
-          "chen you"
-          "mao xu"
-          "yin chou"
-          "zi hai"
-          "center center";
-      }
-      .bazi-pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .pillar:nth-child(2) { border-right: 0; }
-      .pillar:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
-      .gz { font-size: 30px; }
+      .ziwei-grid { grid-template-columns: 1fr; grid-template-areas: none; }
+      .palace,
+      .center { grid-area: auto !important; }
     }
   </style>
 </head>
 <body>
   <main class="report">
-    <section class="cover">
-      <div class="cover-main">
-        <p class="eyebrow">BAZI · ZIWEI INTEGRATED REPORT</p>
-        <h1>{{meta.archetype_name}}</h1>
-        <p class="axis">{{meta.axis_oneliner}}</p>
-        <div class="birth-line">
-          <span class="chip">{{birth.genderLabel}}</span>
-          <span class="chip">{{birth.dateLabel}}</span>
-          <span class="chip">{{birth.timeLabel}}</span>
-          <span class="chip">目前大運：{{currentDayun}}</span>
-        </div>
-      </div>
-      <aside class="cover-side">
-        <div class="stamp">梵和</div>
-        <div class="metric">
-          <span>雙盤一致性</span>
-          <strong>{{consistency}}</strong>
-        </div>
-        <div class="metric">
-          <span>命盤信心標記</span>
-          <strong>{{confidence.consistency_level}}</strong>
-          <span>{{confidence.note}}</span>
-        </div>
-      </aside>
-    </section>
+    <header class="hero">
+      <div class="seal">梵和</div>
+      <h1>{{meta.archetype_name}}</h1>
+      <p class="axis">{{meta.axis_oneliner}}</p>
+      <p class="meta-line">{{birth.genderLabel}}｜{{birth.dateLabel}}｜{{birth.timeLabel}}</p>
+      <span class="badge">{{consistency}}</span>
+    </header>
 
-    <section class="section">
-      <h2>核心主軸</h2>
-      <div class="summary">
-        <div class="summary-item">
-          <strong>八字主軸</strong>
-          <p>{{axes.bazi_main}}</p>
-        </div>
-        <div class="summary-item">
-          <strong>紫微主軸</strong>
-          <p>{{axes.ziwei_main}}</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid-2">
-      <div class="panel">
-        <h2>紫微十二宮</h2>
+    <section class="dual-grid">
+      <div class="card">
+        <h2>紫微命盤</h2>
         <div class="ziwei-grid">
           {{ziweiGridHtml}}
           <div class="center">五行局：{{ziwei.fiveElementsClass}}<br>命主：{{ziwei.soul}}｜身主：{{ziwei.body}}</div>
         </div>
       </div>
-      <div class="panel">
+      <div class="card">
         <h2>八字四柱</h2>
         <div class="bazi-pillars">{{baziPillarsHtml}}</div>
-        <p class="muted">日主：{{bazi.dayMaster}}{{bazi.dayMasterElement}}｜五行分布與格局需合大運、流年一起看。</p>
+        <p class="muted">日主：{{bazi.dayMaster}}{{bazi.dayMasterElement}}｜目前大運：{{currentDayun}}</p>
       </div>
     </section>
 
-    <section class="grid-2">
-      <div class="panel">
-        <h2>可發揮處</h2>
-        <ul class="list">{{strengthsHtml}}</ul>
+    <section class="top-grid">
+      <div class="card">
+        <h2>兩盤主軸</h2>
+        <p><strong>八字：</strong>{{axes.bazi_main}}</p>
+        <p><strong>紫微：</strong>{{axes.ziwei_main}}</p>
       </div>
-      <div class="panel">
-        <h2>需修正處</h2>
+      <div class="card">
+        <h2>優勢 / 課題</h2>
+        <ul class="list">{{strengthsHtml}}</ul>
         <ul class="list">{{weaknessesHtml}}</ul>
       </div>
     </section>
 
     <section class="section">
-      <h2>印證結論</h2>
+      <h2>主軸印證結論</h2>
       <p>{{section_01.text}}</p>
+    </section>
+
+    <section class="section">
+      <h2>階段印證</h2>
       <p>{{section_02.conclusion}}</p>
     </section>
 
@@ -438,34 +243,22 @@
     </section>
 
     <section class="section">
-      <h2>階段重點</h2>
+      <h2>綜合定論</h2>
       <div class="final-grid">
-        <div>
-          <strong>人生主軸</strong>
-          <p>{{final.life_axis}}</p>
-        </div>
-        <div>
-          <strong>關鍵節點</strong>
-          <ul class="list">{{nodesHtml}}</ul>
-        </div>
-        <div>
-          <strong>風險窗口</strong>
-          <ul class="list">{{risksHtml}}</ul>
-        </div>
-        <div>
-          <strong>優勢策略</strong>
-          <ul class="list">{{leverageHtml}}</ul>
-        </div>
+        <div><strong>人生主軸</strong><p>{{final.life_axis}}</p></div>
+        <div><strong>關鍵節點</strong><ul class="list">{{nodesHtml}}</ul></div>
+        <div><strong>風險窗口</strong><ul class="list">{{risksHtml}}</ul></div>
+        <div><strong>優勢策略</strong><ul class="list">{{leverageHtml}}</ul></div>
       </div>
     </section>
 
     <section class="section">
       <h2>完整分析</h2>
-      <article class="article">{{analysisHtml}}</article>
+      <div class="analysis">{{zongheAnalysis}}</div>
     </section>
 
     <footer class="footer">
-      本綜合分析基於傳統八字與紫微斗數理論框架，僅供文化研究與娛樂參考，不構成任何投資、醫療、法律或重大人生決策依據。
+      本綜合分析基於傳統八字與紫微斗數理論框架，僅供文化研究與娛樂參考，不構成任何決策依據。
     </footer>
   </main>
 </body>

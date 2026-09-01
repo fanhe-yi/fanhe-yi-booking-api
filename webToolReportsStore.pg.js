@@ -14,18 +14,6 @@ async function ensureWebToolReportTables() {
     )
   `);
   await pool.query(`
-    ALTER TABLE web_ai_usage
-      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'used'
-  `);
-  await pool.query(`
-    ALTER TABLE web_ai_usage
-      ADD COLUMN IF NOT EXISTS error TEXT
-  `);
-  await pool.query(`
-    ALTER TABLE web_ai_usage
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  `);
-  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_web_ai_usage_date
       ON web_ai_usage (usage_date_tw DESC)
   `);
@@ -110,61 +98,21 @@ function makeActivityCode(prefix = "REPORT") {
   return `${safePrefix}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-async function reserveFreeAiUse(visitorId) {
+async function consumeFreeAiUse(visitorId) {
   await ensureWebToolReportTables();
   const id = String(visitorId || "").trim();
   const r = await pool.query(
     `
-    INSERT INTO web_ai_usage (visitor_id, usage_date_tw, status, error, used_at, updated_at)
-    VALUES ($1, (NOW() AT TIME ZONE 'Asia/Taipei')::date, 'pending', NULL, NOW(), NOW())
-    ON CONFLICT (visitor_id, usage_date_tw)
-    DO UPDATE SET status = 'pending',
-                  error = NULL,
-                  used_at = NOW(),
-                  updated_at = NOW()
-    WHERE web_ai_usage.status = 'failed'
-       OR (
-         web_ai_usage.status = 'pending'
-         AND web_ai_usage.updated_at < NOW() - INTERVAL '10 minutes'
-       )
-    RETURNING visitor_id, status
+    INSERT INTO web_ai_usage (visitor_id, usage_date_tw)
+    VALUES ($1, (NOW() AT TIME ZONE 'Asia/Taipei')::date)
+    ON CONFLICT (visitor_id, usage_date_tw) DO NOTHING
+    RETURNING visitor_id
     `,
     [id],
   );
   return r.rowCount === 1
     ? { ok: true }
     : { ok: false, reason: "DAILY_LIMIT_REACHED" };
-}
-
-async function markFreeAiUseSucceeded(visitorId) {
-  await ensureWebToolReportTables();
-  await pool.query(
-    `
-    UPDATE web_ai_usage
-    SET status = 'used', error = NULL, updated_at = NOW()
-    WHERE visitor_id = $1
-      AND usage_date_tw = (NOW() AT TIME ZONE 'Asia/Taipei')::date
-      AND status = 'pending'
-    `,
-    [String(visitorId || "").trim()],
-  );
-}
-
-async function markFreeAiUseFailed(visitorId, error) {
-  await ensureWebToolReportTables();
-  await pool.query(
-    `
-    UPDATE web_ai_usage
-    SET status = 'failed', error = $2, updated_at = NOW()
-    WHERE visitor_id = $1
-      AND usage_date_tw = (NOW() AT TIME ZONE 'Asia/Taipei')::date
-      AND status = 'pending'
-    `,
-    [
-      String(visitorId || "").trim(),
-      String(error?.message || error || "AI_READING_FAILED").slice(0, 1000),
-    ],
-  );
 }
 
 async function createPaymentReport({ email, visitorId, focus, birth }) {
@@ -394,9 +342,7 @@ async function markReportFailed(reportId, error) {
 }
 
 module.exports = {
-  reserveFreeAiUse,
-  markFreeAiUseSucceeded,
-  markFreeAiUseFailed,
+  consumeFreeAiUse,
   createPaymentReport,
   attachPaymentToReport,
   createActivityCodesBatch,

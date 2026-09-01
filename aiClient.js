@@ -13,17 +13,9 @@
 
 // ---- OpenAI 設定 ----
 const OpenAI = require("openai");
-let _openai = null;
-function getOpenAIClient() {
-  if (_openai) return _openai;
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY not configured");
-  }
-  _openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-  return _openai;
-}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // ---- DeepSeek 設定（一般情境備援、六爻主力） ----
 // 用 OpenAI 相容 SDK + custom baseURL，走 chat.completions（不是 Responses API）
@@ -81,19 +73,9 @@ function getModelChain() {
     .filter(Boolean);
 }
 
-function hasConfiguredAIProvider() {
-  const chain = getModelChain();
-  const hasChainProvider = chain.some((model) => {
-    if (/^deepseek[-_]/i.test(model)) return Boolean(process.env.DEEPSEEK_API_KEY);
-    return Boolean(process.env.OPENAI_API_KEY);
-  });
-  return hasChainProvider || Boolean(process.env.DEEPSEEK_API_KEY) || Boolean(process.env.GOOGLE_API_KEY);
-}
-
 // ---- OpenAI（Responses API）----
 // 任何 OpenAI 模型都走這裡（包含 gpt-5.1 / 4o-mini / 4.1-nano）
 async function callOpenAI(model, userPrompt, systemPrompt) {
-  const openai = getOpenAIClient();
   const resp = await openai.responses.create({
     model,
     input: [
@@ -118,10 +100,10 @@ async function callOpenAI(model, userPrompt, systemPrompt) {
 
 // ---- DeepSeek（chat.completions 風格） ----
 // model + thinking + reasoning_effort 都由 env 控制
-async function callDeepSeek(userPrompt, systemPrompt, modelOverride = "") {
+async function callDeepSeek(userPrompt, systemPrompt) {
   const deepseek = getDeepSeekClient(); // 沒設 key 會 throw，由上層 tryDeepSeek 接住
 
-  const model = modelOverride || process.env.DEEPSEEK_MODEL || "deepseek-v4-pro";
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-pro";
 
   // 推理參數（依模型支援度）
   // - deepseek-v4-pro 等支援 thinking + reasoning_effort
@@ -182,9 +164,15 @@ async function callGemini(userPrompt, systemPrompt) {
    - 全失敗回傳 { _failed, lastErr }
 ========================== */
 function dispatchByModel(model, userPrompt, systemPrompt) {
-  // deepseek-* 走 DeepSeek client
+  // deepseek-* 走 DeepSeek client（temp 覆寫 env model 給 callDeepSeek 用）
   if (/^deepseek[-_]/i.test(model)) {
-    return callDeepSeek(userPrompt, systemPrompt, model);
+    const orig = process.env.DEEPSEEK_MODEL;
+    process.env.DEEPSEEK_MODEL = model;
+    return callDeepSeek(userPrompt, systemPrompt).finally(() => {
+      // 還原原本 env（避免 LiuYao path 也呼叫時被覆蓋）
+      if (orig === undefined) delete process.env.DEEPSEEK_MODEL;
+      else process.env.DEEPSEEK_MODEL = orig;
+    });
   }
   // 其他模型 → OpenAI Responses API
   return callOpenAI(model, userPrompt, systemPrompt);
@@ -295,20 +283,18 @@ async function AI_Reading_LiuYao(userPrompt, systemPrompt) {
 }
 
 async function AI_Reading_DeepSeekPro(userPrompt, systemPrompt) {
-  return callDeepSeek(userPrompt, systemPrompt, "deepseek-v4-pro");
-}
-
-async function AI_Reading_WebTools(userPrompt, systemPrompt) {
-  if (!(process.env.AI_MODELS || "").trim() && process.env.DEEPSEEK_API_KEY) {
-    return AI_Reading_DeepSeekPro(userPrompt, systemPrompt);
+  const originalModel = process.env.DEEPSEEK_MODEL;
+  process.env.DEEPSEEK_MODEL = "deepseek-v4-pro";
+  try {
+    return await callDeepSeek(userPrompt, systemPrompt);
+  } finally {
+    if (originalModel === undefined) delete process.env.DEEPSEEK_MODEL;
+    else process.env.DEEPSEEK_MODEL = originalModel;
   }
-  return AI_Reading(userPrompt, systemPrompt);
 }
 
 module.exports = {
   AI_Reading,
   AI_Reading_LiuYao,
   AI_Reading_DeepSeekPro,
-  AI_Reading_WebTools,
-  hasConfiguredAIProvider,
 };
