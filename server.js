@@ -887,6 +887,11 @@ const {
   createZiweiChart,
   SHICHEN_OPTIONS,
 } = require("./toolsChartEngine");
+const webToolReports = require("./webToolReportsStore.pg");
+const {
+  createFreeToolReading,
+  generateProReport,
+} = require("./webToolReportEngine");
 /* =========================================================
    引入 prompt 讀取器
    目的：
@@ -999,6 +1004,8 @@ const PRICE_MAP = {
 const WEB_BOOKING_PRICE_MAP = {
   liuyao: 600,
 };
+const WEB_AI_REPORT_SOURCE = "web_bazi_ziwei_report_paid";
+const WEB_AI_REPORT_FEATURE = "web_bazi_ziwei_report";
 
 function genMerchantTradeNo() {
   return `FH${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -3545,6 +3552,55 @@ app.get("/api/tools/time-options", (req, res) => {
   });
 });
 
+function normalizeWebToolBirthBody(body) {
+  return {
+    gender: body?.gender,
+    year: body?.year,
+    month: body?.month,
+    day: body?.day,
+    shichen: body?.shichen,
+  };
+}
+
+function validateWebVisitorId(visitorId) {
+  return /^[a-zA-Z0-9_-]{16,100}$/.test(String(visitorId || "").trim());
+}
+
+function getWebReportPrice() {
+  const n = Number(process.env.WEB_AI_REPORT_PRICE_TWD || 0);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+function buildWebReportUrl(report) {
+  const base = process.env.BASE_URL || "";
+  const pathAndQuery = `/pay/success?type=web_report&reportId=${encodeURIComponent(
+    report.id,
+  )}&token=${encodeURIComponent(report.token)}`;
+  return base ? `${base}${pathAndQuery}` : pathAndQuery;
+}
+
+const activeWebReportGenerations = new Set();
+
+function startWebToolReportGeneration(reportId, token) {
+  const key = `${reportId}:${token}`;
+  if (activeWebReportGenerations.has(key)) return;
+  activeWebReportGenerations.add(key);
+  setImmediate(async () => {
+    try {
+      const report = await webToolReports.getPublicReport(reportId, token);
+      if (!report || report.status === "ready") return;
+      await webToolReports.markReportGenerating(reportId);
+      const payload = await generateProReport(report);
+      await webToolReports.markReportReady(reportId, payload);
+    } catch (err) {
+      console.error("[web tool report] generate failed:", err);
+      await webToolReports.markReportFailed(reportId, err);
+    } finally {
+      activeWebReportGenerations.delete(key);
+    }
+  });
+}
+
 app.post("/api/tools/bazi/chart", async (req, res) => {
   try {
     const chart = await createBaziChart(req.body || {});
@@ -3567,6 +3623,200 @@ app.post("/api/tools/ziwei/chart", async (req, res) => {
       return res.status(400).json({ ok: false, error: "INVALID_BIRTH_INPUT" });
     }
     console.error("[web ziwei chart] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/tools/ai/free-reading", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const tool = String(body.tool || "").trim();
+    const visitorId = String(body.visitorId || "").trim();
+    if (!["bazi", "ziwei"].includes(tool)) {
+      return res.status(400).json({ ok: false, error: "INVALID_TOOL" });
+    }
+    if (!validateWebVisitorId(visitorId)) {
+      return res.status(400).json({ ok: false, error: "INVALID_VISITOR_ID" });
+    }
+    if (!process.env.DEEPSEEK_API_KEY) {
+      return res.status(503).json({ ok: false, error: "DEEPSEEK_API_KEY_MISSING" });
+    }
+
+    const usage = await webToolReports.consumeFreeAiUse(visitorId);
+    if (!usage.ok) {
+      return res.status(429).json({ ok: false, error: usage.reason || "DAILY_LIMIT_REACHED" });
+    }
+
+    const { chart, text } = await createFreeToolReading({
+      tool,
+      birthInput: normalizeWebToolBirthBody(body),
+      focus: body.focus,
+    });
+    res.json({
+      ok: true,
+      source: "web_ai_free",
+      tool,
+      reading: text,
+      chart,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    if (err?.status === 400) {
+      return res.status(400).json({ ok: false, error: "INVALID_BIRTH_INPUT" });
+    }
+    console.error("[web tools ai free] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/tools/reports/order", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const visitorId = String(body.visitorId || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const activityCode = String(body.activityCode || "").trim();
+    const birth = normalizeWebToolBirthBody(body);
+
+    if (!validateWebVisitorId(visitorId)) {
+      return res.status(400).json({ ok: false, error: "INVALID_VISITOR_ID" });
+    }
+    if (!isValidBookingEmail(email)) {
+      return res.status(400).json({ ok: false, error: "INVALID_EMAIL" });
+    }
+    await createBaziChart(birth);
+    await createZiweiChart(birth);
+
+    if (activityCode) {
+      const report = await webToolReports.createCouponPaidReport({
+        code: activityCode,
+        email,
+        visitorId,
+        focus: body.focus,
+        birth,
+      });
+      startWebToolReportGeneration(report.id, report.token);
+      return res.json({
+        ok: true,
+        requiresPayment: false,
+        source: "activity_code",
+        reportId: report.id,
+        reportToken: report.token,
+        reportUrl: buildWebReportUrl(report),
+      });
+    }
+
+    const amount = getWebReportPrice();
+    if (!amount) {
+      return res.status(503).json({
+        ok: false,
+        error: "REPORT_PAYMENT_DISABLED",
+        message: "目前尚未設定 Pro 報告價格，請使用活動碼測試。",
+      });
+    }
+    if (!process.env.BASE_URL) {
+      return res.status(500).json({ ok: false, error: "BASE_URL_MISSING" });
+    }
+
+    const report = await webToolReports.createPaymentReport({
+      email,
+      visitorId,
+      focus: body.focus,
+      birth,
+    });
+    const merchantTradeNo = genMerchantTradeNo();
+    await paymentOrders.createPaymentOrder({
+      merchantTradeNo,
+      userId: `web_report:${report.id}`,
+      feature: WEB_AI_REPORT_FEATURE,
+      qty: 1,
+      amount,
+      source: WEB_AI_REPORT_SOURCE,
+      bookingId: report.id,
+      meta: {
+        reportId: report.id,
+        reportToken: report.token,
+        email,
+        visitorId,
+        focus: body.focus || "",
+      },
+    });
+    await webToolReports.attachPaymentToReport(report.id, merchantTradeNo);
+
+    res.json({
+      ok: true,
+      requiresPayment: true,
+      amount,
+      reportId: report.id,
+      reportToken: report.token,
+      reportUrl: buildWebReportUrl(report),
+      paymentUrl: `${process.env.BASE_URL}/pay/order/${encodeURIComponent(merchantTradeNo)}`,
+    });
+  } catch (err) {
+    if (err?.status === 400) {
+      return res.status(400).json({ ok: false, error: "INVALID_BIRTH_INPUT" });
+    }
+    const code = String(err?.message || "");
+    if (code.startsWith("ACTIVITY_CODE_")) {
+      return res.status(400).json({ ok: false, error: code });
+    }
+    console.error("[web tools report order] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+app.get("/api/tools/reports/:reportId", async (req, res) => {
+  try {
+    const reportId = String(req.params.reportId || "").trim();
+    const token = String(req.query.token || "").trim();
+    const report = await webToolReports.getPublicReport(reportId, token);
+    if (!report) {
+      return res.status(404).json({ ok: false, error: "REPORT_NOT_FOUND" });
+    }
+    res.json({
+      ok: true,
+      report: {
+        id: report.id,
+        status: report.status,
+        source: report.source,
+        email: report.email,
+        focus: report.focus,
+        birth: report.birth,
+        posterJson: report.poster_json,
+        html: report.status === "ready" ? report.html : "",
+        error: report.status === "failed" ? report.error : "",
+        createdAt: report.created_at,
+        updatedAt: report.updated_at,
+        paidAt: report.paid_at,
+        generatedAt: report.generated_at,
+      },
+    });
+  } catch (err) {
+    console.error("[web tools report get] error:", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/admin/web-report-activity-codes/batch", requireAdmin, async (req, res) => {
+  try {
+    const count = Number(req.body?.count || 1);
+    const prefix = req.body?.prefix || "REPORT";
+    const expiresAt = req.body?.expiresAt || null;
+    const note = req.body?.note || "";
+    if (!Number.isInteger(count) || count < 1 || count > 200) {
+      return res.status(400).json({ ok: false, error: "INVALID_COUNT" });
+    }
+    if (expiresAt && Number.isNaN(Date.parse(expiresAt))) {
+      return res.status(400).json({ ok: false, error: "INVALID_EXPIRES_AT" });
+    }
+    const result = await webToolReports.createActivityCodesBatch({
+      count,
+      prefix,
+      expiresAt,
+      note,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[admin web report activity codes] error:", err);
     res.status(500).json({ ok: false, error: "SERVER_ERROR" });
   }
 });
@@ -5753,6 +6003,30 @@ app.get("/pay/order/:merchantTradeNo", async (req, res) => {
       return;
     }
 
+    if (order.source === WEB_AI_REPORT_SOURCE) {
+      const report = await webToolReports.getReportByMerchantTradeNo(merchantTradeNo);
+      if (!report) {
+        res.status(404).send("Report not found");
+        return;
+      }
+      const successUrl = `${process.env.BASE_URL}/pay/success?type=web_report&reportId=${encodeURIComponent(
+        report.id,
+      )}&token=${encodeURIComponent(report.token)}`;
+      const params = buildEcpayCheckoutParams({
+        merchantTradeNo,
+        amount: Number(order.amount || getWebReportPrice()),
+        tradeDesc: "八字紫微 Pro 綜合報告",
+        itemName: "八字紫微 Pro 綜合報告 x 1",
+        customField1: String(report.id || ""),
+        customField2: WEB_AI_REPORT_SOURCE,
+        customField3: "1",
+        clientBackUrl: successUrl,
+        orderResultUrl: successUrl,
+      });
+      sendEcpayAutoSubmit(res, params);
+      return;
+    }
+
     if (order.source !== "web_liuyao_paid") {
       res.status(400).send("Unsupported payment order");
       return;
@@ -5847,6 +6121,16 @@ app.post(
           res.send("1|OK");
           return;
         }
+        if (order.source === WEB_AI_REPORT_SOURCE) {
+          const report = await webToolReports.markReportPaidByMerchantTradeNo(
+            merchantTradeNo,
+          );
+          if (report) {
+            startWebToolReportGeneration(report.id, report.token);
+          }
+          res.send("1|OK");
+          return;
+        }
 
         await addQuotaAtomic(order.user_id, order.feature, order.qty);
 
@@ -5898,8 +6182,52 @@ function renderPaySuccessPage(req, res) {
   const officialLineUrl =
     process.env.OFFICIAL_LINE_URL || "line://ti/p/@415kfyus";
   const isWebLiuYao = req.query.type === "web_liuyao";
-  const title = isWebLiuYao ? "預約已成立" : "付款完成";
-  const bodyHtml = isWebLiuYao
+  const isWebReport = req.query.type === "web_report";
+  const reportId = String(req.query.reportId || "").trim();
+  const reportToken = String(req.query.token || "").trim();
+  const title = isWebReport ? "Pro 報告" : isWebLiuYao ? "預約已成立" : "付款完成";
+  const bodyHtml = isWebReport
+    ? `
+          <h2>Pro 綜合報告</h2>
+          <p id="report-status">報告產生中，請稍候。此頁會自動更新。</p>
+          <div id="report-wrap" class="report-wrap"></div>
+          <script>
+            const reportId = ${JSON.stringify(reportId)};
+            const reportToken = ${JSON.stringify(reportToken)};
+            const statusEl = document.getElementById("report-status");
+            const wrap = document.getElementById("report-wrap");
+            async function loadReport() {
+              if (!reportId || !reportToken) {
+                statusEl.textContent = "報告連結不完整，請回原頁重新操作。";
+                return;
+              }
+              try {
+                const res = await fetch("/api/tools/reports/" + encodeURIComponent(reportId) + "?token=" + encodeURIComponent(reportToken));
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.error || "REPORT_LOAD_FAILED");
+                const report = data.report;
+                if (report.status === "ready" && report.html) {
+                  statusEl.textContent = "報告已完成。";
+                  wrap.innerHTML = '<iframe title="Pro 綜合報告" class="report-frame"></iframe>';
+                  const frame = wrap.querySelector("iframe");
+                  frame.srcdoc = report.html;
+                  return;
+                }
+                if (report.status === "failed") {
+                  statusEl.textContent = "報告產生失敗，請截圖此頁並聯絡老師處理。";
+                  return;
+                }
+                statusEl.textContent = "報告狀態：" + report.status + "，系統仍在產生中。";
+                setTimeout(loadReport, 5000);
+              } catch (err) {
+                statusEl.textContent = "暫時讀不到報告，5 秒後自動重試。";
+                setTimeout(loadReport, 5000);
+              }
+            }
+            loadReport();
+          </script>
+        `
+    : isWebLiuYao
     ? `
           <h2>✅ 預約已成立</h2>
           <p>付款已完成，老師會依照你留下的聯絡方式回覆正式解卦安排。</p>
@@ -5928,13 +6256,15 @@ function renderPaySuccessPage(req, res) {
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", Arial, "PingFang TC", sans-serif;
                  background:#f6f7fb; margin:0; padding:24px; }
-          .card { max-width:520px; margin:0 auto; background:#fff; border-radius:16px; padding:20px 18px;
+          .card { max-width:${isWebReport ? "1160px" : "520px"}; margin:0 auto; background:#fff; border-radius:16px; padding:20px 18px;
                   box-shadow:0 6px 20px rgba(0,0,0,.08); }
           h2 { margin:0 0 10px; font-size:20px; }
           p { margin:8px 0; color:#333; line-height:1.6; }
           .btn { display:block; text-align:center; padding:12px 14px; margin-top:14px;
                  background:#06c755; color:#fff; text-decoration:none; border-radius:12px; font-weight:700; }
           .hint { font-size:12px; color:#666; margin-top:10px; }
+          .report-wrap { margin-top:16px; }
+          .report-frame { width:100%; min-height:86vh; border:0; border-radius:10px; background:#f6f1e7; }
         </style>
       </head>
       <body>

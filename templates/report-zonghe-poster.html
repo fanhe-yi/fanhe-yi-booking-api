@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{meta.archetype_name}} · 梵和易學綜合命理報告</title>
+  <style>
+    :root {
+      --paper: #f6f1e7;
+      --paper-card: #fffaf0;
+      --ink: #2d2722;
+      --muted: #6f655b;
+      --line: #c9bca8;
+      --red: #b83d31;
+      --green: #326b4e;
+      --blue: #315f89;
+      --gold: #9d7a45;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Noto Serif TC", "Noto Serif CJK TC", "PingFang TC", serif;
+      line-height: 1.7;
+    }
+    .report {
+      max-width: 1080px;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.82);
+      padding: 28px;
+    }
+    .hero {
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 22px;
+      margin-bottom: 22px;
+    }
+    .seal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--red);
+      color: var(--red);
+      margin-bottom: 12px;
+      letter-spacing: 3px;
+      transform: rotate(-3deg);
+      font-size: 13px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 42px;
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+    .axis {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    .meta-line {
+      margin-top: 10px;
+      color: var(--gold);
+      font-size: 13px;
+    }
+    .top-grid,
+    .dual-grid,
+    .final-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .card,
+    .section {
+      border: 1px solid var(--line);
+      background: var(--paper-card);
+      padding: 16px;
+    }
+    .card h2,
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: var(--red);
+    }
+    .badge {
+      display: inline-flex;
+      padding: 4px 10px;
+      border: 1px solid var(--green);
+      color: var(--green);
+      margin-top: 8px;
+      font-weight: 700;
+    }
+    .list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .list li {
+      border-top: 1px dashed var(--line);
+      padding-top: 8px;
+    }
+    .muted { color: var(--muted); }
+    .ziwei-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-areas:
+        "si wu wei shen"
+        "chen center center you"
+        "mao center center xu"
+        "yin chou zi hai";
+      gap: 4px;
+    }
+    .palace {
+      min-height: 88px;
+      border: 1px solid var(--line);
+      padding: 7px;
+      background: #fffdf8;
+      font-size: 12px;
+    }
+    .palace.ming { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+    .center {
+      grid-area: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+      padding: 12px;
+      color: var(--muted);
+    }
+    .bazi-pillars {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line);
+    }
+    .pillar {
+      text-align: center;
+      padding: 10px 6px;
+      border-right: 1px solid var(--line);
+    }
+    .pillar:last-child { border-right: 0; }
+    .gz { font-size: 28px; font-weight: 700; }
+    .dims {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .dim {
+      border: 1px solid var(--line);
+      padding: 10px;
+      background: #fffdf8;
+      font-size: 13px;
+    }
+    .verdict-yes { color: var(--green); }
+    .verdict-partial { color: var(--gold); }
+    .verdict-no { color: var(--red); }
+    .analysis {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #3d342d;
+    }
+    .footer {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+    @media (max-width: 760px) {
+      body { padding: 12px; }
+      .report { padding: 16px; }
+      h1 { font-size: 30px; }
+      .top-grid,
+      .dual-grid,
+      .final-grid,
+      .dims { grid-template-columns: 1fr; }
+      .ziwei-grid { grid-template-columns: 1fr; grid-template-areas: none; }
+      .palace,
+      .center { grid-area: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="report">
+    <header class="hero">
+      <div class="seal">梵和</div>
+      <h1>{{meta.archetype_name}}</h1>
+      <p class="axis">{{meta.axis_oneliner}}</p>
+      <p class="meta-line">{{birth.genderLabel}}｜{{birth.dateLabel}}｜{{birth.timeLabel}}</p>
+      <span class="badge">{{consistency}}</span>
+    </header>
+
+    <section class="dual-grid">
+      <div class="card">
+        <h2>紫微命盤</h2>
+        <div class="ziwei-grid">
+          {{ziweiGridHtml}}
+          <div class="center">五行局：{{ziwei.fiveElementsClass}}<br>命主：{{ziwei.soul}}｜身主：{{ziwei.body}}</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>八字四柱</h2>
+        <div class="bazi-pillars">{{baziPillarsHtml}}</div>
+        <p class="muted">日主：{{bazi.dayMaster}}{{bazi.dayMasterElement}}｜目前大運：{{currentDayun}}</p>
+      </div>
+    </section>
+
+    <section class="top-grid">
+      <div class="card">
+        <h2>兩盤主軸</h2>
+        <p><strong>八字：</strong>{{axes.bazi_main}}</p>
+        <p><strong>紫微：</strong>{{axes.ziwei_main}}</p>
+      </div>
+      <div class="card">
+        <h2>優勢 / 課題</h2>
+        <ul class="list">{{strengthsHtml}}</ul>
+        <ul class="list">{{weaknessesHtml}}</ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>主軸印證結論</h2>
+      <p>{{section_01.text}}</p>
+    </section>
+
+    <section class="section">
+      <h2>階段印證</h2>
+      <p>{{section_02.conclusion}}</p>
+    </section>
+
+    <section class="section">
+      <h2>六維交叉對帳</h2>
+      <div class="dims">{{dimsHtml}}</div>
+    </section>
+
+    <section class="section">
+      <h2>綜合定論</h2>
+      <div class="final-grid">
+        <div><strong>人生主軸</strong><p>{{final.life_axis}}</p></div>
+        <div><strong>關鍵節點</strong><ul class="list">{{nodesHtml}}</ul></div>
+        <div><strong>風險窗口</strong><ul class="list">{{risksHtml}}</ul></div>
+        <div><strong>優勢策略</strong><ul class="list">{{leverageHtml}}</ul></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>完整分析</h2>
+      <div class="analysis">{{zongheAnalysis}}</div>
+    </section>
+
+    <footer class="footer">
+      本綜合分析基於傳統八字與紫微斗數理論框架，僅供文化研究與娛樂參考，不構成任何決策依據。
+    </footer>
+  </main>
+</body>
+</html>
