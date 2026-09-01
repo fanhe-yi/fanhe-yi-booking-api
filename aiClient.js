@@ -282,19 +282,7 @@ async function AI_Reading_LiuYao(userPrompt, systemPrompt) {
   );
 }
 
-async function AI_Reading_DeepSeekPro(userPrompt, systemPrompt) {
-  const originalModel = process.env.DEEPSEEK_MODEL;
-  process.env.DEEPSEEK_MODEL = "deepseek-v4-pro";
-  try {
-    return await callDeepSeek(userPrompt, systemPrompt);
-  } finally {
-    if (originalModel === undefined) delete process.env.DEEPSEEK_MODEL;
-    else process.env.DEEPSEEK_MODEL = originalModel;
-  }
-}
-
 module.exports = {
   AI_Reading,
   AI_Reading_LiuYao,
-  AI_Reading_DeepSeekPro,
 };
