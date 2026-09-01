@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { AI_Reading_DeepSeekPro } = require("./aiClient");
+const { AI_Reading_WebTools } = require("./aiClient");
 const { createBaziChart, createZiweiChart } = require("./toolsChartEngine");
 
 const PROMPTS_DIR = path.join(__dirname, "prompts");
@@ -194,7 +194,7 @@ function baziPillarsHtml(baziChart) {
     .join("");
 }
 
-function renderPosterHtml({ posterJson, baziChart, ziweiChart, zongheAnalysis }) {
+function renderPosterHtml({ posterJson, baziChart, ziweiChart, zongheAnalysis, analysisHtml }) {
   const rawTokens = {
     __ZIWEI_GRID_HTML__: ziweiGridHtml(ziweiChart),
     __BAZI_PILLARS_HTML__: baziPillarsHtml(baziChart),
@@ -205,6 +205,7 @@ function renderPosterHtml({ posterJson, baziChart, ziweiChart, zongheAnalysis })
       .map((item) => `<li><strong>${escapeHtml(item.title)}</strong>：${escapeHtml(item.desc)}</li>`)
       .join(""),
     __ZONGHE_ANALYSIS__: escapeHtml(zongheAnalysis),
+    __ANALYSIS_HTML__: analysisHtml || escapeHtml(zongheAnalysis),
   };
   const dimsHtml = DIM_KEYS.map((key) => {
     const item = posterJson.dim[key];
@@ -238,7 +239,8 @@ function renderPosterHtml({ posterJson, baziChart, ziweiChart, zongheAnalysis })
     .replace("{{nodesHtml}}", "__NODES_HTML__")
     .replace("{{risksHtml}}", "__RISKS_HTML__")
     .replace("{{leverageHtml}}", "__LEVERAGE_HTML__")
-    .replace("{{zongheAnalysis}}", "__ZONGHE_ANALYSIS__");
+    .replace("{{zongheAnalysis}}", "__ZONGHE_ANALYSIS__")
+    .replace("{{analysisHtml}}", "__ANALYSIS_HTML__");
 
   let html = renderSimpleTemplate(tpl, {
     ...posterJson,
@@ -264,6 +266,74 @@ function focusText(focus) {
   return map[focus] || focus || "整體命盤";
 }
 
+function envTimeout(name, fallbackMs) {
+  const value = Number(process.env[name] || 0);
+  return Number.isFinite(value) && value > 0 ? value : fallbackMs;
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(`${label}_TIMEOUT`);
+      err.code = `${label}_TIMEOUT`;
+      reject(err);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function callWebToolAi(userPrompt, systemPrompt, timeoutMs, tag) {
+  const text = await withTimeout(AI_Reading_WebTools(userPrompt, systemPrompt), timeoutMs, tag);
+  if (!text || typeof text !== "string") {
+    throw new Error(`${tag}_EMPTY_RESPONSE`);
+  }
+  return text.trim();
+}
+
+function inlineTextHtml(value) {
+  return escapeHtml(value).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+function textToArticleHtml(text) {
+  const lines = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim());
+  const html = [];
+  let list = [];
+
+  function flushList() {
+    if (!list.length) return;
+    html.push(`<ul>${list.map((item) => `<li>${inlineTextHtml(item)}</li>`).join("")}</ul>`);
+    list = [];
+  }
+
+  lines.forEach((line) => {
+    if (!line) {
+      flushList();
+      return;
+    }
+    const heading = line.match(/^(#{1,3}\s+|[一二三四五六七八九十]+[、.．]|[0-9]+[、.．])(.+)$/);
+    if (heading && line.length <= 42) {
+      flushList();
+      html.push(`<h3>${inlineTextHtml(heading[2] || line.replace(/^#{1,3}\s+/, ""))}</h3>`);
+      return;
+    }
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
+    if (bullet) {
+      list.push(bullet[1]);
+      return;
+    }
+    flushList();
+    html.push(`<p>${inlineTextHtml(line)}</p>`);
+  });
+  flushList();
+  return html.join("");
+}
+
 async function createFreeToolReading({ tool, birthInput, focus }) {
   const chart =
     tool === "bazi"
@@ -276,7 +346,12 @@ async function createFreeToolReading({ tool, birthInput, focus }) {
     "命盤摘要：",
     chart.chartText,
   ].join("\n");
-  const text = await AI_Reading_DeepSeekPro(userPrompt, systemPrompt);
+  const text = await callWebToolAi(
+    userPrompt,
+    systemPrompt,
+    envTimeout("WEB_FREE_AI_TIMEOUT_MS", 45000),
+    "WEB_FREE_AI",
+  );
   return { chart, text };
 }
 
@@ -295,21 +370,13 @@ async function generateProReport(report) {
     ziweiChart.chartText,
   ].join("\n");
 
-  const baziAnalysis = await AI_Reading_DeepSeekPro(sharedInput, prompt("web-bazi-pro-prompt.md"));
-  const ziweiAnalysis = await AI_Reading_DeepSeekPro(sharedInput, prompt("web-ziwei-pro-prompt.md"));
-  const zongheAnalysis = await AI_Reading_DeepSeekPro(
-    [
-      sharedInput,
-      "",
-      "八字獨立分析：",
-      baziAnalysis,
-      "",
-      "紫微獨立分析：",
-      ziweiAnalysis,
-    ].join("\n"),
+  const zongheAnalysis = await callWebToolAi(
+    sharedInput,
     prompt("zonghe-yinzheng-prompt.md"),
+    envTimeout("WEB_REPORT_AI_TIMEOUT_MS", 180000),
+    "WEB_REPORT_ANALYSIS",
   );
-  const posterRaw = await AI_Reading_DeepSeekPro(
+  const posterRaw = await callWebToolAi(
     [
       sharedInput,
       "",
@@ -317,15 +384,23 @@ async function generateProReport(report) {
       zongheAnalysis,
     ].join("\n"),
     prompt("zonghe-poster.md"),
+    envTimeout("WEB_REPORT_POSTER_TIMEOUT_MS", 120000),
+    "WEB_REPORT_POSTER",
   );
   const posterJson = normalizePosterJson(extractJsonObject(posterRaw), { baziChart, ziweiChart });
-  const html = renderPosterHtml({ posterJson, baziChart, ziweiChart, zongheAnalysis });
+  const html = renderPosterHtml({
+    posterJson,
+    baziChart,
+    ziweiChart,
+    zongheAnalysis,
+    analysisHtml: textToArticleHtml(zongheAnalysis),
+  });
 
   return {
     baziChart,
     ziweiChart,
-    baziAnalysis,
-    ziweiAnalysis,
+    baziAnalysis: "",
+    ziweiAnalysis: "",
     zongheAnalysis,
     posterJson,
     html,

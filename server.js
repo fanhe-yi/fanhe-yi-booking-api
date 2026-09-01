@@ -879,7 +879,7 @@ const { insertLiuYaoRecord } = liuyaoStore;
 const { consumeDailyFreeUse } = require("./webLiuYaoUsage.pg");
 
 //AI 訊息回覆相關
-const { AI_Reading, AI_Reading_LiuYao } = require("./aiClient");
+const { AI_Reading, AI_Reading_LiuYao, hasConfiguredAIProvider } = require("./aiClient");
 //把 API 八字資料整理成：給 AI 用的摘要文字
 const { getBaziSummaryForAI } = require("./baziApiClient");
 const {
@@ -3601,6 +3601,16 @@ function startWebToolReportGeneration(reportId, token) {
   });
 }
 
+function shouldRestartWebToolReportGeneration(report) {
+  if (!report || report.status === "ready" || report.status === "pending_payment") return false;
+  if (report.status === "coupon_paid") return true;
+  if (report.status !== "generating") return false;
+  const staleMinutes = Number(process.env.WEB_REPORT_STALE_MINUTES || 12);
+  const staleMs = (Number.isFinite(staleMinutes) && staleMinutes > 0 ? staleMinutes : 12) * 60 * 1000;
+  const updatedAt = report.updated_at ? new Date(report.updated_at).getTime() : 0;
+  return updatedAt > 0 && Date.now() - updatedAt > staleMs;
+}
+
 app.post("/api/tools/bazi/chart", async (req, res) => {
   try {
     const chart = await createBaziChart(req.body || {});
@@ -3638,20 +3648,30 @@ app.post("/api/tools/ai/free-reading", async (req, res) => {
     if (!validateWebVisitorId(visitorId)) {
       return res.status(400).json({ ok: false, error: "INVALID_VISITOR_ID" });
     }
-    if (!process.env.DEEPSEEK_API_KEY) {
-      return res.status(503).json({ ok: false, error: "DEEPSEEK_API_KEY_MISSING" });
+    if (!hasConfiguredAIProvider()) {
+      return res.status(503).json({ ok: false, error: "AI_PROVIDER_KEY_MISSING" });
     }
 
-    const usage = await webToolReports.consumeFreeAiUse(visitorId);
+    const usage = await webToolReports.reserveFreeAiUse(visitorId);
     if (!usage.ok) {
       return res.status(429).json({ ok: false, error: usage.reason || "DAILY_LIMIT_REACHED" });
     }
 
-    const { chart, text } = await createFreeToolReading({
-      tool,
-      birthInput: normalizeWebToolBirthBody(body),
-      focus: body.focus,
-    });
+    let chart = null;
+    let text = "";
+    try {
+      const result = await createFreeToolReading({
+        tool,
+        birthInput: normalizeWebToolBirthBody(body),
+        focus: body.focus,
+      });
+      chart = result.chart;
+      text = result.text;
+      await webToolReports.markFreeAiUseSucceeded(visitorId);
+    } catch (err) {
+      await webToolReports.markFreeAiUseFailed(visitorId, err);
+      throw err;
+    }
     res.json({
       ok: true,
       source: "web_ai_free",
@@ -3771,6 +3791,9 @@ app.get("/api/tools/reports/:reportId", async (req, res) => {
     const report = await webToolReports.getPublicReport(reportId, token);
     if (!report) {
       return res.status(404).json({ ok: false, error: "REPORT_NOT_FOUND" });
+    }
+    if (shouldRestartWebToolReportGeneration(report)) {
+      startWebToolReportGeneration(report.id, report.token);
     }
     res.json({
       ok: true,
@@ -6188,8 +6211,12 @@ function renderPaySuccessPage(req, res) {
   const title = isWebReport ? "Pro 報告" : isWebLiuYao ? "預約已成立" : "付款完成";
   const bodyHtml = isWebReport
     ? `
-          <h2>Pro 綜合報告</h2>
-          <p id="report-status">報告產生中，請稍候。此頁會自動更新。</p>
+          <div class="report-toolbar">
+            <div>
+              <h2>Pro 綜合報告</h2>
+              <p id="report-status">報告產生中，請稍候。此頁會自動更新。</p>
+            </div>
+          </div>
           <div id="report-wrap" class="report-wrap"></div>
           <script>
             const reportId = ${JSON.stringify(reportId)};
@@ -6208,6 +6235,7 @@ function renderPaySuccessPage(req, res) {
                 const report = data.report;
                 if (report.status === "ready" && report.html) {
                   statusEl.textContent = "報告已完成。";
+                  document.body.classList.add("report-ready");
                   wrap.innerHTML = '<iframe title="Pro 綜合報告" class="report-frame"></iframe>';
                   const frame = wrap.querySelector("iframe");
                   frame.srcdoc = report.html;
@@ -6256,18 +6284,26 @@ function renderPaySuccessPage(req, res) {
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", Arial, "PingFang TC", sans-serif;
                  background:#f6f7fb; margin:0; padding:24px; }
+          body.web-report-page { background:#f4f2ee; padding:0; }
+          body.web-report-page.report-ready { overflow:hidden; }
           .card { max-width:${isWebReport ? "1160px" : "520px"}; margin:0 auto; background:#fff; border-radius:16px; padding:20px 18px;
                   box-shadow:0 6px 20px rgba(0,0,0,.08); }
+          body.web-report-page .card { max-width:none; min-height:100vh; margin:0; padding:0; border-radius:0; background:transparent; box-shadow:none; }
           h2 { margin:0 0 10px; font-size:20px; }
           p { margin:8px 0; color:#333; line-height:1.6; }
+          body.web-report-page h2 { margin:0; font-size:18px; }
+          body.web-report-page p { margin:4px 0 0; color:#5f5851; font-size:14px; }
           .btn { display:block; text-align:center; padding:12px 14px; margin-top:14px;
                  background:#06c755; color:#fff; text-decoration:none; border-radius:12px; font-weight:700; }
           .hint { font-size:12px; color:#666; margin-top:10px; }
+          .report-toolbar { max-width:1120px; margin:0 auto; padding:18px 14px 10px; }
           .report-wrap { margin-top:16px; }
+          body.web-report-page .report-wrap { margin:0; }
           .report-frame { width:100%; min-height:86vh; border:0; border-radius:10px; background:#f6f1e7; }
+          body.web-report-page .report-frame { display:block; width:100%; height:100vh; min-height:100vh; border-radius:0; background:#f4f2ee; }
         </style>
       </head>
-      <body>
+      <body class="${isWebReport ? "web-report-page" : ""}">
         <div class="card">
           ${bodyHtml}
         </div>
