@@ -41,6 +41,7 @@ async function ensureLiuYaoRecordSourceColumns() {
  * @param {string} [record.aiResponse]    AI 解讀全文
  * @param {string} [record.source]        來源：line_paid / web_paid
  * @param {string} [record.bookingId]     關聯預約 ID（Web 付款用）
+ * @param {string} [record.shenshaNotes]  卦身/用神/驛馬/羊刃 自動填入（buildShenshaNotes）
  * @returns {Promise<{id: number} | null>}
  */
 async function insertLiuYaoRecord(record) {
@@ -54,8 +55,8 @@ async function insertLiuYaoRecord(record) {
       `INSERT INTO liuyao_records
          (user_id, gender_text, topic_text, hex_code, ganzhi_text,
           phase_text, xunkong_text, six_lines_text,
-          hex_data, ai_response, source, booking_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          hex_data, ai_response, source, booking_id, shensha_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id`,
       [
         record.userId,
@@ -70,6 +71,7 @@ async function insertLiuYaoRecord(record) {
         record.aiResponse || "",
         record.source || "line_paid",
         record.bookingId || "",
+        record.shenshaNotes || "",
       ],
     );
     return { id: rows[0].id };

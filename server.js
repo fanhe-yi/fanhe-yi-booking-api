@@ -901,7 +901,11 @@ const {
 } = require("./promptStore.file");
 //六爻相關
 const { getLiuYaoGanzhiForDate, getLiuYaoHexagram } = require("./lyApiClient");
-const { describeSixLines, buildElementPhase } = require("./liuYaoParser");
+const {
+  describeSixLines,
+  buildElementPhase,
+  buildShenshaNotes,
+} = require("./liuYaoParser");
 
 /* 
 ==========================================================
@@ -9991,6 +9995,11 @@ async function callLiuYaoAI({
      - store 內部已 try/catch，這裡 .catch 是雙保險
      - schema：migrations/003_liuyao_records.sql
   ============================================ */
+  /* 🌟 自動填 卦身 / 用神 / 驛馬 / 羊刃（老師制定演算法）
+     - 失敗回空字串，不擋 record 存入
+     - 老師可在 admin panel 事後覆蓋修改 */
+  const shenshaNotes = buildShenshaNotes(hexData);
+
   const record = await insertLiuYaoRecord({
     userId,
     genderText,
@@ -10004,6 +10013,7 @@ async function callLiuYaoAI({
     aiResponse: aiText,
     source,
     bookingId,
+    shenshaNotes,
   });
 
   return { aiText, userPrompt, systemPrompt, recordId: record?.id || null };

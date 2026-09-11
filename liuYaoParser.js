@@ -371,7 +371,175 @@ function describeSixLines(hexData) {
   return lines.join("\n");
 }
 
+/* ==========================================================
+   卦身 / 用神 / 驛馬 / 羊刃 自動填入
+   ==========================================================
+   由 hexData 推算並組成 shensha_notes 字串（4 行）。
+   規則：老師制定，見 docs 或 plan file。
+
+   常數表：
+   - GUASHEN_YANG / GUASHEN_YIN：世爻位置(1-6) + 陰陽 → 卦身地支
+   - YIMA_MAP：日支 → 驛馬地支
+   - YANGREN_MAP：日干 → 羊刃地支
+========================================================== */
+
+const GUASHEN_YANG = ["", "子", "丑", "寅", "卯", "辰", "巳"]; // idx = 位置(1-6)
+const GUASHEN_YIN = ["", "午", "未", "申", "酉", "戌", "亥"];
+
+const YIMA_MAP = {
+  子: "寅", 丑: "亥", 寅: "申", 卯: "巳",
+  辰: "寅", 巳: "亥", 午: "申", 未: "巳",
+  申: "寅", 酉: "亥", 戌: "申", 亥: "巳",
+};
+
+const YANGREN_MAP = {
+  甲: "卯", 乙: "辰",
+  丙: "午", 戊: "午",
+  丁: "未", 己: "未",
+  庚: "酉", 辛: "戌",
+  壬: "子", 癸: "丑",
+};
+
+/* --------------------------------------------------
+   六親字（含繁簡）→ 全稱
+   mapRelationChar 沒收「孫」繁體 / 「子」，補齊
+-------------------------------------------------- */
+function mapRelationCharFull(ch) {
+  const extra = { 孫: "子孫", 子: "子孫" };
+  return extra[ch] || mapRelationChar(ch);
+}
+
+/**
+ * 掃 benguax 6 條，建立本卦「五行→六親」對照 map
+ * @param {string[]} benguax
+ * @returns {Object<string,string>} { 木: "父母", 火: "妻財", ... }
+ */
+function buildWuxingToLiuqinMap(benguax) {
+  const result = {};
+  if (!Array.isArray(benguax)) return result;
+  for (const line of benguax) {
+    if (!line || typeof line !== "string") continue;
+    /* 每條格式：可能有伏藏「官己亥 ━━━ 妻丙申 世」或無伏藏「━━━ 妻丙申 世」
+       本卦六親 = glyph 之後的那個「六親字+干支」的第一個 char
+       用簡單 regex 抓 glyph 後面第一個「六親字」+ 兩個 char（干+支） */
+    const m = line.match(/(━━━|━\s*━|━　━)\s*([妻官兄父孙孫子])(.{2})/);
+    if (!m) continue;
+    const liuqinChar = m[2];
+    const dizhi = m[3];
+    // 地支可能是「己亥」這種，取最後一字
+    const branch = dizhi.length >= 2 ? dizhi.slice(-1) : dizhi;
+    const wx = branchToElementWord(branch);
+    if (!wx) continue;
+    // 已存在就不覆蓋（同五行本應同六親）
+    if (!result[wx]) {
+      result[wx] = mapRelationCharFull(liuqinChar);
+    }
+  }
+  return result;
+}
+
+/**
+ * 找世爻的位置 (1-6) 與陰陽
+ * benguax[0] = 上爻 (位置 6), benguax[5] = 初爻 (位置 1)
+ * @param {string[]} benguax
+ * @returns {{position:number, yang:boolean}|null}
+ */
+function findWorldYaoInfo(benguax) {
+  if (!Array.isArray(benguax)) return null;
+  for (let i = 0; i < benguax.length; i++) {
+    const line = benguax[i];
+    if (!line || typeof line !== "string") continue;
+    // 世 或简体 应=應 都不算，只認「世」
+    if (!/[世]/.test(line)) continue;
+
+    // 判斷陰陽：陽 = ━━━（可含 O 動），陰 = ━　━（可含 × 動）
+    // 全形空格 U+3000
+    const isYin = /━[\s　]━/.test(line);
+    const isYang = !isYin;
+
+    const position = 6 - i; // index 0 = 上爻 = 位置6
+    return { position, yang: isYang };
+  }
+  return null;
+}
+
+/**
+ * 主入口：算 shensha_notes 4 行字串
+ * @param {Object} hexData - lyApiClient.getLiuYaoHexagram raw output
+ * @returns {string} 例：
+ *   卦身：寅（子孫）
+ *   用神：
+ *   驛馬：申（父母）
+ *   羊刃：卯（子孫）
+ * 出錯 → 回 ""
+ */
+function buildShenshaNotes(hexData) {
+  try {
+    if (!hexData || typeof hexData !== "object") return "";
+    const benguax = hexData.benguax;
+    const ganzhi = hexData.ganzhi;
+    if (!Array.isArray(benguax) || benguax.length !== 6) return "";
+    if (!Array.isArray(ganzhi) || ganzhi.length < 3) return "";
+
+    // 五行 → 六親對照
+    const wxToLq = buildWuxingToLiuqinMap(benguax);
+
+    // 給某地支加註六親：例 "寅（子孫）"
+    const withLq = (dizhi) => {
+      const wx = branchToElementWord(dizhi);
+      const lq = wxToLq[wx];
+      return lq ? `${dizhi}（${lq}）` : `${dizhi}（—）`;
+    };
+
+    // 1. 卦身
+    const worldInfo = findWorldYaoInfo(benguax);
+    let guashenLine;
+    if (worldInfo) {
+      const table = worldInfo.yang ? GUASHEN_YANG : GUASHEN_YIN;
+      const dz = table[worldInfo.position];
+      guashenLine = `卦身：${withLq(dz)}`;
+    } else {
+      guashenLine = `卦身：（無法判定）`;
+    }
+
+    // 2. 用神
+    const yongshenLine = `用神：`;
+
+    // 3. 驛馬
+    const dayGz = String(ganzhi[2] || "");
+    const dayBranch = dayGz.length >= 2 ? dayGz[1] : "";
+    let yimaLine;
+    const yimaBranch = YIMA_MAP[dayBranch];
+    if (yimaBranch) {
+      yimaLine = `驛馬：${withLq(yimaBranch)}`;
+    } else {
+      yimaLine = `驛馬：（無法判定）`;
+    }
+
+    // 4. 羊刃
+    const dayStem = dayGz.length >= 1 ? dayGz[0] : "";
+    let yangrenLine;
+    const yangrenBranch = YANGREN_MAP[dayStem];
+    if (yangrenBranch) {
+      yangrenLine = `羊刃：${withLq(yangrenBranch)}`;
+    } else {
+      yangrenLine = `羊刃：（無法判定）`;
+    }
+
+    return [guashenLine, yongshenLine, yimaLine, yangrenLine].join("\n");
+  } catch (err) {
+    // 演算法出錯 → 回空字串，不擋 record 存入
+    // eslint-disable-next-line no-console
+    console.warn("[buildShenshaNotes] error:", err?.message || err);
+    return "";
+  }
+}
+
 module.exports = {
   describeSixLines,
   buildElementPhase,
+  buildShenshaNotes,
+  // 以下 export 供測試用
+  buildWuxingToLiuqinMap,
+  findWorldYaoInfo,
 };
