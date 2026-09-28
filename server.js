@@ -1888,6 +1888,7 @@ const QUESTION_BANK = {
     { qid: "reconcile", full: "姓名鑑定 800元/30分" },
     { qid: "ex_contact", full: "改名諮詢 3000元/50分" },
     { qid: "amb_next", full: "新生兒取名 1600元/45分" },
+    { qid: "family", full: "姓名鑑定全家餐 4人 2800元/60分" },
   ],
 
   love: [
