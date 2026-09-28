@@ -1277,7 +1277,8 @@ const ALL_TIME_SLOTS = [
 const SERVICE_NAME_MAP = {
   bazi: "八字諮詢",
   ziwei: "紫微斗數",
-  name: "改名 / 姓名學",
+  name: "改名",
+  name_family: "姓名鑑定全家餐",
   fengshui: "風水勘察",
   liuyao: "六爻占卜",
   cezi: "測字", // 🌟 Threads 脆友專屬，隱藏入口、20 分鐘短時段
@@ -2277,7 +2278,11 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "name",
       label: "姓名學",
-      badges: ["🏷️ 姓名鑑定 800元/30分", "🏷️ 取名、改名 3000元/50分"],
+      badges: [
+        "🏷️ 姓名鑑定 800元/30分",
+        "🏷️ 改名 3000元/50分",
+        "🏷️ 姓名鑑定全家餐 4人 2800元/60分",
+      ],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/name.jpg",
       descriptionList: [
         "解析名字對運勢與人際的關係影響",
