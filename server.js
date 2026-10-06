@@ -1898,26 +1898,26 @@ const QUESTION_BANK = {
 
   money: [
     { qid: "fortune", full: "文王卦占卜 600元/小時" },
-    { qid: "loss", full: "紫微斗數 1200元/50分" },
+    { qid: "loss", full: "紫微斗數 1200元/45分" },
     { qid: "side", full: "姓名論斷 800元/30分" },
   ],
 
   career: [
     { qid: "stay", full: "文王卦占卜 600元/小時" },
-    { qid: "valued", full: "紫微斗數 1200元/50分" },
+    { qid: "valued", full: "紫微斗數 1200元/45分" },
     { qid: "raise", full: "姓名論斷 800元/30分" },
   ],
 
   house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
 
   life: [
-    { qid: "parents", full: "四柱八字 1200元/50分" },
-    { qid: "kid", full: "紫微斗數 1200元/50分" },
+    { qid: "parents", full: "四柱八字 1200元/45分" },
+    { qid: "kid", full: "紫微斗數 1200元/45分" },
   ],
 
   year: [
     { qid: "zim_2026", full: "姓名論斷 800元/30分" },
-    { qid: "name_2026", full: "紫微斗數 1200元/50分" },
+    { qid: "name_2026", full: "紫微斗數 1200元/45分" },
   ],
 
   //name: [
@@ -2307,7 +2307,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "ziwei",
       label: "紫微斗數",
-      badges: ["🏷️ 1200元/50分", "🏷️ 看關係互動＆人生事件"],
+      badges: ["🏷️ 1200元/45分", "🏷️ 看關係互動＆人生事件"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/ziwei.jpg",
       descriptionList: [
         "排盤細緻解析關係互動、天賦潛能與流年起伏",
@@ -2319,7 +2319,7 @@ async function sendServiceSelectFlex(userId) {
     {
       serviceId: "bazi",
       label: "四柱八字",
-      badges: ["🏷️ 1200元/50分", "🏷️ 掌握人生大方向"],
+      badges: ["🏷️ 1200元/45分", "🏷️ 掌握人生大方向"],
       heroImage: "https://assets.chen-yi.tw/tenants/a/booking/bazi.jpg",
       descriptionList: [
         "從先天五行結構，抓出人生大方向與強弱勢",
