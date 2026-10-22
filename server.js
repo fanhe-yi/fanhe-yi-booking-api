@@ -1511,22 +1511,37 @@ function chunkArray(arr, chunkSize) {
 // - showCount：你想顯示幾個「可約日期」
 // - scanDays：最多往後掃幾天（避免一直掃到宇宙盡頭）
 // ✅ 更新：抓取未來日期，並在標籤加上「剩餘時段數量」
+// 最早可預約日 = 台灣時間今天 + N 天（測字不套用，見 getNextAvailableCeziDays）
+const BOOKING_MIN_DAYS_AHEAD = 2;
+
+// 台灣時間「今天 + offsetDays」的 YYYY-MM-DD（不受 VPS 時區影響；台灣無夏令時間）
+const taipeiDateFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Taipei",
+});
+function getTaipeiDateStr(offsetDays = 0) {
+  return taipeiDateFmt.format(new Date(Date.now() + offsetDays * 86400000));
+}
+
 function getNextAvailableDays(showCount, scanDays = 60) {
   const results = [];
-  const base = new Date();
   const weekdayNames = ["日", "一", "二", "三", "四", "五", "六"];
 
   const bookings = loadBookings();
   const unavailable = loadUnavailable();
 
-  for (let i = 0; i < scanDays; i++) {
-    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10); // 這是 YYYY-MM-DD (後端資料用)
-    const w = weekdayNames[d.getDay()];
+  for (
+    let i = BOOKING_MIN_DAYS_AHEAD;
+    i < BOOKING_MIN_DAYS_AHEAD + scanDays;
+    i++
+  ) {
+    const dateStr = getTaipeiDateStr(i); // 這是 YYYY-MM-DD (後端資料用)
+    // 標籤由同一個 dateStr 推出，確保按鈕顯示 = postback 日期
+    const [y, m, day] = dateStr.split("-").map(Number);
+    const w = weekdayNames[new Date(Date.UTC(y, m - 1, day)).getUTCDay()];
 
     // 取 MM/DD (前端顯示用，避免超過 LINE 按鈕 20 字限制)
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
 
     // 計算剩餘時段數
     const openCount = countOpenSlotsOnDate(dateStr, bookings, unavailable);
