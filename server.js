@@ -1844,6 +1844,7 @@ async function sendQuestionCategoryCarouselFlex(userId) {
           text: "📅 預約諮詢",
           size: "lg",
           weight: "bold",
+          align: "center",
           wrap: true,
         },
         {
@@ -1851,6 +1852,7 @@ async function sendQuestionCategoryCarouselFlex(userId) {
           text: "請選擇想預約的服務",
           size: "sm",
           color: "#666666",
+          align: "center",
           wrap: true,
         },
 
@@ -1875,7 +1877,7 @@ async function sendQuestionCategoryCarouselFlex(userId) {
 
         {
           type: "text",
-          text: "姓名學會再讓你挑細項；紫微斗數、文王卦占卜會直接帶你選日期。",
+          text: "姓名學會再讓你挑細項\n紫微斗數、文王卦占卜會直接帶你選日期。",
           size: "xs",
           color: "#888888",
           wrap: true,
