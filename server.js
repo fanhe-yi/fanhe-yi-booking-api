@@ -1819,19 +1819,19 @@ async function tryRedeemCouponFromText(userId, text) {
  * - 每頁一顆「選這類」按鈕：postback 帶 action=choose_qcat&cat=love
  */
 async function sendQuestionCategoryCarouselFlex(userId) {
-  /* 新版：固定 2 張卡（預約服務卡在前、小幫手卡在後） */
+  /* 新版：單張卡（三個服務在上，呼叫小幫手放最下方當備案） */
   const helper = QUESTION_CATEGORIES.find((c) => c.id === "helper");
 
-  /* 共用：選單按鈕樣式 */
-  const menuButton = (label, data, displayText) => ({
+  /* 共用：選單按鈕樣式（預設實心奶茶色；secondary 為淡灰） */
+  const menuButton = (label, data, displayText, style = "primary") => ({
     type: "button",
-    style: "primary",
-    color: "#bdafa7ff",
+    style,
+    ...(style === "primary" ? { color: "#bdafa7ff" } : {}),
     height: "sm",
     action: { type: "postback", label, data, displayText },
   });
 
-  const bookingBubble = {
+  const bubble = {
     type: "bubble",
     size: "mega",
     body: {
@@ -1856,19 +1856,19 @@ async function sendQuestionCategoryCarouselFlex(userId) {
 
         /* 姓名學：沿用 choose_qcat，先出細項清單 */
         menuButton(
-          "🪪 姓名學服務",
+          "姓名學服務",
           "action=choose_qcat&cat=name",
           "我想問：姓名學服務",
         ),
 
         /* 紫微 / 文王卦：直接 choose_q，進選日期 */
         menuButton(
-          "🔮 紫微斗數 1200元/45分",
+          "紫微斗數 1200元/45分",
           "action=choose_q&cat=ziwei&q=ziwei",
           "我想預約：紫微斗數",
         ),
         menuButton(
-          "☯️ 文王卦占卜 600元/小時",
+          "文王卦占卜 600元/小時",
           "action=choose_q&cat=liuyao&q=liuyao",
           "我想預約：文王卦占卜",
         ),
@@ -1880,28 +1880,12 @@ async function sendQuestionCategoryCarouselFlex(userId) {
           color: "#888888",
           wrap: true,
         },
-      ],
-    },
-  };
 
-  const helperBubble = {
-    type: "bubble",
-    size: "mega",
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
+        /* 小幫手：分隔線下方、淡色按鈕，跟服務選項主次分開 */
+        { type: "separator", margin: "lg" },
         {
           type: "text",
-          text: `${helper.emoji} ${helper.title}`,
-          size: "lg",
-          weight: "bold",
-          wrap: true,
-        },
-        {
-          type: "text",
-          text: helper.desc,
+          text: "不確定要選哪個？還有其他問題？",
           size: "sm",
           color: "#666666",
           wrap: true,
@@ -1910,15 +1894,13 @@ async function sendQuestionCategoryCarouselFlex(userId) {
           "呼叫小幫手",
           "action=choose_qcat&cat=helper",
           `我想問：${helper.title}`,
+          "secondary",
         ),
       ],
     },
   };
 
-  await pushFlex(userId, "你想預約哪一項服務？", {
-    type: "carousel",
-    contents: [bookingBubble, helperBubble],
-  });
+  await pushFlex(userId, "你想預約哪一項服務？", bubble);
 }
 
 /* 舊版：8 張分類卡（一頁一類），保留備查，目前沒有呼叫 */
