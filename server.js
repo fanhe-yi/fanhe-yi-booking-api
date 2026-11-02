@@ -1355,6 +1355,19 @@ const QUESTION_CATEGORIES = [
     title: "流年 / 整體運勢",
     desc: "年度趨勢、關鍵月份、要注意的坑與機會",
   },
+  /* 新版「預約諮詢」選單用：點了直接進選日期（感情/財運等舊類別保留給聊天紀錄裡的舊卡片） */
+  {
+    id: "ziwei",
+    emoji: "🔮",
+    title: "紫微斗數",
+    desc: "關係互動、天賦潛能與流年起伏",
+  },
+  {
+    id: "liuyao",
+    emoji: "☯️",
+    title: "文王卦占卜",
+    desc: "針對單一具體問題起卦解答",
+  },
 ];
 
 //全域中斷
@@ -1806,6 +1819,110 @@ async function tryRedeemCouponFromText(userId, text) {
  * - 每頁一顆「選這類」按鈕：postback 帶 action=choose_qcat&cat=love
  */
 async function sendQuestionCategoryCarouselFlex(userId) {
+  /* 新版：固定 2 張卡（預約服務卡在前、小幫手卡在後） */
+  const helper = QUESTION_CATEGORIES.find((c) => c.id === "helper");
+
+  /* 共用：選單按鈕樣式 */
+  const menuButton = (label, data, displayText) => ({
+    type: "button",
+    style: "primary",
+    color: "#bdafa7ff",
+    height: "sm",
+    action: { type: "postback", label, data, displayText },
+  });
+
+  const bookingBubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "📅 預約諮詢",
+          size: "lg",
+          weight: "bold",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "請選擇想預約的服務",
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+
+        /* 姓名學：沿用 choose_qcat，先出細項清單 */
+        menuButton(
+          "🪪 姓名學服務",
+          "action=choose_qcat&cat=name",
+          "我想問：姓名學服務",
+        ),
+
+        /* 紫微 / 文王卦：直接 choose_q，進選日期 */
+        menuButton(
+          "🔮 紫微斗數 1200元/45分",
+          "action=choose_q&cat=ziwei&q=ziwei",
+          "我想預約：紫微斗數",
+        ),
+        menuButton(
+          "☯️ 文王卦占卜 600元/小時",
+          "action=choose_q&cat=liuyao&q=liuyao",
+          "我想預約：文王卦占卜",
+        ),
+
+        {
+          type: "text",
+          text: "姓名學會再讓你挑細項；紫微斗數、文王卦占卜會直接帶你選日期。",
+          size: "xs",
+          color: "#888888",
+          wrap: true,
+        },
+      ],
+    },
+  };
+
+  const helperBubble = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: `${helper.emoji} ${helper.title}`,
+          size: "lg",
+          weight: "bold",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: helper.desc,
+          size: "sm",
+          color: "#666666",
+          wrap: true,
+        },
+        menuButton(
+          "呼叫小幫手",
+          "action=choose_qcat&cat=helper",
+          `我想問：${helper.title}`,
+        ),
+      ],
+    },
+  };
+
+  await pushFlex(userId, "你想預約哪一項服務？", {
+    type: "carousel",
+    contents: [bookingBubble, helperBubble],
+  });
+}
+
+/* 舊版：8 張分類卡（一頁一類），保留備查，目前沒有呼叫 */
+async function sendQuestionCategoryCarouselFlexLegacy(userId) {
   /* 這裡用 bubble 一頁一類，視覺很像「分類選單」 */
   const bubbles = QUESTION_CATEGORIES.map((c) => ({
     type: "bubble",
@@ -1926,7 +2043,7 @@ const QUESTION_BANK = {
   house: [{ qid: "buy", full: "文王卦占卜 600元/小時" }],
 
   life: [
-    { qid: "parents", full: "四柱八字 1200元/45分" },
+    // { qid: "parents", full: "四柱八字 1200元/45分" }, // LINE 暫停八字預約，日後要開放時把這行恢復
     { qid: "kid", full: "紫微斗數 1200元/45分" },
   ],
 
@@ -1934,6 +2051,10 @@ const QUESTION_BANK = {
     { qid: "zim_2026", full: "姓名論斷 800元/30分" },
     { qid: "name_2026", full: "紫微斗數 1200元/45分" },
   ],
+
+  /* 新版「預約諮詢」選單：按鈕直接帶 choose_q 進選日期 */
+  ziwei: [{ qid: "ziwei", full: "紫微斗數 1200元/45分" }],
+  liuyao: [{ qid: "liuyao", full: "文王卦占卜 600元/小時" }],
 
   //name: [
   //  { qid: "name_check", full: "這個名字對我好嗎？" },
@@ -6604,13 +6725,15 @@ async function routeGeneralCommands(userId, text) {
   }
 
   // 1) 預約（維持原樣）
+  // 舊入口暫時導到新版「預約諮詢」選單；日後要恢復舊的服務選單，把下面註解拿掉、刪掉這行即可
   if (text === "關於八字/紫微/占卜") {
-    conversationStates[userId] = {
-      mode: "booking",
-      stage: "idle",
-      data: {},
-    };
-    await sendServiceSelectFlex(userId);
+    // conversationStates[userId] = {
+    //   mode: "booking",
+    //   stage: "idle",
+    //   data: {},
+    // };
+    // await sendServiceSelectFlex(userId);
+    await sendQuestionCategoryCarouselFlex(userId);
     return;
   }
 
